@@ -56,7 +56,7 @@ def utcnow() -> datetime:
 # Tema token'ları (CONTRACTS.md §1.1) — 6 alt-grup
 # --------------------------------------------------------------------------- #
 class Typography(BaseModel):
-    font_heading: str = "'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
+    font_heading: str = "'Outfit', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
     font_body: str = "'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
     font_mono: str = "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace"
     base_size_px: int = 16
@@ -64,31 +64,31 @@ class Typography(BaseModel):
     weight_heading: int = 700
     weight_body: int = 400
     weight_strong: int = 600
-    line_height_tight: float = 1.2
+    line_height_tight: float = 1.15
     line_height_normal: float = 1.6
-    letter_spacing_heading: str = "-0.01em"
+    letter_spacing_heading: str = "-0.025em"
 
 
 class ColorPalette(BaseModel):
-    primary: str = "#2563eb"
-    primary_hover: str = "#1d4ed8"
+    primary: str = "#4f46e5"
+    primary_hover: str = "#4338ca"
     primary_contrast: str = "#ffffff"
     secondary: str = "#7c3aed"
-    accent: str = "#06b6d4"
-    bg: str = "#ffffff"
-    surface: str = "#f8fafc"
-    surface_alt: str = "#f1f5f9"
-    border: str = "#e2e8f0"
-    text: str = "#0f172a"
-    text_muted: str = "#64748b"
-    text_on_dark: str = "#f8fafc"
+    accent: str = "#0d9488"
+    bg: str = "#fafafa"
+    surface: str = "#ffffff"
+    surface_alt: str = "#f4f4f5"
+    border: str = "#e4e4e7"
+    text: str = "#18181b"
+    text_muted: str = "#71717a"
+    text_on_dark: str = "#fafafa"
     success: str = "#16a34a"
     success_bg: str = "#dcfce7"
     error: str = "#dc2626"
     error_bg: str = "#fee2e2"
     warning: str = "#d97706"
     info: str = "#0284c7"
-    focus_ring: str = "#2563eb"
+    focus_ring: str = "#4f46e5"
 
 
 class Spacing(BaseModel):

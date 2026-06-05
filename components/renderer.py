@@ -415,7 +415,7 @@ def _r_content(s) -> str:
         return (f'{head}<div class="split {order}"><div class="split-text">{rich}</div>'
                 f'<div class="split-media">{media}</div></div>')
     if s.layout == "full_media" and media:
-        return f'{head}<div class="full-media">{media}</div>{rich}'
+        return f'{head}<div class="full-media">{media}</div>'
     return f"{head}{rich}"
 
 
@@ -498,10 +498,18 @@ def _r_video(s) -> str:
     poster = f' data-poster-asset="{_attr(s.poster_asset_id)}"' if s.poster_asset_id else ""
     cap = f'<figcaption>{_text(s.caption)}</figcaption>' if s.caption else ""
     req = ' data-require-complete="1"' if s.require_complete else ""
+    video_html = (
+        f'<figure class="video-wrap"><video class="video" preload="auto" autoplay loop muted playsinline{poster}{req}>'
+        f'{src}</video>{cap}</figure>'
+    )
+    if getattr(s, "narration_text", None):
+        desc = f'<div class="video-desc rich"><p>{_text(s.narration_text)}</p></div>'
+        body = f'<div class="split text-first"><div class="split-text">{desc}</div><div class="split-media">{video_html}</div></div>'
+    else:
+        body = video_html
     return (
         f'<h2 class="screen-title">{_text(s.title)}</h2>'
-        f'<figure class="video-wrap"><video class="video" controls playsinline{poster}{req}>'
-        f'{src}</video>{cap}</figure>'
+        f'{body}'
     )
 
 
