@@ -1,0 +1,69 @@
+{
+  "name": "warm-education",
+  "typography": {
+    "font_heading": "'Sora', system-ui, sans-serif",
+    "font_body": "'Inter', system-ui, sans-serif",
+    "font_mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace",
+    "base_size_px": 17,
+    "scale_ratio": 1.25,
+    "weight_heading": 700,
+    "weight_body": 400,
+    "weight_strong": 600,
+    "line_height_tight": 1.2,
+    "line_height_normal": 1.65,
+    "letter_spacing_heading": "-0.01em"
+  },
+  "color": {
+    "primary": "#c2410c",
+    "primary_hover": "#9a3412",
+    "primary_contrast": "#ffffff",
+    "secondary": "#b45309",
+    "accent": "#ea580c",
+    "bg": "#fffaf0",
+    "surface": "#ffffff",
+    "surface_alt": "#ffedd5",
+    "border": "#fed7aa",
+    "text": "#431407",
+    "text_muted": "#7c2d12",
+    "text_on_dark": "#fffaf0",
+    "success": "#15803d",
+    "success_bg": "#f0fdf4",
+    "error": "#b91c1c",
+    "error_bg": "#fef2f2",
+    "warning": "#a16207",
+    "info": "#0369a1",
+    "focus_ring": "#c2410c"
+  },
+  "spacing": {
+    "base_px": 4,
+    "scale": [0, 4, 8, 12, 16, 24, 32, 48, 64, 96],
+    "content_max_width": "880px",
+    "gutter": "clamp(16px, 4vw, 48px)"
+  },
+  "radii": {
+    "none": "0",
+    "sm": "6px",
+    "md": "12px",
+    "lg": "20px",
+    "pill": "999px"
+  },
+  "elevation": {
+    "e0": "none",
+    "e1": "0 1px 2px rgba(67,20,7,.06), 0 1px 3px rgba(67,20,7,.10)",
+    "e2": "0 4px 6px -1px rgba(67,20,7,.10), 0 2px 4px -2px rgba(67,20,7,.10)",
+    "e3": "0 10px 15px -3px rgba(67,20,7,.10), 0 4px 6px -4px rgba(67,20,7,.10)",
+    "e4": "0 20px 25px -5px rgba(67,20,7,.12), 0 8px 10px -6px rgba(67,20,7,.10)"
+  },
+  "motion": {
+    "duration_fast": "120ms",
+    "duration_base": "240ms",
+    "duration_slow": "450ms",
+    "easing_standard": "cubic-bezier(0.4, 0, 0.2, 1)",
+    "easing_emphasized": "cubic-bezier(0.4, 0, 0.2, 1.2)",
+    "slide_transition": "slide",
+    "reduce_motion_respect": true
+  },
+  "logo_asset_id": null,
+  "background_pattern": "dots",
+  "custom_css": null
+}

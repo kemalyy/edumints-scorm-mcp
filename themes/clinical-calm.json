@@ -1,0 +1,69 @@
+{
+  "name": "clinical-calm",
+  "typography": {
+    "font_heading": "'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+    "font_body": "'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+    "font_mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace",
+    "base_size_px": 16,
+    "scale_ratio": 1.2,
+    "weight_heading": 600,
+    "weight_body": 400,
+    "weight_strong": 600,
+    "line_height_tight": 1.2,
+    "line_height_normal": 1.6,
+    "letter_spacing_heading": "-0.01em"
+  },
+  "color": {
+    "primary": "#0f766e",
+    "primary_hover": "#115e59",
+    "primary_contrast": "#ffffff",
+    "secondary": "#0369a1",
+    "accent": "#0d9488",
+    "bg": "#f0fdfa",
+    "surface": "#ffffff",
+    "surface_alt": "#ccfbf1",
+    "border": "#99f6e4",
+    "text": "#134e4a",
+    "text_muted": "#115e59",
+    "text_on_dark": "#f0fdfa",
+    "success": "#15803d",
+    "success_bg": "#f0fdf4",
+    "error": "#b91c1c",
+    "error_bg": "#fef2f2",
+    "warning": "#a16207",
+    "info": "#0369a1",
+    "focus_ring": "#0f766e"
+  },
+  "spacing": {
+    "base_px": 4,
+    "scale": [0, 4, 8, 12, 16, 24, 32, 48, 64, 96],
+    "content_max_width": "880px",
+    "gutter": "clamp(16px, 4vw, 48px)"
+  },
+  "radii": {
+    "none": "0",
+    "sm": "4px",
+    "md": "8px",
+    "lg": "16px",
+    "pill": "999px"
+  },
+  "elevation": {
+    "e0": "none",
+    "e1": "0 1px 2px rgba(15,23,42,.06), 0 1px 3px rgba(15,23,42,.10)",
+    "e2": "0 4px 6px -1px rgba(15,23,42,.10), 0 2px 4px -2px rgba(15,23,42,.10)",
+    "e3": "0 10px 15px -3px rgba(15,23,42,.10), 0 4px 6px -4px rgba(15,23,42,.10)",
+    "e4": "0 20px 25px -5px rgba(15,23,42,.12), 0 8px 10px -6px rgba(15,23,42,.10)"
+  },
+  "motion": {
+    "duration_fast": "120ms",
+    "duration_base": "220ms",
+    "duration_slow": "400ms",
+    "easing_standard": "cubic-bezier(0.2, 0, 0, 1)",
+    "easing_emphasized": "cubic-bezier(0.2, 0, 0, 1.2)",
+    "slide_transition": "slide",
+    "reduce_motion_respect": true
+  },
+  "logo_asset_id": null,
+  "background_pattern": "none",
+  "custom_css": null
+}
