@@ -1,0 +1,26 @@
+[
+  {
+    "screens": 10,
+    "duration_s": 0.297,
+    "size_kb": 95.7,
+    "threshold_time": 2.0,
+    "threshold_size_kb": 600,
+    "status": "PASS"
+  },
+  {
+    "screens": 50,
+    "duration_s": 0.052,
+    "size_kb": 97.1,
+    "threshold_time": 5.0,
+    "threshold_size_kb": 1200,
+    "status": "PASS"
+  },
+  {
+    "screens": 100,
+    "duration_s": 0.059,
+    "size_kb": 98.6,
+    "threshold_time": 10.0,
+    "threshold_size_kb": 2500,
+    "status": "PASS"
+  }
+]

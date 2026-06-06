@@ -1,0 +1,4 @@
+screens,duration_s,size_kb,threshold_time,threshold_size_kb,status
+10,0.297,95.7,2.0,600,PASS
+50,0.052,97.1,5.0,1200,PASS
+100,0.059,98.6,10.0,2500,PASS
