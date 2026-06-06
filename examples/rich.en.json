@@ -1,0 +1,209 @@
+{
+  "title": "Interactive Showcase (Rich)",
+  "description": "Showcasing all 18 available screen types",
+  "scorm_version": "1.2",
+  "language": "en",
+  "theme": "agency",
+  "tracking": {
+    "completion_rule": "viewed_all_and_passed",
+    "passing_score": 60
+  },
+  "assets": [
+    {
+      "id": "logo",
+      "filename": "logo.png",
+      "source": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNgYGBgAAAABQABAKChqAAAAABJRUVORK5CYII="
+    },
+    {
+      "id": "scene",
+      "filename": "scene.png",
+      "source": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNgYGBgAAAABQABAKChqAAAAABJRUVORK5CYII="
+    },
+    {
+      "id": "lottie_anim",
+      "filename": "anim.json",
+      "source": "data:application/json;base64,eyJ2IjoiNC44LjAiLCJmciI6NjAsImlwIjowLCJvcCI6NjAsInciOjUwMCwiaCI6NTAwLCJubSI6IkRvdCIsImRkZCI6MCwiYXNzZXRzIjpbXSwibGF5ZXJzIjpbeyJkZGQiOjAsImluZGV4IjoxLCJ0eSI6NCwibm0iOiJTaGFwZSBMYXllciAxIiwic3IiOjEsInN0IjpwLCJvcCI6NjAsImlwIjowLCJhbyI6MCwiaGFzTWFzayI6ZmFsc2UsImtzIjp7Im8iOnsiYSI6MCwiayI6MTAwfSwiciI6eyJhIjowLCJrIjowfSwicCI6eyJhIjowLCJrIjpbMjUwLDI1MCwwXX0sImEiOnsiYSI6MCwiayI6WzAsMCwwXX0sInMiOnsiYSI6MCwiayI6WzEwMCwxMDAsMTAwXX19LCJzaGFwZXMiOlt7InR5IjpnciIsIml0IjpbeyJkIjp7ImEiOjAsImsiOlsxMDAsMTAwXX0sInAiOnsiYSI6MCwiayI6WzAsMF19LCJzIjp7ImEiOjAsImsiOlsxMDAsMTAwXX0sIm5tIjoiRWxsaXBzZSBQYXRoIDEiLCJ0eSI6ImVsIn0seyJ0eSI6ImZsIiwibiI6IkZpbGwgMSIsImMiOnsiYSI6MCwiayI6WzAuMzEsMC4yNywwLjk4LDFdfSwibyI6eyJhIjowLCJrIjoxMDB9fV0sIm5tIjoiR3JvdXAgMSIsInR5IjpnciJdfV19XX0="
+    }
+  ],
+  "screens": [
+    {
+      "type": "title_slide",
+      "id": "s-title",
+      "title": "Interactive Showcase",
+      "subtitle": "Explore all 18 screen types",
+      "body_html": "<p>Welcome to this comprehensive demo of the SCORM MCP capabilities.</p>"
+    },
+    {
+      "type": "content_slide",
+      "id": "s-content",
+      "title": "Content Slide",
+      "layout": "text_media",
+      "media_asset_id": "logo",
+      "body_html": "<p>This is a standard content slide with text and media.</p>"
+    },
+    {
+      "type": "mcq",
+      "id": "s-mcq",
+      "title": "Multiple Choice",
+      "prompt_html": "<p>Which of these are fruits? (Select all that apply)</p>",
+      "multi_select": true,
+      "options": [
+        { "id": "a", "text_html": "Apple", "correct": true },
+        { "id": "b", "text_html": "Carrot" },
+        { "id": "c", "text_html": "Banana", "correct": true }
+      ],
+      "points": 10
+    },
+    {
+      "type": "true_false",
+      "id": "s-tf",
+      "title": "True or False",
+      "prompt_html": "<p>The chemical symbol for water is H2O.</p>",
+      "correct": true,
+      "points": 5
+    },
+    {
+      "type": "fill_blank",
+      "id": "s-fill",
+      "title": "Fill in the Blank",
+      "prompt_html": "<p>SCORM stands for Sharable Content Object ___ Model.</p>",
+      "blanks": [
+        { "id": "b1", "accepted": ["Reference", "reference"] }
+      ],
+      "points": 5
+    },
+    {
+      "type": "drag_drop",
+      "id": "s-drag",
+      "title": "Drag and Drop",
+      "prompt_html": "<p>Match the countries to their capitals.</p>",
+      "items": [
+        { "id": "i1", "text_html": "France", "correct_target_id": "d1" },
+        { "id": "i2", "text_html": "Italy", "correct_target_id": "d2" }
+      ],
+      "targets": [
+        { "id": "d1", "label_html": "Paris" },
+        { "id": "d2", "label_html": "Rome" }
+      ],
+      "points": 10
+    },
+    {
+      "type": "hotspot",
+      "id": "s-hotspot",
+      "title": "Hotspot",
+      "prompt_html": "<p>Click on the target area in the image.</p>",
+      "image_asset_id": "scene",
+      "regions": [
+        { "id": "r1", "shape": "rect", "coords": [0, 0, 1, 1], "correct": true, "label_html": "Target Area" }
+      ],
+      "points": 10
+    },
+    {
+      "type": "branching",
+      "id": "s-branch",
+      "title": "Branching Scenario",
+      "prompt_html": "<p>Choose your path:</p>",
+      "choices": [
+        { "id": "ch1", "text_html": "Learn about Accordions", "goto_screen_id": "s-accordion" },
+        { "id": "ch2", "text_html": "See the Video", "goto_screen_id": "s-video" }
+      ]
+    },
+    {
+      "type": "video",
+      "id": "s-video",
+      "title": "Video Player",
+      "video_url": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
+      "caption": "Example CC0 Video"
+    },
+    {
+      "type": "accordion",
+      "id": "s-accordion",
+      "title": "Accordion",
+      "items": [
+        { "title": "Item 1", "body_html": "<p>Content for item 1.</p>" },
+        { "title": "Item 2", "body_html": "<p>Content for item 2.</p>" }
+      ]
+    },
+    {
+      "type": "tabs",
+      "id": "s-tabs",
+      "title": "Tabs",
+      "tabs": [
+        { "label": "Tab 1", "body_html": "<p>Content for tab 1.</p>" },
+        { "label": "Tab 2", "body_html": "<p>Content for tab 2.</p>" }
+      ]
+    },
+    {
+      "type": "flashcards",
+      "id": "s-flashcards",
+      "title": "Flashcards",
+      "cards": [
+        { "front_html": "Question 1", "back_html": "Answer 1" },
+        { "front_html": "Question 2", "back_html": "Answer 2" }
+      ]
+    },
+    {
+      "type": "matching",
+      "id": "s-matching",
+      "title": "Matching Task",
+      "prompt_html": "<p>Match the pairs.</p>",
+      "pairs": [
+        { "id": "p1", "left_html": "Dog", "right_html": "Bark" },
+        { "id": "p2", "left_html": "Cat", "right_html": "Meow" }
+      ],
+      "points": 10
+    },
+    {
+      "type": "sorting",
+      "id": "s-sorting",
+      "title": "Sorting Task",
+      "prompt_html": "<p>Sort these by size (Smallest to Largest).</p>",
+      "items": [
+        { "id": "it1", "text_html": "Ant" },
+        { "id": "it2", "text_html": "Cat" },
+        { "id": "it3", "text_html": "Elephant" }
+      ],
+      "points": 10
+    },
+    {
+      "type": "timeline",
+      "id": "s-timeline",
+      "title": "Timeline",
+      "events": [
+        { "date": "1999", "title": "First Version", "body_html": "<p>Initial release.</p>" },
+        { "date": "2024", "title": "Latest Version", "body_html": "<p>Current state.</p>" }
+      ]
+    },
+    {
+      "type": "lottie",
+      "id": "s-lottie",
+      "title": "Lottie Animation",
+      "lottie_asset_id": "lottie_anim",
+      "loop": true,
+      "autoplay": true
+    },
+    {
+      "type": "simulation",
+      "id": "s-sim",
+      "title": "Guided Simulation",
+      "steps": [
+        {
+          "image_asset_id": "scene",
+          "instruction_html": "Click the center area.",
+          "regions": [
+            { "id": "st1-r1", "shape": "rect", "coords": [0.25, 0.25, 0.75, 0.75], "correct": true }
+          ]
+        }
+      ],
+      "points": 10
+    },
+    {
+      "type": "summary",
+      "id": "s-summary",
+      "title": "Course Complete",
+      "body_html": "<p>You have seen all screen types.</p>",
+      "show_score": true,
+      "show_completion": true
+    }
+  ]
+}
