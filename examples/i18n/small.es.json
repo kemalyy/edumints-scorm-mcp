@@ -1,0 +1,57 @@
+{
+  "title": "Introducción a SCORM",
+  "description": "Un breve curso introductorio (Traducción automática - no verificada)",
+  "scorm_version": "1.2",
+  "language": "es",
+  "theme": "default",
+  "tracking": {
+    "completion_rule": "viewed_all_and_passed",
+    "passing_score": 50
+  },
+  "screens": [
+    {
+      "type": "title_slide",
+      "id": "t1",
+      "title": "Introducción a SCORM",
+      "subtitle": "Conceptos básicos en 5 minutos"
+    },
+    {
+      "type": "content_slide",
+      "id": "c1",
+      "title": "¿Qué es SCORM?",
+      "body_html": "<p><strong>SCORM</strong> es un estándar que permite que el contenido de e-learning se comunique con un LMS.</p><ul><li>Empaquetado</li><li>Seguimiento (Tracking)</li><li>Portabilidad</li></ul>"
+    },
+    {
+      "type": "mcq",
+      "id": "q1",
+      "title": "Mini Cuestionario",
+      "prompt_html": "<p>¿Cuál es el propósito de SCORM?</p>",
+      "options": [
+        {
+          "id": "a",
+          "text_html": "Comunicación Contenido–LMS",
+          "correct": true
+        },
+        {
+          "id": "b",
+          "text_html": "Edición de video"
+        },
+        {
+          "id": "c",
+          "text_html": "Dibujo de imágenes"
+        }
+      ],
+      "points": 10,
+      "feedback": {
+        "correct_html": "¡Correcto! 🎉",
+        "incorrect_html": "Piénsalo de nuevo."
+      }
+    },
+    {
+      "type": "summary",
+      "id": "s1",
+      "title": "¡Enhorabuena!",
+      "body_html": "<p>Has aprendido los conceptos básicos.</p>"
+    }
+  ]
+}
