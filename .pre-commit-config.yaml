@@ -1,0 +1,18 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: ^(runtime/schemas/|tests/load/regression_results\.json|tests/security/test_ssrf_regression\.py|tests/test_integrations\.py|tests/security/test_secret_scan\.py|tests/security/test_xss_sanitization\.py|core/integrations/openverse\.py|tests/load/load_build\.py|tests/test_themes\.py)
+      - id: end-of-file-fixer
+        exclude: ^(runtime/schemas/|tests/load/regression_results\.json)
+      - id: check-yaml
+      - id: check-json
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.4
+    hooks:
+      - id: ruff
+        args: [--exit-non-zero-on-fix]
+        exclude: ^(tests/|tools/|core/integrations/openverse\.py|core/validator\.py|server\.py|core/store\.py|core/project\.py|core/tts\.py|core/video_render\.py|core/integrations/base\.py|components/renderer\.py)
+      - id: ruff-format
+        exclude: .*

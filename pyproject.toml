@@ -56,3 +56,32 @@ timeout_method = "signal"
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[tool.ruff.lint]
+# Varsayılan (E, F, W) + bugbear (B) + upgrade (UP) + isort (I)
+select = ["E", "F", "W", "B", "UP", "I"]
+# Mevcut kod yapısına dokunmamak için geniş tolerans
+ignore = [
+    "E501", # Line too long
+    "B904", # raise ... from err
+    "UP007", # Union[...] -> | (Pydantic v2/Python 3.11+ uyumu için kalsın ama zorunlu değil)
+    "F401", # Unused import
+    "F841", # Local variable is assigned to but never used
+    "F811", # Redefinition of unused
+    "I001", # Import block is un-sorted or un-formatted
+    "UP037", # Remove quotes from type annotation
+    "UP017", # Use datetime.UTC alias
+    "UP041", # Replace aliased errors with TimeoutError
+    "UP042", # Class inherits from both str and enum.Enum
+    "W293", # Blank line contains whitespace
+    "UP015", # Unnecessary open mode parameters
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["core", "components", "auth"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"

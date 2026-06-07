@@ -1,0 +1,63 @@
+name: Dependency Report
+
+on:
+  schedule:
+    - cron: '0 0 * * 0' # Her Pazar gece yarısı
+  workflow_dispatch:
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install .
+
+      - name: Pip Outdated Report
+        id: pip_report
+        run: |
+          echo "### Python Dependencies (pip)" > report.md
+          echo "\`\`\`" >> report.md
+          pip list --outdated >> report.md || true
+          echo "\`\`\`" >> report.md
+
+      - name: Check for package.json
+        id: check_npm
+        run: |
+          if [ -f package.json ]; then
+            echo "has_npm=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_npm=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: npm Outdated Report
+        if: steps.check_npm.outputs.has_npm == 'true'
+        run: |
+          echo "" >> report.md
+          echo "### Node.js Dependencies (npm)" >> report.md
+          echo "\`\`\`" >> report.md
+          npm outdated >> report.md || true
+          echo "\`\`\`" >> report.md
+
+      - name: Create Issue
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('report.md', 'utf8');
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: 'Weekly Dependency Outdated Report',
+              body: body
+            });
