@@ -222,7 +222,11 @@ Tüm ekran tipleri aşağıdaki alanlara sahiptir:
 
 | Alan | Tip | Zorunlu mu? | Açıklama |
 | :--- | :--- | :---: | :--- |
+| `prompt_html` | `str` | Hayır | Giriş metni / Talimat. |
 | `steps` | `list[SimStep]` | Evet | Çok adımlı etkileşim adımları. |
+| `points` | `int` | Hayır | Soru puanı (Varsayılan: 10). |
+| `feedback` | `Feedback` | Hayır | Doğru/Yanlış geri bildirimleri. |
 
 ---
-<!-- synced: 6a2cbe66613be656bfaea083bbbf6b4f049043d064d073bc29bfdf922380febd -->
+
+<!-- synced: e0cb4fc2568bdf0234512d68d2327123afefc407 -->

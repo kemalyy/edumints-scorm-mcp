@@ -105,7 +105,11 @@ Nəticə: müstəqil `index.html` + `imsmanifest.xml` + resurslar + SCORM runtim
 ## Töhfə
 
 Issue və PR-lar xoş qarşılanır. Kod kiçik, fokuslanmış modulları, additiv dəyişiklikləri və geriyə
-uyğunluğu üstün tutur. Testləri `pytest` ilə işə sal. Bax: [CONTRIBUTING.md](CONTRIBUTING.md).
+uyğunluğu üstün tutur. [CONTRIBUTING.md](CONTRIBUTING.md) sənədinə baxın.
+
+## Testlər
+
+Testləri `pytest` ilə işə salın.
 
 ## Lisenziyalar
 
@@ -114,3 +118,6 @@ uyğunluğu üstün tutur. Testləri `pytest` ilə işə sal. Bax: [CONTRIBUTING
 
 **edumints.com** tərəfindən hazırlanıb. SCORM ADL-in ticarət nişanıdır; qeyd olunan digər məhsul adları
 müvafiq sahiblərinin ticarət nişanlarıdır (yalnız nominativ istifadə).
+
+
+<!-- synced: e0cb4fc2568bdf0234512d68d2327123afefc407 -->

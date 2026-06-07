@@ -104,7 +104,11 @@ Output: a self-contained `index.html` + `imsmanifest.xml` + assets + SCORM runti
 ## Contributing
 
 Issues and PRs welcome. The codebase favors small, focused modules, additive changes, and
-backward compatibility. Run tests with `pytest`.
+backward compatibility. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Testing
+
+Run tests with `pytest`.
 
 ## Licenses
 
@@ -113,3 +117,6 @@ backward compatibility. Run tests with `pytest`.
 
 Developed by **edumints.com**. SCORM is a trademark of ADL; other product names referenced are
 trademarks of their respective owners (nominative use only).
+
+
+<!-- synced: e0cb4fc2568bdf0234512d68d2327123afefc407 -->

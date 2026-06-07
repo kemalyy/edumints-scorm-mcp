@@ -107,7 +107,11 @@ Salida: un `index.html` autónomo + `imsmanifest.xml` + recursos + runtime SCORM
 ## Contribuir
 
 Issues y PRs son bienvenidos. El código favorece módulos pequeños y enfocados, cambios aditivos y
-compatibilidad hacia atrás. Ejecuta las pruebas con `pytest`. Consulta [CONTRIBUTING.md](CONTRIBUTING.md).
+compatibilidad hacia atrás. Consulta [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Pruebas
+
+Ejecuta las pruebas con `pytest`.
 
 ## Licencias
 
@@ -116,3 +120,6 @@ compatibilidad hacia atrás. Ejecuta las pruebas con `pytest`. Consulta [CONTRIB
 
 Desarrollado por **edumints.com**. SCORM es una marca de ADL; otros nombres de productos mencionados son
 marcas de sus respectivos propietarios (uso nominativo únicamente).
+
+
+<!-- synced: e0cb4fc2568bdf0234512d68d2327123afefc407 -->

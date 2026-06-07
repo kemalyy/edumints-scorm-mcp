@@ -97,8 +97,11 @@ MCP 客户端（作者）  ──►  scorm-mcp（组装器）
 
 ## 贡献
 
-欢迎提交 Issue 和 PR。代码偏好小而专注的模块、增量式改动与向后兼容。用 `pytest` 运行测试。
-参见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+欢迎提交 Issue 和 PR。代码偏好小而专注的模块、增量式改动与向后兼容。参见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+
+## 测试
+
+用 `pytest` 运行测试。
 
 ## 许可证
 
@@ -106,3 +109,6 @@ MCP 客户端（作者）  ──►  scorm-mcp（组装器）
 - 捆绑的第三方组件（scorm-again、lottie-web）：见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
 由 **edumints.com** 开发。SCORM 是 ADL 的商标；提及的其他产品名称为各自所有者的商标（仅作指称性使用）。
+
+
+<!-- synced: e0cb4fc2568bdf0234512d68d2327123afefc407 -->

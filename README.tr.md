@@ -104,7 +104,11 @@ MCP istemcisi (yazar)  ──►  scorm-mcp (derleyici)
 ## Katkı
 
 Issue ve PR'lar memnuniyetle. Kod tabanı küçük/odaklı modüller, additive değişiklikler ve
-geriye-uyumu tercih eder. Testler: `pytest`.
+geriye-uyumu tercih eder. [CONTRIBUTING.md](CONTRIBUTING.md) dosyasına bakın.
+
+## Testler
+
+Testler: `pytest`.
 
 ## Lisanslar
 
@@ -113,3 +117,6 @@ geriye-uyumu tercih eder. Testler: `pytest`.
 
 **edumints.com** tarafından geliştirildi. SCORM, ADL'nin ticari markasıdır; anılan diğer ürün adları
 ilgili sahiplerinin ticari markalarıdır (yalnız tanımlayıcı/nominative kullanım).
+
+
+<!-- synced: e0cb4fc2568bdf0234512d68d2327123afefc407 -->
