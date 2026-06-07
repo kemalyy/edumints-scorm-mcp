@@ -1,0 +1,62 @@
+{
+  "title": "Kurumsal Oryantasyon",
+  "description": "Yeni çalışma arkadaşlarımız için temel bilgiler ve uyum eğitimi.",
+  "scorm_version": "1.2",
+  "language": "tr",
+  "theme": "corporate/brand-corporate",
+  "tracking": {
+    "completion_rule": "viewed_all_and_passed",
+    "passing_score": 80
+  },
+  "assets": [
+    {
+      "id": "welcome_image",
+      "filename": "welcome.png",
+      "source": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNgYGBgAAAABQABAKChqAAAAABJRUVORK5CYII="
+    }
+  ],
+  "screens": [
+    {
+      "type": "title_slide",
+      "id": "intro",
+      "title": "Kurumsal Oryantasyon",
+      "subtitle": "Şirketimize Hoş Geldiniz"
+    },
+    {
+      "type": "content_slide",
+      "id": "welcome",
+      "title": "Vizyonumuz ve Misyonumuz",
+      "layout": "text_media",
+      "media_asset_id": "welcome_image",
+      "body_html": "<p>Şirketimiz, yenilikçi çözümlerle sektöre öncülük etmeyi ve topluma değer katmayı amaçlar.</p><ul><li>Müşteri Odaklılık</li><li>İnovasyon</li><li>Dürüstlük</li></ul>"
+    },
+    {
+      "type": "mcq",
+      "id": "quiz1",
+      "title": "Değerlerimiz",
+      "prompt_html": "<p>Aşağıdakilerden hangisi temel değerlerimizden biridir?</p>",
+      "options": [
+        { "id": "a", "text_html": "Müşteri Odaklılık", "correct": true },
+        { "id": "b", "text_html": "Kısa vadeli kar" },
+        { "id": "c", "text_html": "Bireysel başarı" }
+      ],
+      "points": 50
+    },
+    {
+      "type": "true_false",
+      "id": "quiz2",
+      "title": "Bilgi Güvenliği",
+      "prompt_html": "<p>Şifrelerinizi iş arkadaşlarınızla paylaşmanızda bir sakınca yoktur.</p>",
+      "correct": false,
+      "points": 50
+    },
+    {
+      "type": "summary",
+      "id": "end",
+      "title": "Tebrikler",
+      "body_html": "<p>Kurumsal oryantasyon eğitimini başarıyla tamamladınız.</p>",
+      "show_score": true,
+      "show_completion": true
+    }
+  ]
+}

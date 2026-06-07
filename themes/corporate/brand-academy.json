@@ -1,0 +1,69 @@
+{
+  "name": "brand-academy",
+  "typography": {
+    "font_heading": "Georgia, 'Times New Roman', serif",
+    "font_body": "'Source Sans Pro', system-ui, sans-serif",
+    "font_mono": "monospace",
+    "base_size_px": 18,
+    "scale_ratio": 1.33,
+    "weight_heading": 700,
+    "weight_body": 400,
+    "weight_strong": 700,
+    "line_height_tight": 1.1,
+    "line_height_normal": 1.7,
+    "letter_spacing_heading": "-0.02em"
+  },
+  "color": {
+    "primary": "#991b1b",
+    "primary_hover": "#7f1d1d",
+    "primary_contrast": "#ffffff",
+    "secondary": "#4b5563",
+    "accent": "#f59e0b",
+    "bg": "#ffffff",
+    "surface": "#fffbeb",
+    "surface_alt": "#fef3c7",
+    "border": "#fde68a",
+    "text": "#111827",
+    "text_muted": "#4b5563",
+    "text_on_dark": "#ffffff",
+    "success": "#166534",
+    "success_bg": "#dcfce7",
+    "error": "#991b1b",
+    "error_bg": "#fee2e2",
+    "warning": "#92400e",
+    "info": "#1e40af",
+    "focus_ring": "#991b1b"
+  },
+  "spacing": {
+    "base_px": 5,
+    "scale": [0, 5, 10, 15, 20, 30, 40, 60, 80, 120],
+    "content_max_width": "800px",
+    "gutter": "40px"
+  },
+  "radii": {
+    "none": "0",
+    "sm": "0",
+    "md": "0",
+    "lg": "0",
+    "pill": "999px"
+  },
+  "elevation": {
+    "e0": "none",
+    "e1": "1px 1px 0 rgba(0,0,0,0.1)",
+    "e2": "2px 2px 0 rgba(0,0,0,0.1)",
+    "e3": "4px 4px 0 rgba(0,0,0,0.1)",
+    "e4": "8px 8px 0 rgba(0,0,0,0.1)"
+  },
+  "motion": {
+    "duration_fast": "200ms",
+    "duration_base": "400ms",
+    "duration_slow": "600ms",
+    "easing_standard": "ease",
+    "easing_emphasized": "ease-out",
+    "slide_transition": "none",
+    "reduce_motion_respect": true
+  },
+  "logo_asset_id": null,
+  "background_pattern": "none",
+  "custom_css": null
+}
