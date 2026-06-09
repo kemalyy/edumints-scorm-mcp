@@ -1,0 +1,89 @@
+{
+  "title": "Temel Veri Okuryazarlığı",
+  "description": "Veri görselleştirme ve grafik okuma temelleri.",
+  "scorm_version": "1.2",
+  "language": "tr",
+  "theme": "agency",
+  "tracking": {
+    "completion_rule": "viewed_all_and_passed",
+    "passing_score": 70
+  },
+  "assets": [
+    {
+      "id": "diagram_placeholder",
+      "filename": "diagram.png",
+      "source": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNgYGBgAAAABQABAKChqAAAAABJRUVORK5CYII="
+    }
+  ],
+  "screens": [
+    {
+      "type": "title_slide",
+      "id": "intro",
+      "title": "Temel Veri Okuryazarlığı",
+      "subtitle": "Verileri Anlama ve Yorumlama",
+      "body_html": "<p>Günümüz dünyasında veriyi anlamak, en az okuma-yazma kadar önemlidir. Bu kısa kursta grafiklerin dilini öğreneceğiz.</p>"
+    },
+    {
+      "type": "data_chart",
+      "id": "usage_bar",
+      "title": "Teknoloji Kullanımı",
+      "prompt_html": "<p>Aşağıdaki grafik, 2023 yılında cihaz bazlı teknoloji kullanım oranlarını göstermektedir.</p>",
+      "chart_type": "bar",
+      "data": [
+        {"label": "Akıllı Telefon", "value": 95},
+        {"label": "Bilgisayar", "value": 70},
+        {"label": "Tablet", "value": 45},
+        {"label": "Akıllı Saat", "value": 30}
+      ],
+      "caption": "Kaynak: Teknoloji Araştırmaları Merkezi"
+    },
+    {
+      "type": "data_chart",
+      "id": "traffic_pie",
+      "title": "İnternet Trafiği",
+      "prompt_html": "<p>İnternet trafiğinin cihazlara göre dağılımını inceleyin.</p>",
+      "chart_type": "pie",
+      "data": [
+        {"label": "Mobil", "value": 60},
+        {"label": "Masaüstü", "value": 35},
+        {"label": "Diğer", "value": 5}
+      ],
+      "caption": "Dünya geneli ortalama veriler."
+    },
+    {
+      "type": "labeled_diagram",
+      "id": "graph_anatomy",
+      "title": "Grafik Anatomisi",
+      "prompt_html": "<p>Bir grafiğin temel bileşenlerini doğru yerlere yerleştirin.</p>",
+      "image_asset_id": "diagram_placeholder",
+      "labels": [
+        {"id": "l1", "text": "X Ekseni", "x": 500, "y": 900},
+        {"id": "l2", "text": "Y Ekseni", "x": 100, "y": 500},
+        {"id": "l3", "text": "Veri Serisi", "x": 500, "y": 500},
+        {"id": "l4", "text": "Grafik Başlığı", "x": 500, "y": 100}
+      ],
+      "points": 20
+    },
+    {
+      "type": "mcq",
+      "id": "quiz_1",
+      "title": "Bilgi Kontrolü",
+      "prompt_html": "<p>Bir pasta grafiğinde (pie chart), tüm dilimlerin yüzdesel toplamı kaç olmalıdır?</p>",
+      "options": [
+        {"id": "a", "text_html": "50"},
+        {"id": "b", "text_html": "100", "correct": true},
+        {"id": "c", "text_html": "180"},
+        {"id": "d", "text_html": "360"}
+      ],
+      "points": 10
+    },
+    {
+      "type": "summary",
+      "id": "finish",
+      "title": "Tebrikler",
+      "body_html": "<p>Veri okuryazarlığı temel eğitimini başarıyla tamamladınız. Artık grafikleri daha bilinçli bir şekilde yorumlayabilirsiniz.</p>",
+      "show_score": true,
+      "show_completion": true
+    }
+  ]
+}
