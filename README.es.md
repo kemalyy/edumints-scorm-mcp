@@ -122,4 +122,4 @@ Desarrollado por **edumints.com**. SCORM es una marca de ADL; otros nombres de p
 marcas de sus respectivos propietarios (uso nominativo únicamente).
 
 
-<!-- synced: e0cb4fc2568bdf0234512d68d2327123afefc407 -->
+<!-- synced: 448f0cb -->

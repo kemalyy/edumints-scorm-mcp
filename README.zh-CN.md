@@ -111,4 +111,4 @@ MCP 客户端（作者）  ──►  scorm-mcp（组装器）
 由 **edumints.com** 开发。SCORM 是 ADL 的商标；提及的其他产品名称为各自所有者的商标（仅作指称性使用）。
 
 
-<!-- synced: e0cb4fc2568bdf0234512d68d2327123afefc407 -->
+<!-- synced: 448f0cb -->

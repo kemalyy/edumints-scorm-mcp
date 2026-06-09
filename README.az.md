@@ -120,4 +120,4 @@ Testləri `pytest` ilə işə salın.
 müvafiq sahiblərinin ticarət nişanlarıdır (yalnız nominativ istifadə).
 
 
-<!-- synced: e0cb4fc2568bdf0234512d68d2327123afefc407 -->
+<!-- synced: 448f0cb -->
