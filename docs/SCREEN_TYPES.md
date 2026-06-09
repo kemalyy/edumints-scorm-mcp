@@ -1,6 +1,6 @@
 # Ekran Tipleri (Screen Types)
 
-`edumints-scorm-mcp` içerisinde tanımlı 18 ekran tipi bulunmaktadır. Her ekran tipi `core/project.py` içerisindeki modellerden türetilmiştir.
+`edumints-scorm-mcp` içerisinde tanımlı 19 ekran tipi bulunmaktadır. Her ekran tipi `core/project.py` içerisindeki modellerden türetilmiştir.
 
 ## Ortak Alanlar (Base Fields)
 
@@ -226,6 +226,28 @@ Tüm ekran tipleri aşağıdaki alanlara sahiptir:
 | `steps` | `list[SimStep]` | Evet | Çok adımlı etkileşim adımları. |
 | `points` | `int` | Hayır | Soru puanı (Varsayılan: 10). |
 | `feedback` | `Feedback` | Hayır | Doğru/Yanlış geri bildirimleri. |
+
+## 19. Karar Senaryosu (decision_scenario)
+
+Tek ekranda çok-adımlı, durum (skor) taşıyan **dallanan karar senaryosu** — anlatı "try-mode".
+Öğrenci kararlar verir; her kararın sonucu/gerekçesi ve puana etkisi gösterilir; senaryo bir uç
+düğümde biter ve toplam skor `pass_score`'a göre geçer/kalır olarak skorlanır. `simulation`
+(yazılım dene) ve `branching` (ekranlar-arası dallanma) ile tamamlayıcı.
+
+**Model:** `DecisionScenarioScreen`
+
+| Alan | Tip | Zorunlu mu? | Açıklama |
+| :--- | :--- | :---: | :--- |
+| `intro_html` | `str` | Hayır | Senaryo giriş metni. |
+| `nodes` | `list[ScenarioNode]` | Evet | Karar düğümleri (≥1). |
+| `start_node_id` | `str` | Hayır | Başlangıç düğümü (Varsayılan: ilk düğüm). |
+| `pass_score` | `int` | Hayır | Geçme eşiği (yoksa skor > 0 geçer). |
+| `points` | `int` | Hayır | Soru puanı (Varsayılan: 20). |
+| `feedback` | `Feedback` | Hayır | Geçer/kalır kapanış geri bildirimi. |
+
+**`ScenarioNode`:** `id`, `prompt_html`, ops. `image_asset_id`, `choices` (`list[ScenarioChoice]`, ≥2).
+**`ScenarioChoice`:** `id`, `text_html`, `feedback_html` (seçimin sonucu/gerekçesi), `score_delta`
+(int, negatif olabilir), ops. `goto_node_id` (None ise senaryoyu bitirir).
 
 ---
 

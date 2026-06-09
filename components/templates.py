@@ -357,6 +357,26 @@ body[data-bg="grid"]{background-image:linear-gradient(color-mix(in srgb,var(--c-
 .branch-choice:hover{border-color:var(--c-primary);transform:translateX(4px);
   box-shadow:0 2px 12px color-mix(in srgb,var(--c-primary) 10%,transparent)}
 
+/* karar senaryosu (decision_scenario) */
+.scenario{display:flex;flex-direction:column;gap:var(--space-4)}
+.scen-hud{align-self:flex-start;font-weight:var(--w-strong);color:var(--c-warning)}
+.scen-prompt{font-size:16px}
+.scen-img{width:100%;max-height:280px;object-fit:contain;border-radius:var(--r-md);background:var(--c-surface)}
+.scen-choices{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-3)}
+.scen-row{display:flex;flex-direction:column;gap:var(--space-2)}
+.scen-choice{text-align:left;cursor:pointer;background:var(--c-bg);border:1.5px solid var(--c-border);
+  border-radius:var(--r-md);padding:var(--space-4) var(--space-5);font-size:15px;color:var(--c-text);
+  min-height:44px;display:flex;align-items:center;gap:var(--space-3);transition:all .2s cubic-bezier(.4,0,.2,1)}
+.scen-choice::before{content:"▸";color:var(--c-primary);font-weight:700}
+.scen-choice:hover:not(:disabled){border-color:var(--c-primary);transform:translateX(4px);
+  box-shadow:0 2px 12px color-mix(in srgb,var(--c-primary) 10%,transparent)}
+.scen-choice:disabled{cursor:default}
+.scen-choice.chosen{border-color:var(--c-primary);background:color-mix(in srgb,var(--c-primary) 8%,var(--c-bg))}
+.scen-choice.dim{opacity:.5}
+.scen-conseq{font-size:14px;color:var(--c-muted);padding:var(--space-2) var(--space-4);
+  border-left:3px solid var(--c-primary);background:var(--c-surface);border-radius:0 var(--r-sm) var(--r-sm) 0}
+.scen-next{align-self:flex-start}
+
 /* video (genel kurallar — ekran-spesifik kurallar yukarıda) */
 .video-wrap{margin:0}
 .video{width:100%;border-radius:var(--r-md);box-shadow:var(--e2);background:#000;pointer-events:none}
@@ -916,6 +936,7 @@ sections.forEach(function(el){
   else if(t==="matching"){ bindCheck(el,s,function(){ return checkMatching(el); }); }
   else if(t==="sorting"){ bindSorting(el,s); }
   else if(t==="simulation"){ bindSimulation(el,s); }
+  else if(t==="decision_scenario"){ bindScenario(el,s); }
 });
 
 function bindChoice(el,s){
@@ -1066,6 +1087,44 @@ function bindSimulation(el,s){
     sub.addEventListener("click",check);
     inp.addEventListener("keydown",function(e){ if(e.key==="Enter"){ e.preventDefault(); check(); } }); });
   showStep(0);
+}
+// Faz 12 (G2) — dallanan karar senaryosu (durum/skor taşır, uç düğümde skorlanır)
+function bindScenario(el,s){
+  var root=el.querySelector(".scenario"); if(!root) return;
+  var score=0, finished=false;
+  var hud=root.querySelector(".scen-score");
+  var fb=el.querySelector(".feedback");
+  var pass=(root.dataset.pass!==undefined&&root.dataset.pass!=="")?parseInt(root.dataset.pass,10):null;
+  var points=parseInt(root.dataset.points,10)||0;
+  function show(id){ root.querySelectorAll(".scen-node").forEach(function(n){ n.hidden=(n.dataset.node!==id); }); }
+  function finalize(){ if(finished) return; finished=true;
+    var ok = (pass!=null) ? (score>=pass) : (score>0);
+    recordResult(s.id, ok?points:0, points, ok);
+    applyActions(ok?s.on_correct:s.on_wrong);
+    if(fb){ var msg=ok?(s.feedback&&s.feedback.correct||""):(s.feedback&&s.feedback.incorrect||"");
+      fb.innerHTML=msg+' <b>Skor: '+score+'</b>'; fb.className="feedback show "+(ok?"ok":"no"); }
+    var nb=document.getElementById("btnNext"); if(cursor<order.length-1) nb.disabled=false;
+    evaluate();
+  }
+  root.querySelectorAll(".scen-node").forEach(function(node){
+    var nextBtn=node.querySelector(".scen-next"); var goTo="";
+    node.querySelectorAll(".scen-choice").forEach(function(b){
+      b.addEventListener("click",function(){
+        if(node.dataset.done) return; node.dataset.done="1";
+        score+=parseInt(b.dataset.delta,10)||0; if(hud) hud.textContent=score;
+        node.querySelectorAll(".scen-choice").forEach(function(x){ x.disabled=true; if(x!==b) x.classList.add("dim"); });
+        b.classList.add("chosen");
+        var cf=b.parentNode.querySelector(".scen-conseq"); if(cf) cf.hidden=false;
+        goTo=b.dataset.goto||"";
+        if(nextBtn) nextBtn.hidden=false;
+      });
+    });
+    if(nextBtn) nextBtn.addEventListener("click",function(){
+      if(goTo && root.querySelector('.scen-node[data-node="'+goTo+'"]')){ show(goTo); }
+      else { finalize(); }
+    });
+  });
+  show(root.dataset.start);
 }
 function bindTabs(el){
   var tabs=Array.prototype.slice.call(el.querySelectorAll(".tab"));

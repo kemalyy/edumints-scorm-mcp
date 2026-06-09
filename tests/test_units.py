@@ -126,6 +126,45 @@ def test_render_scored_interaction_types():
     assert cfg["total_points"] == 35  # 20 + 15
 
 
+def test_render_decision_scenario():
+    # Faz 12 (G2): dallanan karar senaryosu — skorlanır, durum (skor) taşır, uç düğümde biter
+    from core.project import (DecisionScenarioScreen, ScenarioNode, ScenarioChoice,
+                              QUIZ_TYPES, ScreenType)
+    from components.renderer import _course_config
+    p = Project(id=new_project_id(), title="g2")
+    p.screens = [
+        DecisionScenarioScreen(
+            id="sc", title="Senaryo", intro_html="<p>Giriş</p>", points=20, pass_score=10,
+            nodes=[
+                ScenarioNode(id="n1", prompt_html="<p>İlk karar?</p>", choices=[
+                    ScenarioChoice(id="a", text_html="İyi", feedback_html="<p>Doğru çünkü…</p>",
+                                   score_delta=15, goto_node_id="n2"),
+                    ScenarioChoice(id="b", text_html="Kötü", feedback_html="<p>Yanlış çünkü…</p>",
+                                   score_delta=-15, goto_node_id="n2"),
+                ]),
+                ScenarioNode(id="n2", prompt_html="<p>Son karar?</p>", choices=[
+                    ScenarioChoice(id="c", text_html="Bildir", feedback_html="<p>İyi.</p>",
+                                   score_delta=5, goto_node_id=None),
+                    ScenarioChoice(id="d", text_html="Yok say", feedback_html="<p>Kötü.</p>",
+                                   score_delta=-5, goto_node_id=None),
+                ]),
+            ],
+        ),
+    ]
+    html = render_html(p, mode="preview", runtime_js="/*rt*/")
+    assert "data-scenario" in html and 'data-points="20"' in html and 'data-pass="10"' in html
+    assert 'data-node="n1"' in html and 'data-goto="n2"' in html  # düğüm + navigasyon
+    assert 'data-delta="15"' in html and 'data-delta="-15"' in html  # skor etkisi
+    assert "scen-choice" in html and "scen-conseq" in html and "scen-next" in html
+    assert "bindScenario" in html  # engine wiring (SHELL/ENGINE_JS gömülü)
+    # skorlanır tip + config
+    assert ScreenType.decision_scenario in QUIZ_TYPES
+    cfg = _course_config(p)
+    item = {s["id"]: s for s in cfg["screens"]}["sc"]
+    assert item["is_quiz"] and item["points"] == 20 and item["pass_score"] == 10
+    assert "feedback" in item and cfg["total_points"] == 20
+
+
 def test_review_widget_only_in_preview():
     # Faz 2: feedback annotation widget yalnız preview'da aktif (pakette gizli/çalışmaz)
     p = Project(id=new_project_id(), title="R")

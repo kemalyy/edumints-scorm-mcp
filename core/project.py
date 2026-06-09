@@ -247,6 +247,7 @@ class ScreenType(str, Enum):
     timeline = "timeline"
     lottie = "lottie"  # Faz 7 — animasyon (opt-in/lazy)
     simulation = "simulation"  # Faz 8 — çok-adımlı yazılım simülasyonu (Uygula/try-mode)
+    decision_scenario = "decision_scenario"  # Faz 12 (G2) — dallanan karar senaryosu (anlatı try-mode)
 
 
 class ScreenBase(BaseModel):
@@ -462,6 +463,41 @@ class SimulationScreen(ScreenBase):
     feedback: Feedback = Field(default_factory=Feedback)
 
 
+# --- Faz 12 (G2): dallanan karar senaryosu (skorlanır) -----------------------
+class ScenarioChoice(BaseModel):
+    """Bir düğümdeki karar seçeneği: metin + sonuç (gerekçe) + skor etkisi + sonraki düğüm.
+
+    `goto_node_id` None ise bu seçim senaryoyu BİTİRİR (sonuç ekranı). `score_delta` negatif
+    olabilir (kötü karar puan düşürür). Sonuç (`feedback_html`) seçimden SONRA gösterilir."""
+    id: str
+    text_html: str
+    feedback_html: str  # seçimin sonucu/gerekçesi (NEDEN) — boş bırakma (anti-slop B3)
+    score_delta: int = 0
+    goto_node_id: str | None = None
+
+
+class ScenarioNode(BaseModel):
+    """Senaryonun bir karar noktası: durum metni (+ ops. görsel) + ≥2 seçenek."""
+    id: str
+    prompt_html: str
+    image_asset_id: str | None = None
+    choices: list[ScenarioChoice] = Field(min_length=2)
+
+
+class DecisionScenarioScreen(ScreenBase):
+    """Faz 12 (G2) — dallanan karar senaryosu: tek ekranda çok-adımlı, durum (skor) taşıyan
+    anlatı 'try-mode'. Öğrenci kararlar verir; her kararın sonucu/gerekçesi + puan etkisi gösterilir;
+    senaryo bir uç düğümde biter ve toplam skor `pass_score`'a göre geçer/kalır olarak skorlanır.
+    `simulation` (yazılım dene) ve `branching` (ekranlar-arası dallanma) ile tamamlayıcı."""
+    type: Literal[ScreenType.decision_scenario] = ScreenType.decision_scenario
+    intro_html: str | None = None
+    nodes: list[ScenarioNode] = Field(min_length=1)
+    start_node_id: str | None = None  # None → ilk düğüm
+    pass_score: int | None = None  # None → skor > 0 geçer; verilirse skor ≥ pass_score geçer
+    points: int = 20
+    feedback: Feedback = Field(default_factory=Feedback)
+
+
 Screen = Annotated[
     Union[
         TitleSlide,
@@ -482,6 +518,7 @@ Screen = Annotated[
         TimelineScreen,
         LottieScreen,
         SimulationScreen,
+        DecisionScenarioScreen,
     ],
     Field(discriminator="type"),
 ]
@@ -495,6 +532,7 @@ QUIZ_TYPES = {
     ScreenType.matching,
     ScreenType.sorting,
     ScreenType.simulation,
+    ScreenType.decision_scenario,
 }
 
 

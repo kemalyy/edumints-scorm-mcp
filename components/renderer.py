@@ -223,6 +223,10 @@ def _course_config(project: Project) -> dict:
         elif s.type == ScreenType.simulation:
             item["points"] = s.points
             total_points += s.points  # doğru = tüm adımlar doğru tıklamayla tamamlandı (DOM'da)
+        elif s.type == ScreenType.decision_scenario:
+            item["points"] = s.points
+            item["pass_score"] = s.pass_score  # None → skor>0 geçer; sayı → skor≥pass geçer
+            total_points += s.points  # skor, seçim score_delta'larının toplamı (DOM'da yürütülür)
         elif s.type == ScreenType.branching:
             item["routes"] = {c.id: c.goto_screen_id for c in s.choices}
             item["default_goto"] = s.default_goto
@@ -654,6 +658,42 @@ def _r_simulation(s) -> str:
             f'<div class="feedback" role="status" aria-live="polite"></div>')
 
 
+def _r_decision_scenario(s) -> str:
+    start = s.start_node_id or s.nodes[0].id
+    nodes_html = ""
+    for node in s.nodes:
+        img = (f'<img class="scen-img" data-asset="{_attr(node.image_asset_id)}" alt="">'
+               if node.image_asset_id else "")
+        rows = ""
+        for c in node.choices:
+            rows += (
+                f'<li class="scen-row">'
+                f'<button class="scen-choice" type="button" data-choice="{_attr(c.id)}"'
+                f' data-delta="{int(c.score_delta)}" data-goto="{_attr(c.goto_node_id or "")}">'
+                f'{sanitize(c.text_html)}</button>'
+                f'<div class="scen-conseq rich" hidden>{sanitize(c.feedback_html)}</div></li>'
+            )
+        hidden = "" if node.id == start else " hidden"
+        nodes_html += (
+            f'<div class="scen-node" data-node="{_attr(node.id)}"{hidden}>'
+            f'<div class="scen-prompt rich">{sanitize(node.prompt_html)}</div>{img}'
+            f'<ul class="scen-choices">{rows}</ul>'
+            f'<button class="btn btn-primary scen-next" type="button" hidden>Devam &rarr;</button>'
+            f'</div>'
+        )
+    head = f'<h2 class="screen-title">{_text(s.title)}</h2>'
+    if s.intro_html:
+        head += f'<div class="rich prompt">{sanitize(s.intro_html)}</div>'
+    passattr = f' data-pass="{int(s.pass_score)}"' if s.pass_score is not None else ""
+    return (
+        f'{head}<div class="scenario" data-scenario data-points="{int(s.points)}"{passattr}'
+        f' data-start="{_attr(start)}">'
+        f'<div class="scen-hud ui-chip">Skor: <span class="scen-score">0</span></div>'
+        f'{nodes_html}</div>'
+        f'<div class="feedback" role="status" aria-live="polite"></div>'
+    )
+
+
 def _render_unknown(s) -> str:
     return f'<h2 class="screen-title">{_text(getattr(s, "title", "?"))}</h2>'
 
@@ -687,6 +727,7 @@ _SCREEN_DISPATCH = {
     ScreenType.timeline: _r_timeline,
     ScreenType.lottie: _r_lottie,
     ScreenType.simulation: _r_simulation,
+    ScreenType.decision_scenario: _r_decision_scenario,
 }
 
 
