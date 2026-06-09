@@ -1,6 +1,6 @@
 # Ekran Tipleri (Screen Types)
 
-`edumints-scorm-mcp` içerisinde tanımlı 19 ekran tipi bulunmaktadır. Her ekran tipi `core/project.py` içerisindeki modellerden türetilmiştir.
+`edumints-scorm-mcp` içerisinde tanımlı 23 ekran tipi bulunmaktadır. Her ekran tipi `core/project.py` içerisindeki modellerden türetilmiştir.
 
 ## Ortak Alanlar (Base Fields)
 
@@ -248,6 +248,71 @@ düğümde biter ve toplam skor `pass_score`'a göre geçer/kalır olarak skorla
 **`ScenarioNode`:** `id`, `prompt_html`, ops. `image_asset_id`, `choices` (`list[ScenarioChoice]`, ≥2).
 **`ScenarioChoice`:** `id`, `text_html`, `feedback_html` (seçimin sonucu/gerekçesi), `score_delta`
 (int, negatif olabilir), ops. `goto_node_id` (None ise senaryoyu bitirir).
+
+## 20. Terim Yarışı (term_match_race)
+
+Süreli terim↔tanım eşleştirme **oyunu**. Öğrenci her terime doğru tanımı atar; geri sayım dolmadan
+eşleştirir. Skor = doğru oranı × `points` (+ tümü doğruysa kalan süre bonusu). `matching`in
+oyunlaştırılmış, süreli sürümü. **Skorlanır.**
+
+**Model:** `TermMatchRaceScreen`
+
+| Alan | Tip | Zorunlu mu? | Açıklama |
+| :--- | :--- | :---: | :--- |
+| `prompt_html` | `str` | Hayır | Talimat. |
+| `pairs` | `list[TermPair]` | Evet | Terim/tanım çiftleri (≥2). |
+| `time_limit_sec` | `int` | Hayır | Geri sayım (Varsayılan: 60). |
+| `points` | `int` | Hayır | Soru puanı (Varsayılan: 15). |
+
+**`TermPair`:** `id`, `term_html`, `definition_html`.
+
+## 21. Kaçış Odası (escape_room)
+
+Kilitli bulmaca zinciri **oyunu**. Her bulmacayı çöz → sonraki açılır; yanlış → can azalır + ipucu.
+Tüm bulmacalar çözülürse geçer; can biterse kalır. **Skorlanır.**
+
+**Model:** `EscapeRoomScreen`
+
+| Alan | Tip | Zorunlu mu? | Açıklama |
+| :--- | :--- | :---: | :--- |
+| `intro_html` | `str` | Hayır | Giriş metni. |
+| `puzzles` | `list[Puzzle]` | Evet | Bulmacalar (≥1, sıralı kilit). |
+| `lives` | `int` | Hayır | Can sayısı (Varsayılan: 3). |
+| `points` | `int` | Hayır | Soru puanı (Varsayılan: 20). |
+
+**`Puzzle`:** `id`, `prompt_html`, `accepted` (`list[str]`), ops. `hint_html`, `case_sensitive`.
+
+## 22. Etiketli Diyagram (labeled_diagram)
+
+Görseldeki numaralı işaretçilere doğru etiketi atama (anatomi/şema/harita) — **görsel öğrenme**.
+Her işaretçi için bir `<select>` (klavye-erişilebilir); seçim işaretçi id'siyle eşleşirse doğru. **Skorlanır.**
+
+**Model:** `LabeledDiagramScreen`
+
+| Alan | Tip | Zorunlu mu? | Açıklama |
+| :--- | :--- | :---: | :--- |
+| `prompt_html` | `str` | Hayır | Talimat. |
+| `image_asset_id` | `str` | Evet | Diyagram görseli. |
+| `labels` | `list[DiagramLabel]` | Evet | İşaretçiler (≥2). |
+| `points` | `int` | Hayır | Soru puanı (Varsayılan: 15). |
+
+**`DiagramLabel`:** `id`, `text`, `x`, `y` (0–1000 normalize konum).
+
+## 23. Veri Grafiği (data_chart)
+
+Veri-görseli (bar/line/pie). Sunucuda **deterministik inline-SVG** üretilir (dış lib/ağ YOK). İçerik
+ekranı — pasif veri sunumu/karşılaştırma. **Skorlanmaz.**
+
+**Model:** `DataChartScreen`
+
+| Alan | Tip | Zorunlu mu? | Açıklama |
+| :--- | :--- | :---: | :--- |
+| `prompt_html` | `str` | Hayır | Açıklama. |
+| `chart_type` | `"bar"｜"line"｜"pie"` | Hayır | Grafik tipi (Varsayılan: bar). |
+| `data` | `list[ChartDatum]` | Evet | Veri noktaları (≥1). |
+| `caption` | `str` | Hayır | Grafik altyazısı. |
+
+**`ChartDatum`:** `label`, `value` (float).
 
 ---
 

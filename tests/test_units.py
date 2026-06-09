@@ -165,6 +165,45 @@ def test_render_decision_scenario():
     assert "feedback" in item and cfg["total_points"] == 20
 
 
+def test_render_g3_game_and_visual_types():
+    # Faz 13 (G3): term_match_race, escape_room, labeled_diagram (skorlu) + data_chart (içerik)
+    from core.project import (TermMatchRaceScreen, EscapeRoomScreen, LabeledDiagramScreen,
+                              DataChartScreen, QUIZ_TYPES, ScreenType)
+    from components.renderer import _course_config
+    p = Project(id=new_project_id(), title="g3")
+    p.screens = [
+        TermMatchRaceScreen(id="tmr", title="T", time_limit_sec=30, points=15, pairs=[
+            {"id": "a", "term_html": "Phishing", "definition_html": "Kimlik avı"},
+            {"id": "b", "term_html": "Ransomware", "definition_html": "Fidye"}]),
+        EscapeRoomScreen(id="esc", title="E", lives=2, points=20, puzzles=[
+            {"id": "p1", "prompt_html": "<p>?</p>", "accepted": ["2fa"], "hint_html": "<p>h</p>"},
+            {"id": "p2", "prompt_html": "<p>?</p>", "accepted": ["443"]}]),
+        LabeledDiagramScreen(id="ld", title="L", image_asset_id="img", points=15, labels=[
+            {"id": "l1", "text": "Kalp", "x": 300, "y": 400},
+            {"id": "l2", "text": "Akciğer", "x": 600, "y": 350}]),
+        DataChartScreen(id="dc", title="D", chart_type="bar", data=[
+            {"label": "2023", "value": 10}, {"label": "2024", "value": 25}]),
+    ]
+    html = render_html(p, mode="preview", runtime_js="/*rt*/")
+    # term_match_race: süreli eşleştirme
+    assert "data-tmr" in html and 'data-time="30"' in html and "bindTermRace" in html
+    # escape_room: bulmaca + can
+    assert "data-escape" in html and 'data-lives="2"' in html and "esc-life" in html and "bindEscape" in html
+    # labeled_diagram: pin + select
+    assert "ld-pin" in html and "ld-select" in html and "bindLabeledDiagram" in html
+    # data_chart: server-side SVG (skorlanmaz, içerik)
+    assert "<svg" in html and "chart-svg" in html
+    # skorlu tipler QUIZ_TYPES'da; data_chart DEĞİL
+    for t in (ScreenType.term_match_race, ScreenType.escape_room, ScreenType.labeled_diagram):
+        assert t in QUIZ_TYPES
+    assert ScreenType.data_chart not in QUIZ_TYPES
+    cfg = _course_config(p)
+    smap = {s["id"]: s for s in cfg["screens"]}
+    assert smap["tmr"]["time_limit_sec"] == 30 and smap["esc"]["lives"] == 2
+    assert cfg["total_points"] == 50  # 15+20+15, data_chart skorlanmaz
+    assert smap["dc"]["is_quiz"] is False
+
+
 def test_review_widget_only_in_preview():
     # Faz 2: feedback annotation widget yalnız preview'da aktif (pakette gizli/çalışmaz)
     p = Project(id=new_project_id(), title="R")

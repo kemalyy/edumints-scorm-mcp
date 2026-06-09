@@ -248,6 +248,10 @@ class ScreenType(str, Enum):
     lottie = "lottie"  # Faz 7 — animasyon (opt-in/lazy)
     simulation = "simulation"  # Faz 8 — çok-adımlı yazılım simülasyonu (Uygula/try-mode)
     decision_scenario = "decision_scenario"  # Faz 12 (G2) — dallanan karar senaryosu (anlatı try-mode)
+    term_match_race = "term_match_race"  # Faz 13 (G3) — süreli terim↔tanım eşleştirme oyunu
+    escape_room = "escape_room"  # Faz 13 (G3) — kilitli bulmaca zinciri (ipucu/can)
+    labeled_diagram = "labeled_diagram"  # Faz 13 — etiketli diyagram (görsel öğrenme)
+    data_chart = "data_chart"  # Faz 13 — veri-görseli (bar/line/pie, içerik)
 
 
 class ScreenBase(BaseModel):
@@ -498,6 +502,80 @@ class DecisionScenarioScreen(ScreenBase):
     feedback: Feedback = Field(default_factory=Feedback)
 
 
+# --- Faz 13 (G3): yeni oyun + görsel ekran tipleri ---------------------------
+class TermPair(BaseModel):
+    """Terim ↔ tanım çifti (term_match_race)."""
+    id: str
+    term_html: str
+    definition_html: str
+
+
+class TermMatchRaceScreen(ScreenBase):
+    """Faz 13 (G3) — süreli terim↔tanım eşleştirme oyunu. Öğrenci her terime doğru tanımı
+    atar; geri sayım dolmadan eşleştirir. Skor = doğru oranı × points (+ kalan süre bonusu).
+    `matching`in oyunlaştırılmış, süreli sürümü."""
+    type: Literal[ScreenType.term_match_race] = ScreenType.term_match_race
+    prompt_html: str | None = None
+    pairs: list[TermPair] = Field(min_length=2)
+    time_limit_sec: int = 60
+    points: int = 15
+    feedback: Feedback = Field(default_factory=Feedback)
+
+
+class Puzzle(BaseModel):
+    """Escape-room bulmacası: soru + kabul edilen cevap(lar) + ops. ipucu."""
+    id: str
+    prompt_html: str
+    accepted: list[str] = Field(min_length=1)
+    hint_html: str | None = None
+    case_sensitive: bool = False
+
+
+class EscapeRoomScreen(ScreenBase):
+    """Faz 13 (G3) — kilitli bulmaca zinciri. Her bulmacayı çöz → sonraki açılır; yanlış →
+    can azalır + ipucu. Tüm bulmacalar çözülürse geçer; can biterse kalır. Skorlanır."""
+    type: Literal[ScreenType.escape_room] = ScreenType.escape_room
+    intro_html: str | None = None
+    puzzles: list[Puzzle] = Field(min_length=1)
+    lives: int = 3
+    points: int = 20
+    feedback: Feedback = Field(default_factory=Feedback)
+
+
+class DiagramLabel(BaseModel):
+    """Etiketli diyagram işaretçisi: görseldeki bir noktaya (x,y; 0–1000 norm.) doğru etiket."""
+    id: str
+    text: str
+    x: int  # 0–1000 normalize yatay
+    y: int  # 0–1000 normalize dikey
+
+
+class LabeledDiagramScreen(ScreenBase):
+    """Faz 13 — etiketli diyagram: görseldeki numaralı işaretçilere doğru etiketi ata
+    (anatomi/şema/harita). Görsel öğrenme; skorlanır."""
+    type: Literal[ScreenType.labeled_diagram] = ScreenType.labeled_diagram
+    prompt_html: str | None = None
+    image_asset_id: str
+    labels: list[DiagramLabel] = Field(min_length=2)
+    points: int = 15
+    feedback: Feedback = Field(default_factory=Feedback)
+
+
+class ChartDatum(BaseModel):
+    label: str
+    value: float
+
+
+class DataChartScreen(ScreenBase):
+    """Faz 13 — veri-görseli (bar/line/pie). Sunucuda deterministik inline-SVG üretilir
+    (dış lib/ağ YOK). İçerik ekranı (skorlanmaz) — pasif veri sunumu/karşılaştırma."""
+    type: Literal[ScreenType.data_chart] = ScreenType.data_chart
+    prompt_html: str | None = None
+    chart_type: Literal["bar", "line", "pie"] = "bar"
+    data: list[ChartDatum] = Field(min_length=1)
+    caption: str | None = None
+
+
 Screen = Annotated[
     Union[
         TitleSlide,
@@ -519,6 +597,10 @@ Screen = Annotated[
         LottieScreen,
         SimulationScreen,
         DecisionScenarioScreen,
+        TermMatchRaceScreen,
+        EscapeRoomScreen,
+        LabeledDiagramScreen,
+        DataChartScreen,
     ],
     Field(discriminator="type"),
 ]
@@ -533,6 +615,9 @@ QUIZ_TYPES = {
     ScreenType.sorting,
     ScreenType.simulation,
     ScreenType.decision_scenario,
+    ScreenType.term_match_race,
+    ScreenType.escape_room,
+    ScreenType.labeled_diagram,
 }
 
 

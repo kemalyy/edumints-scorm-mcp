@@ -227,6 +227,20 @@ def _course_config(project: Project) -> dict:
             item["points"] = s.points
             item["pass_score"] = s.pass_score  # None → skor>0 geçer; sayı → skor≥pass geçer
             total_points += s.points  # skor, seçim score_delta'larının toplamı (DOM'da yürütülür)
+        elif s.type == ScreenType.term_match_race:
+            item["points"] = s.points
+            item["time_limit_sec"] = s.time_limit_sec
+            item["correct"] = {p.id: p.id for p in s.pairs}  # select value === pair id
+            total_points += s.points
+        elif s.type == ScreenType.escape_room:
+            item["points"] = s.points
+            item["lives"] = s.lives
+            item["case_sensitive"] = [p.case_sensitive for p in s.puzzles]
+            item["accepted"] = [list(p.accepted) for p in s.puzzles]  # adım sırasıyla
+            total_points += s.points
+        elif s.type == ScreenType.labeled_diagram:
+            item["points"] = s.points
+            total_points += s.points  # doğru = her işaretçinin select'i kendi label id'si (DOM)
         elif s.type == ScreenType.branching:
             item["routes"] = {c.id: c.goto_screen_id for c in s.choices}
             item["default_goto"] = s.default_goto
@@ -305,6 +319,7 @@ def _cond(c) -> dict:
 _AUTO_REVEAL_TYPES = {
     ScreenType.title_slide, ScreenType.content_slide, ScreenType.video,
     ScreenType.timeline, ScreenType.lottie, ScreenType.summary,
+    ScreenType.data_chart,  # içerik (skorlanmaz)
 }
 
 
@@ -694,6 +709,144 @@ def _r_decision_scenario(s) -> str:
     )
 
 
+def _r_term_match_race(s) -> str:
+    # her terim için <select> (klavye-erişilebilir); seçenekler = tüm tanımlar (DOM'da karıştırılır)
+    opts = "".join(
+        f'<option value="{_attr(p.id)}">{_text(_strip_html(p.definition_html))}</option>' for p in s.pairs
+    )
+    rows = "".join(
+        f'<div class="match-row tmr-row" data-pair="{_attr(p.id)}">'
+        f'<div class="match-left rich">{sanitize(p.term_html)}</div>'
+        f'<select class="match-select tmr-select" data-pair="{_attr(p.id)}" aria-label="Eşleştir">'
+        f'<option value="">— seç —</option>{opts}</select></div>'
+        for p in s.pairs
+    )
+    head = f'<h2 class="screen-title">{_text(s.title)}</h2>'
+    if s.prompt_html:
+        head += f'<div class="rich prompt">{sanitize(s.prompt_html)}</div>'
+    return (
+        f'{head}<div class="term-race" data-tmr data-time="{int(s.time_limit_sec)}">'
+        f'<div class="tmr-bar"><span class="tmr-timer ui-chip">⏱ {int(s.time_limit_sec)}</span>'
+        f'<span class="tmr-score ui-chip">0 / {len(s.pairs)}</span></div>'
+        f'<div class="matching ui-stack">{rows}</div>'
+        f'<div class="quiz-actions"><button class="btn btn-check tmr-finish" type="button">Bitir</button></div>'
+        f'</div><div class="feedback" role="status" aria-live="polite"></div>'
+    )
+
+
+def _r_escape_room(s) -> str:
+    puzzles = ""
+    for i, p in enumerate(s.puzzles):
+        hint = f'<div class="esc-hint rich" hidden>{sanitize(p.hint_html or "")}</div>' if p.hint_html else ""
+        hidden = "" if i == 0 else " hidden"
+        puzzles += (
+            f'<div class="esc-puzzle" data-puzzle="{i}"{hidden}>'
+            f'<div class="esc-prompt rich">{sanitize(p.prompt_html)}</div>'
+            f'<div class="esc-input-row"><input class="esc-input" type="text" autocomplete="off"'
+            f' aria-label="Cevabını yaz" placeholder="Cevabını yaz">'
+            f'<button class="btn btn-primary esc-submit" type="button">Aç</button></div>{hint}</div>'
+        )
+    head = f'<h2 class="screen-title">{_text(s.title)}</h2>'
+    if s.intro_html:
+        head += f'<div class="rich prompt">{sanitize(s.intro_html)}</div>'
+    hearts = "".join('<span class="esc-life">&#9829;</span>' for _ in range(s.lives))
+    return (
+        f'{head}<div class="escape" data-escape data-puzzles="{len(s.puzzles)}" data-lives="{int(s.lives)}">'
+        f'<div class="esc-bar"><span class="esc-progress ui-chip">1 / {len(s.puzzles)}</span>'
+        f'<span class="esc-lives">{hearts}</span></div>{puzzles}</div>'
+        f'<div class="feedback" role="status" aria-live="polite"></div>'
+    )
+
+
+def _r_labeled_diagram(s) -> str:
+    pins = "".join(
+        f'<button class="ld-pin" type="button" data-label="{_attr(lb.id)}"'
+        f' style="left:{lb.x / 10:.2f}%;top:{lb.y / 10:.2f}%" aria-label="İşaretçi {i + 1}">{i + 1}</button>'
+        for i, lb in enumerate(s.labels)
+    )
+    opts = "".join(f'<option value="{_attr(lb.id)}">{_text(lb.text)}</option>' for lb in s.labels)
+    rows = "".join(
+        f'<div class="ld-row"><span class="ld-num">{i + 1}</span>'
+        f'<select class="ld-select" data-label="{_attr(lb.id)}" aria-label="İşaretçi {i + 1} etiketi">'
+        f'<option value="">— etiket seç —</option>{opts}</select></div>'
+        for i, lb in enumerate(s.labels)
+    )
+    img = f'<img class="hotspot-img" data-asset="{_attr(s.image_asset_id)}" alt="">'
+    inner = (
+        f'<div class="labeled-diagram"><div class="ld-stage hotspot-stage">{img}{pins}</div>'
+        f'<div class="ld-rows ui-stack">{rows}</div></div>'
+    )
+    return _quiz_shell(s, inner)
+
+
+_CHART_COLORS = ["#2563eb", "#db2777", "#059669", "#d97706", "#7c3aed", "#0891b2", "#dc2626", "#65a30d"]
+
+
+def _r_data_chart(s) -> str:
+    head = f'<h2 class="screen-title">{_text(s.title)}</h2>'
+    if s.prompt_html:
+        head += f'<div class="rich prompt">{sanitize(s.prompt_html)}</div>'
+    svg = _build_chart_svg(s)
+    cap = f'<figcaption class="chart-cap">{_text(s.caption)}</figcaption>' if s.caption else ""
+    return f'{head}<figure class="data-chart">{svg}{cap}</figure>'
+
+
+def _build_chart_svg(s) -> str:
+    """Deterministik inline-SVG grafik (bar/line/pie) — dış lib/ağ yok."""
+    data = s.data
+    W, H, PAD = 600, 340, 40
+    vmax = max((d.value for d in data), default=0) or 1
+    if s.chart_type == "pie":
+        total = sum(d.value for d in data) or 1
+        cx, cy, r = 300, 170, 130
+        import math
+        a0 = -math.pi / 2
+        parts, legend = [], []
+        for i, d in enumerate(data):
+            frac = d.value / total
+            a1 = a0 + frac * 2 * math.pi
+            large = 1 if frac > 0.5 else 0
+            x0, y0 = cx + r * math.cos(a0), cy + r * math.sin(a0)
+            x1, y1 = cx + r * math.cos(a1), cy + r * math.sin(a1)
+            col = _CHART_COLORS[i % len(_CHART_COLORS)]
+            parts.append(f'<path d="M{cx},{cy} L{x0:.1f},{y0:.1f} A{r},{r} 0 {large},1 {x1:.1f},{y1:.1f} Z" fill="{col}"/>')
+            legend.append(f'<tspan x="470" dy="22"><tspan fill="{col}">&#9632;</tspan> {_text(d.label)} ({frac * 100:.0f}%)</tspan>')
+            a0 = a1
+        return (f'<svg viewBox="0 0 {W} {H}" role="img" class="chart-svg">{"".join(parts)}'
+                f'<text x="470" y="40" font-size="13" fill="currentColor">{"".join(legend)}</text></svg>')
+    n = len(data)
+    bw = (W - 2 * PAD) / max(n, 1)
+    if s.chart_type == "line":
+        pts = []
+        for i, d in enumerate(data):
+            x = PAD + bw * (i + 0.5)
+            y = H - PAD - (d.value / vmax) * (H - 2 * PAD)
+            pts.append(f"{x:.1f},{y:.1f}")
+        dots = "".join(f'<circle cx="{p.split(",")[0]}" cy="{p.split(",")[1]}" r="4" fill="#2563eb"/>' for p in pts)
+        labels = "".join(
+            f'<text x="{PAD + bw * (i + 0.5):.1f}" y="{H - PAD + 18}" font-size="11" text-anchor="middle" fill="currentColor">{_text(d.label)}</text>'
+            for i, d in enumerate(data))
+        return (f'<svg viewBox="0 0 {W} {H}" role="img" class="chart-svg">'
+                f'<line x1="{PAD}" y1="{H - PAD}" x2="{W - PAD}" y2="{H - PAD}" stroke="currentColor" opacity=".3"/>'
+                f'<polyline points="{" ".join(pts)}" fill="none" stroke="#2563eb" stroke-width="2.5"/>{dots}{labels}</svg>')
+    # bar (varsayılan)
+    bars = ""
+    for i, d in enumerate(data):
+        bh = (d.value / vmax) * (H - 2 * PAD)
+        x = PAD + bw * i + bw * 0.15
+        y = H - PAD - bh
+        col = _CHART_COLORS[i % len(_CHART_COLORS)]
+        bars += (f'<rect x="{x:.1f}" y="{y:.1f}" width="{bw * 0.7:.1f}" height="{bh:.1f}" rx="3" fill="{col}"/>'
+                 f'<text x="{x + bw * 0.35:.1f}" y="{H - PAD + 18}" font-size="11" text-anchor="middle" fill="currentColor">{_text(d.label)}</text>'
+                 f'<text x="{x + bw * 0.35:.1f}" y="{y - 6:.1f}" font-size="11" text-anchor="middle" fill="currentColor">{_num(d.value)}</text>')
+    return (f'<svg viewBox="0 0 {W} {H}" role="img" class="chart-svg">'
+            f'<line x1="{PAD}" y1="{H - PAD}" x2="{W - PAD}" y2="{H - PAD}" stroke="currentColor" opacity=".3"/>{bars}</svg>')
+
+
+def _num(v: float) -> str:
+    return str(int(v)) if float(v).is_integer() else f"{v:g}"
+
+
 def _render_unknown(s) -> str:
     return f'<h2 class="screen-title">{_text(getattr(s, "title", "?"))}</h2>'
 
@@ -728,6 +881,10 @@ _SCREEN_DISPATCH = {
     ScreenType.lottie: _r_lottie,
     ScreenType.simulation: _r_simulation,
     ScreenType.decision_scenario: _r_decision_scenario,
+    ScreenType.term_match_race: _r_term_match_race,
+    ScreenType.escape_room: _r_escape_room,
+    ScreenType.labeled_diagram: _r_labeled_diagram,
+    ScreenType.data_chart: _r_data_chart,
 }
 
 

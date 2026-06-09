@@ -377,6 +377,46 @@ body[data-bg="grid"]{background-image:linear-gradient(color-mix(in srgb,var(--c-
   border-left:3px solid var(--c-primary);background:var(--c-surface);border-radius:0 var(--r-sm) var(--r-sm) 0}
 .scen-next{align-self:flex-start}
 
+/* term_match_race */
+.tmr-bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-3)}
+.tmr-timer.urgent{color:var(--c-danger,#dc2626);font-weight:var(--w-strong)}
+.tmr-row.correct .tmr-select{border-color:var(--c-success,#16a34a)}
+.tmr-row.wrong .tmr-select{border-color:var(--c-danger,#dc2626)}
+
+/* escape_room */
+.esc-bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-4)}
+.esc-lives{font-size:18px;letter-spacing:2px;color:var(--c-danger,#dc2626)}
+.esc-life.lost{opacity:.25}
+.esc-input-row{display:flex;gap:var(--space-3);margin-top:var(--space-3)}
+.esc-input{flex:1;min-height:44px;padding:0 var(--space-4);border:1.5px solid var(--c-border);
+  border-radius:var(--r-md);font-size:15px;background:var(--c-bg);color:var(--c-text)}
+.esc-input.wrong{border-color:var(--c-danger,#dc2626);animation:simshake .4s}
+@keyframes simshake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+@media(prefers-reduced-motion:reduce){.esc-input.wrong{animation:none}}
+.esc-puzzle.solved{opacity:.6}
+.esc-hint{margin-top:var(--space-3);font-size:14px;color:var(--c-muted);padding:var(--space-2) var(--space-4);
+  border-left:3px solid var(--c-warning,#d97706);background:var(--c-surface);border-radius:0 var(--r-sm) var(--r-sm) 0}
+
+/* labeled_diagram */
+.ld-stage{position:relative;display:inline-block;max-width:100%}
+.ld-pin{position:absolute;transform:translate(-50%,-50%);width:28px;height:28px;border-radius:50%;
+  background:var(--c-primary);color:var(--c-primary-contrast);border:2px solid #fff;font-weight:var(--w-strong);
+  font-size:13px;cursor:pointer;box-shadow:var(--e2);display:grid;place-items:center}
+.ld-pin.active{outline:3px solid var(--c-primary);outline-offset:2px;transform:translate(-50%,-50%) scale(1.15)}
+.ld-rows{margin-top:var(--space-4)}
+.ld-row{display:flex;align-items:center;gap:var(--space-3)}
+.ld-num{flex:0 0 28px;height:28px;border-radius:50%;background:var(--c-primary);color:var(--c-primary-contrast);
+  font-weight:var(--w-strong);font-size:13px;display:grid;place-items:center}
+.ld-select{flex:1;min-height:44px;border:1.5px solid var(--c-border);border-radius:var(--r-md);
+  padding:0 var(--space-3);background:var(--c-bg);color:var(--c-text)}
+.ld-row.correct .ld-select{border-color:var(--c-success,#16a34a)}
+.ld-row.wrong .ld-select{border-color:var(--c-danger,#dc2626)}
+
+/* data_chart */
+.data-chart{margin:0;text-align:center}
+.chart-svg{width:100%;max-width:600px;height:auto;color:var(--c-text)}
+.chart-cap{color:var(--c-muted);font-size:13px;margin-top:var(--space-2)}
+
 /* video (genel kurallar — ekran-spesifik kurallar yukarıda) */
 .video-wrap{margin:0}
 .video{width:100%;border-radius:var(--r-md);box-shadow:var(--e2);background:#000;pointer-events:none}
@@ -937,6 +977,9 @@ sections.forEach(function(el){
   else if(t==="sorting"){ bindSorting(el,s); }
   else if(t==="simulation"){ bindSimulation(el,s); }
   else if(t==="decision_scenario"){ bindScenario(el,s); }
+  else if(t==="term_match_race"){ bindTermRace(el,s); }
+  else if(t==="escape_room"){ bindEscape(el,s); }
+  else if(t==="labeled_diagram"){ bindLabeledDiagram(el,s); }
 });
 
 function bindChoice(el,s){
@@ -1125,6 +1168,83 @@ function bindScenario(el,s){
     });
   });
   show(root.dataset.start);
+}
+// Faz 13 (G3) — süreli terim↔tanım eşleştirme oyunu
+function bindTermRace(el,s){
+  var root=el.querySelector(".term-race"); if(!root) return;
+  var total=root.querySelectorAll(".tmr-row").length, done=false;
+  var left=parseInt(root.dataset.time,10)||60;
+  var tEl=root.querySelector(".tmr-timer"), scEl=root.querySelector(".tmr-score");
+  var fb=el.querySelector(".feedback"), finish=root.querySelector(".tmr-finish");
+  // tanım <option>'larını her select içinde karıştır (sıra ipucu vermesin)
+  root.querySelectorAll(".tmr-select").forEach(function(sel){
+    var opts=Array.prototype.slice.call(sel.querySelectorAll("option")).slice(1);
+    for(var i=opts.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); sel.appendChild(opts[j]); opts.splice(j,1); }
+  });
+  function correctCount(){ var c=0; root.querySelectorAll(".tmr-row").forEach(function(r){
+    if(r.querySelector(".tmr-select").value===r.dataset.pair) c++; }); return c; }
+  function update(){ if(scEl) scEl.textContent=correctCount()+" / "+total; }
+  root.querySelectorAll(".tmr-select").forEach(function(sel){ sel.addEventListener("change",update); });
+  function grade(){ if(done) return; done=true; if(_tmrTimer) clearInterval(_tmrTimer);
+    var c=correctCount(); var bonus=(c===total)?Math.round(left/5):0;
+    var earned=Math.min(s.points, Math.round(s.points*c/total)+bonus); var ok=c===total;
+    root.querySelectorAll(".tmr-row").forEach(function(r){ var sel=r.querySelector(".tmr-select"); sel.disabled=true;
+      r.classList.add(sel.value===r.dataset.pair?"correct":"wrong"); });
+    finish.disabled=true; recordResult(s.id, earned, s.points, ok);
+    applyActions(ok?s.on_correct:s.on_wrong);
+    if(fb){ var m=ok?(s.feedback.correct||""):(s.feedback.incorrect||"");
+      fb.innerHTML=m+" <b>"+c+"/"+total+(bonus?" · +"+bonus+" hız bonusu":"")+"</b>"; fb.className="feedback show "+(ok?"ok":"no"); }
+    var nb=document.getElementById("btnNext"); if(cursor<order.length-1) nb.disabled=false; evaluate(); }
+  finish.addEventListener("click",grade);
+  var _tmrTimer=setInterval(function(){ if(state.cursorId!==s.id){ clearInterval(_tmrTimer); return; }
+    left--; if(tEl){ tEl.textContent="⏱ "+Math.max(0,left); if(left<=10) tEl.classList.add("urgent"); }
+    if(left<=0){ clearInterval(_tmrTimer); grade(); } },1000);
+}
+// Faz 13 (G3) — kilitli bulmaca zinciri (escape room)
+function bindEscape(el,s){
+  var root=el.querySelector(".escape"); if(!root) return;
+  var total=parseInt(root.dataset.puzzles,10), lives=parseInt(root.dataset.lives,10), cur=0, done=false;
+  var prog=root.querySelector(".esc-progress"), fb=el.querySelector(".feedback");
+  var acc=s.accepted||[], cs=s.case_sensitive||[];
+  function norm(v,i){ return cs[i]?String(v).trim():String(v).trim().toLowerCase(); }
+  function loseLife(){ lives--; var hearts=root.querySelectorAll(".esc-life");
+    if(hearts[lives]) hearts[lives].classList.add("lost");
+    if(lives<=0){ finish(false); } }
+  function finish(win){ if(done) return; done=true;
+    root.querySelectorAll(".esc-input,.esc-submit").forEach(function(x){ x.disabled=true; });
+    recordResult(s.id, win?s.points:0, s.points, win); applyActions(win?s.on_correct:s.on_wrong);
+    if(fb){ fb.innerHTML=win?(s.feedback.correct||"Tüm kilitleri açtın!"):(s.feedback.incorrect||"Canların bitti.");
+      fb.className="feedback show "+(win?"ok":"no"); }
+    var nb=document.getElementById("btnNext"); if(cursor<order.length-1) nb.disabled=false; evaluate(); }
+  function showPuzzle(i){ root.querySelectorAll(".esc-puzzle").forEach(function(p){ p.hidden=p.dataset.puzzle!=String(i); });
+    if(prog) prog.textContent=(i+1)+" / "+total;
+    var inp=root.querySelector('.esc-puzzle[data-puzzle="'+i+'"] .esc-input'); if(inp) setTimeout(function(){ inp.focus(); },60); }
+  root.querySelectorAll(".esc-puzzle").forEach(function(pz){
+    var i=parseInt(pz.dataset.puzzle,10); var inp=pz.querySelector(".esc-input"); var sub=pz.querySelector(".esc-submit");
+    function check(){ if(done||i!==cur) return; var v=norm(inp.value,i);
+      var hit=(acc[i]||[]).some(function(a){ return norm(a,i)===v; });
+      if(hit){ pz.classList.add("solved"); cur++;
+        if(cur>=total){ finish(true); } else showPuzzle(cur); }
+      else { inp.classList.add("wrong"); setTimeout(function(){ inp.classList.remove("wrong"); },500);
+        var hint=pz.querySelector(".esc-hint"); if(hint) hint.hidden=false; loseLife(); } }
+    sub.addEventListener("click",check);
+    inp.addEventListener("keydown",function(e){ if(e.key==="Enter"){ e.preventDefault(); check(); } });
+  });
+  showPuzzle(0);
+}
+// Faz 13 — etiketli diyagram (görsel öğrenme; select == pin id ise doğru)
+function bindLabeledDiagram(el,s){
+  var ld=el.querySelector(".labeled-diagram"); if(!ld) return;
+  // pin <-> select karşılıklı vurgulama
+  ld.querySelectorAll(".ld-select").forEach(function(sel){
+    var id=sel.dataset.label; var pin=ld.querySelector('.ld-pin[data-label="'+id+'"]');
+    function hl(on){ if(pin) pin.classList.toggle("active",on); }
+    sel.addEventListener("focus",function(){ hl(true); }); sel.addEventListener("blur",function(){ hl(false); });
+    if(pin) pin.addEventListener("click",function(){ sel.focus(); sel.scrollIntoView({block:"nearest"}); });
+  });
+  bindCheck(el,s,function(){ var ok=true;
+    ld.querySelectorAll(".ld-select").forEach(function(sel){ var hit=sel.value===sel.dataset.label;
+      sel.disabled=true; sel.closest(".ld-row").classList.add(hit?"correct":"wrong"); if(!hit) ok=false; }); return ok; });
 }
 function bindTabs(el){
   var tabs=Array.prototype.slice.call(el.querySelectorAll(".tab"));
