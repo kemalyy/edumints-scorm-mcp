@@ -66,3 +66,31 @@ Etkili bir senaryo tasarımı, kuru bir "doğru mu?" sorusundan "sonuç ne?" den
 ## 5. Uygulama Detayları
 
 Senaryo ve etkileşim tiplerinin tam JSON şemaları ve zorunlu alanları için [Ekran Tipleri (SCREEN_TYPES.md) §19](./SCREEN_TYPES.md) bölümüne başvurun.
+
+## 6. Terim Yarışı (term_match_race)
+
+Bu mekanik, `matching` (eşleştirme) tipinin oyunlaştırılmış ve yüksek tempolu bir versiyonudur. Öğrencilerin kavramlar arasındaki ilişkiyi hızlı ve doğru bir şekilde kurmalarını hedefler.
+
+- **Kullanım Senaryosu:** Yeni bir terminoloji öğrenildikten sonra, kavramların zihinde pekiştirilmesi için kullanılır.
+- **Süre ve Skor Tasarımı:** `time_limit_sec` (varsayılan 60sn) öğrencinin odaklanmasını artırır. Skor, doğru eşleşme oranı ile `points` değerinin çarpımıdır. Tüm eşleşmeler doğruysa, kalan süre bonus olarak skora eklenir.
+- **Yazım İpuçları:**
+    - Terim ve tanım arasındaki ilişki net olmalıdır.
+    - **Anti-Slop:** Tanımlar çok bariz veya tek kelimelik (örn: "Araba" -> "Taşıt") olmamalıdır. Tanım, terimin fonksiyonunu veya ayırt edici özelliğini içermelidir.
+    - Karışıklığı önlemek için bir terimin tanımı diğer terimlerle çok fazla örtüşmemelidir.
+
+## 7. Kaçış Odası (escape_room)
+
+Kaçış odası, bir dizi kilidi (bulmacayı) ardışık olarak çözme prensibine dayanır. Doğrusal bir bulmaca zinciri sunar.
+
+- **Bulmaca Zinciri Tasarımı:** Her bulmaca bir öncekiyle bağlantılı olmak zorunda değildir, ancak zorluk seviyesi kademeli olarak artabilir. Bir bulmacayı çözmeden bir sonrakine geçilemez.
+- **İpucu ve Can Dengesi:** `lives` (can) sayısı, öğrencinin deneme yanılma toleransını belirler. Her yanlış cevapta bir can azalır ve `hint_html` (ipucu) gösterilir. Can biterse senaryo başarısızlıkla sonuçlanır.
+- **Öğretilebilirlik:** Bulmacalar, kursun önceki ekranlarında sunulan içerikten doğrudan veya dolaylı olarak çıkarılabilmelidir. Dış kaynaklı veya keyfi genel kültür bilgisi gerektirmemelidir.
+- **Anti-Slop:** İçeriğe hizmet etmeyen veya alakasız bulmacalardan kaçınılmalıdır. Her kilit, bir öğrenme kazanımını temsil etmelidir.
+
+## 8. Görsel Öğrenme: labeled_diagram & data_chart
+
+Görsel odaklı ekranlar, bilginin uzamsal veya sayısal temsilini sağlar.
+
+- **Labeled Diagram (Skorlu):** Bir görsel üzerindeki işaretçilere doğru etiketlerin atanmasını gerektirir. Anatomi, makine parçaları veya akış şemaları için idealdir. Kullanıcının görsel hafızasını ve parçalar arası ilişkiyi test eder.
+- **Data Chart (İçerik):** Pasif bir içerik ekranıdır, skorlanmaz. Verileri bar, line veya pie grafik olarak sunar. Karmaşık tablolar yerine veriyi görselleştirmek için kullanılır.
+- **Şema Uyumu:** Her iki tip de [Ekran Tipleri (SCREEN_TYPES.md) §20-23](./SCREEN_TYPES.md) modeline tam uyumludur; `labeled_diagram` 15 puan değerinde bir quiz tipi iken, `data_chart` saf bir anlatım aracıdır.
