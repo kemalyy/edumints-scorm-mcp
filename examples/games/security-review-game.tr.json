@@ -1,0 +1,97 @@
+{
+  "title": "Bilgi Güvenliği Tazeleme Eğitimi",
+  "description": "Güvenlik terimlerini ve temel prensipleri oyunlaştırılmış bir kurgu ile pekiştirin.",
+  "scorm_version": "1.2",
+  "language": "tr",
+  "theme": "default",
+  "tracking": {
+    "completion_rule": "viewed_all_and_passed",
+    "passing_score": 80
+  },
+  "screens": [
+    {
+      "type": "title_slide",
+      "id": "welcome",
+      "title": "Güvenlik Duvarı: Büyük Yarış ve Kaçış",
+      "subtitle": "Bilgi Güvenliği Tekrar Oyunu",
+      "body_html": "<p>Bu eğitimde bilgi güvenliği temellerini hatırlayacağız. Önce kısa bir tekrar yapacak, ardından zamana karşı yarışacak ve kilitli odalardan kurtulmaya çalışacaksınız.</p>"
+    },
+    {
+      "type": "content_slide",
+      "id": "review_basics",
+      "title": "Temel Güvenlik Kavramları",
+      "body_html": "<p>Bilmeniz gereken kritik kavramlar:</p><ul><li><strong>MFA (Çok Faktörlü Kimlik Doğrulama):</strong> Şifrenize ek olarak bir kod veya biyometrik veri kullanımı.</li><li><strong>VPN:</strong> İnternet trafiğinizi şifreleyen güvenli tünel.</li><li><strong>Phishing (Oltalama):</strong> Sahte e-posta veya sitelerle bilgi çalma.</li><li><strong>Sosyal Mühendislik:</strong> İnsanları kandırarak gizli bilgilere ulaşma.</li><li><strong>Fidye Yazılımı (Ransomware):</strong> Dosyaları şifreleyerek açmak için para isteyen yazılım.</li></ul>",
+      "layout": "text"
+    },
+    {
+      "type": "term_match_race",
+      "id": "term_race",
+      "title": "Terim Yarışı",
+      "prompt_html": "<p>Terimleri en uygun tanımlarla eşleştirin. Süre dolmadan bitirmeyi unutmayın!</p>",
+      "time_limit_sec": 45,
+      "points": 30,
+      "pairs": [
+        {
+          "id": "p1",
+          "term_html": "MFA",
+          "definition_html": "İki veya daha fazla doğrulama yöntemi kullanılması."
+        },
+        {
+          "id": "p2",
+          "term_html": "Phishing",
+          "definition_html": "Sahte kurumsal kimliklerle yapılan dolandırıcılık."
+        },
+        {
+          "id": "p3",
+          "term_html": "VPN",
+          "definition_html": "Halka açık ağlarda veriyi şifreleyen özel kanal."
+        },
+        {
+          "id": "p4",
+          "term_html": "Sosyal Mühendislik",
+          "definition_html": "Psikolojik manipülasyon yoluyla bilgi sızdırma."
+        }
+      ],
+      "feedback": {
+        "correct_html": "Hızlı ve doğru! Terimlere hakimsiniz.",
+        "incorrect_html": "Biraz daha pratik yapmalısınız. Terimler güvenliğin temelidir."
+      }
+    },
+    {
+      "type": "escape_room",
+      "id": "escape",
+      "title": "Güvenlik Odasından Kaçış",
+      "intro_html": "<p>Sistem odasında kilitli kaldınız! Kapıları açmak için güvenlik sorularını doğru cevaplamalısınız. Sadece 3 canınız var.</p>",
+      "lives": 3,
+      "points": 40,
+      "puzzles": [
+        {
+          "id": "puzzle1",
+          "prompt_html": "<p>Dışarıdayken halka açık bir Wi-Fi ağına bağlandınız. Şirket verilerine güvenle erişmek için hangi teknolojiyi kullanmalısınız? (Kısaltma olarak yazın)</p>",
+          "accepted": ["VPN"],
+          "hint_html": "Virtual Private Network kelimelerinin baş harfleri.",
+          "case_sensitive": false
+        },
+        {
+          "id": "puzzle2",
+          "prompt_html": "<p>Sadece şifrenin yeterli olmadığı durumlarda, telefonunuza gelen onay kodu gibi ek katmanlara ne ad verilir? (Kısaltma olarak yazın)</p>",
+          "accepted": ["MFA", "2FA"],
+          "hint_html": "Çok Faktörlü Kimlik Doğrulama.",
+          "case_sensitive": false
+        }
+      ],
+      "feedback": {
+        "correct_html": "Tebrikler! Tüm kilitleri açtınız ve güvenli bölgeye ulaştınız.",
+        "incorrect_html": "Maalesef kilitli kaldınız. Bilgi güvenliği kurallarını tekrar gözden geçirin."
+      }
+    },
+    {
+      "type": "summary",
+      "id": "summary",
+      "title": "Eğitim Tamamlandı",
+      "body_html": "<p>Güvenlik tazeleme oyununu başarıyla tamamladınız. Unutmayın, en zayıf halka insandır!</p>",
+      "show_score": true,
+      "show_completion": true
+    }
+  ]
+}
