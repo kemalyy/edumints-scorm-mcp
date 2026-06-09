@@ -8,7 +8,6 @@ metadata transaction'ları yapar.
 from __future__ import annotations
 
 import asyncio
-import os
 from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path

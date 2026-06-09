@@ -13,11 +13,8 @@ from lxml import etree
 
 from .project import (
     BranchingScreen,
-    HotspotScreen,
     Project,
     ScreenType,
-    TitleSlide,
-    ContentSlide,
     VideoScreen,
     ValidationError,
 )
@@ -71,7 +68,6 @@ def validate_project(project: Project) -> list[ValidationError]:
 
 def _suspend_estimate(project: Project) -> int:
     # visited + results + history kabaca
-    n = len(project.screens)
     sample = {"visited": {s.id or str(i): True for i, s in enumerate(project.screens)},
               "results": {s.id or str(i): {"points": 10, "max": 10} for i, s in enumerate(project.screens)
                           if s.type in {ScreenType.mcq, ScreenType.true_false, ScreenType.fill_blank,

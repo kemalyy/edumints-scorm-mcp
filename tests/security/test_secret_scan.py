@@ -4,7 +4,6 @@ Checks the repository for common secret patterns (API keys, tokens, etc.).
 
 import os
 import re
-import pytest
 
 # Simple patterns for secrets
 SECRET_PATTERNS = [
@@ -42,7 +41,7 @@ def test_no_secrets_in_repo():
                             if "test_secret_scan.py" in filepath:
                                 continue
                             findings.append(f"{description} found in {filepath}")
-            except Exception as e:
+            except Exception:
                  # Skip files that can't be read
                  pass
     

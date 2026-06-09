@@ -5,7 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Literal, Optional, Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, field_validator
 
 ALLOWED_SOURCES = ("ai-generated", "cc0", "public-domain", "own", "local")
 

@@ -10,13 +10,12 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import json
 import os
 import re
 from pathlib import Path
 
 import nh3
-from fastmcp import Context, FastMCP
+from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError as MCPToolError
 from fastmcp.server.dependencies import get_access_token, get_http_headers
 from starlette.requests import Request

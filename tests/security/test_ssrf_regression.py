@@ -6,7 +6,7 @@ import pytest
 from auth.ssrf import _is_blocked_ip, assert_safe_url, safe_fetch_asset
 from auth.errors import ToolError
 import httpx
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import patch, MagicMock
 
 @pytest.mark.parametrize("ip", [
     "127.0.0.1",

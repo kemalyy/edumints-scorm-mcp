@@ -6,7 +6,7 @@ kotası (max proje, max toplam MB) ve opsiyonel son kullanma tarihi vardır.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import timezone
 
 from core.project import utcnow
 from core.store import ApiKey, Store

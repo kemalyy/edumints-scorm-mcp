@@ -6,7 +6,7 @@ from fastmcp import Client
 import server
 from auth.errors import ToolError
 from auth.ssrf import _is_blocked_ip, assert_safe_url, decode_data_uri
-from components.renderer import render_html, load_runtime_js, sanitize
+from components.renderer import render_html, sanitize
 from core.manifest import build_manifest
 from core.project import Project, new_project_id, ContentSlide, MCQScreen, Choice
 
@@ -216,7 +216,7 @@ def test_variables_and_conditional_config():
 
 def test_gamification_config():
     # Faz 6: timer + on_correct + points HUD config'e düşüyor
-    from core.project import Variable, VarAction, MCQScreen, Choice, ContentSlide as CS
+    from core.project import Variable, VarAction, ContentSlide as CS
     from components.renderer import _course_config
     p = Project(id=new_project_id(), title="G",
                 variables=[Variable(name="score", default=0)], points_var="score")
@@ -355,7 +355,7 @@ def test_faz9_models_defaults_and_overrides():
 
 
 def test_faz9_renderer_wraps_blocks_and_config():
-    from core.project import Project, new_project_id, ContentSlide, MCQScreen, Choice
+    from core.project import Project, new_project_id, ContentSlide
     p = Project(
         id=new_project_id(), title="T", scorm_version="2004", layout_mode="stage",
         screens=[
@@ -420,7 +420,7 @@ def test_faz91_section_and_stage_size():
 
 def test_faz91_icons_no_emoji_and_sections():
     import re
-    from core.project import Project, new_project_id, ContentSlide, MCQScreen, Choice
+    from core.project import Project, new_project_id, ContentSlide
     from components.renderer import render_html
     p = Project(id=new_project_id(), title="T", scorm_version="2004", points_var="p",
                 screens=[ContentSlide(id="c", title="A", body_html="<p>x</p>", section="Giriş"),

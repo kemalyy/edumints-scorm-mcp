@@ -85,7 +85,6 @@ async def test_golden_rich_all_screen_types_build():
 
 @pytest.mark.asyncio
 async def test_preview_is_single_file_no_external_deps():
-    spec = _spec("small.json")
     async with Client(server.mcp) as c:
         proj = await c.call_tool("create_project", {"title": "Önizleme"})
         pid = proj.data.project_id
