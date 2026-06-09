@@ -1,0 +1,133 @@
+{
+  "title": "Müşteri Hizmetleri: Zor Durum Yönetimi",
+  "description": "Öfkeli bir müşteri ile iletişim kurarken gerginliği düşürme (de-escalation) teknikleri.",
+  "scorm_version": "1.2",
+  "language": "tr",
+  "theme": "default",
+  "tracking": {
+    "completion_rule": "viewed_all_and_passed",
+    "passing_score": 80
+  },
+  "screens": [
+    {
+      "type": "title_slide",
+      "id": "t1",
+      "title": "Öfkeli Müşteri ile İletişim",
+      "subtitle": "Profesyonel Yaklaşım ve Çözüm Teknikleri",
+      "body_html": "<p>Müşteri hizmetlerinde her gün farklı karakterlerle karşılaşırsınız. Bu senaryoda, teslimatı geciken ve oldukça öfkeli bir müşteriyi sakinleştirmeniz gerekiyor.</p>"
+    },
+    {
+      "type": "content_slide",
+      "id": "c1",
+      "title": "Sakinleştirme (De-escalation) Prensipleri",
+      "body_html": "<p>Gerginliği azaltmak için şu adımları izleyin:</p><ul><li><strong>Aktif Dinleme:</strong> Sözünü kesmeden, dinlediğinizi hissettirin.</li><li><strong>Empati Kurma:</strong> Duygusunu anladığınızı belirtin (Haklısınız/Anlıyorum).</li><li><strong>Kişiselleştirmeme:</strong> Öfkenin şahsınıza değil, duruma olduğunu unutmayın.</li><li><strong>Çözüm Odaklılık:</strong> Sorun yerine çözüme odaklanın.</li></ul>"
+    },
+    {
+      "type": "decision_scenario",
+      "id": "ds1",
+      "title": "Kriz Anı: Telefonda Öfke",
+      "intro_html": "<p>Telefon çalar. Müşteri (Sayın Demir) bağırarak söze başlar: <em>'Haftalardır kargomu bekliyorum! Bu ne biçim iş? Hepiniz aynısınız, paramla rezil oldum!'</em></p>",
+      "points": 50,
+      "pass_score": 40,
+      "nodes": [
+        {
+          "id": "opening",
+          "prompt_html": "<p>Müşteri bağırmaya devam ederken ilk tepkiniz ne olur?</p>",
+          "choices": [
+            {
+              "id": "interrupt",
+              "text_html": "Sözünü kesip: 'Efendim lütfen bağırmayın, size yardımcı olamam.'",
+              "feedback_html": "<p>Öfkeli birinin sözünü kesmek ve ona ne yapması gerektiğini söylemek (emir kipi) ateşe körükle gitmektir. Müşteri daha da sinirlendi.</p>",
+              "score_delta": -20,
+              "goto_node_id": "escalated"
+            },
+            {
+              "id": "listen",
+              "text_html": "Sakince dinleyip sözünün bitmesini beklemek.",
+              "feedback_html": "<p>Mükemmel başlangıç. Kişilerin öfkesini boşaltmasına izin vermek, mantıklı düşünme evresine geçmelerini sağlar.</p>",
+              "score_delta": 20,
+              "goto_node_id": "empathy_step"
+            }
+          ]
+        },
+        {
+          "id": "escalated",
+          "prompt_html": "<p>Müşteri: <em>'Sen bana ne yapacağımı söyleyemezsin! Yetkili birini bağla hemen!'</em> diye bağırır. Şimdi ne yapacaksınız?</p>",
+          "choices": [
+            {
+              "id": "transfer",
+              "text_html": "Hemen beklemeye alıp yöneticime aktarırım.",
+              "feedback_html": "<p>Sorumluluktan kaçtınız. Müşteri yöneticinize bağlandığında bekletildiği için daha da öfkeli olacak. Sorunu ilk temas noktasında çözme fırsatını kaçırdınız.</p>",
+              "score_delta": -10,
+              "goto_node_id": null
+            },
+            {
+              "id": "apologize_now",
+              "text_html": "Özür dilerim: 'Haklısınız Sayın Demir, sesimi yükselttiğim için üzgünüm. Sorununuzu çözmek istiyorum.'",
+              "feedback_html": "<p>Hatayı kabul edip sorumluluk aldınız. Bu tutum genellikle en sert müşterileri bile yumuşatır.</p>",
+              "score_delta": 10,
+              "goto_node_id": "empathy_step"
+            }
+          ]
+        },
+        {
+          "id": "empathy_step",
+          "prompt_html": "<p>Müşteri biraz durulur ama hala gergin: <em>'Yarın doğum günü var, hediye gelmezse hiçbir anlamı kalmayacak.'</em></p>",
+          "choices": [
+            {
+              "id": "just_facts",
+              "text_html": "'Sistemde kargonuz yolda görünüyor, yapabileceğim bir şey yok.'",
+              "feedback_html": "<p>Sadece rakamlar ve sistem bilgisiyle konuşmak, müşterinin duygusal ihtiyacını (anlaşılma isteği) görmezden gelmektir. Bağ koptu.</p>",
+              "score_delta": -10,
+              "goto_node_id": null
+            },
+            {
+              "id": "empathy_solution",
+              "text_html": "'Doğum günü için olması durumu daha da hassas kılıyor, sizi çok iyi anlıyorum. Kurye merkezini hemen hattan arayıp hızlandıracağım.'",
+              "feedback_html": "<p>Harika! Hem empati kurdunuz hem de inisiyatif alarak somut bir adım önerdiniz. Müşteri 'sizin tarafınızda' olduğunuzu hissetti.</p>",
+              "score_delta": 30,
+              "goto_node_id": null
+            }
+          ]
+        }
+      ],
+      "feedback": {
+        "correct_html": "Tebrikler! Zor bir iletişimi başarıyla yönettiniz ve müşteri memnuniyetini korudunuz.",
+        "incorrect_html": "İletişim sırasında gerginlik tırmandı. Empati ve aktif dinleme konularına odaklanmanız faydalı olacaktır."
+      }
+    },
+    {
+      "type": "mcq",
+      "id": "q1",
+      "title": "Kritik Değerlendirme",
+      "prompt_html": "<p>Aşağıdakilerden hangisi öfkeli bir müşteriye söylenmemesi gereken 'tetikleyici' bir ifadedir?</p>",
+      "options": [
+        {
+          "id": "o1",
+          "text_html": "Lütfen sakin olun.",
+          "correct": true
+        },
+        {
+          "id": "o2",
+          "text_html": "Sizi anlıyorum.",
+          "correct": false
+        },
+        {
+          "id": "o3",
+          "text_html": "Bu durumu hemen araştırıyorum.",
+          "correct": false
+        }
+      ],
+      "feedback": {
+        "correct_html": "Kesinlikle! Birine 'sakin ol' demek, genellikle ters teper ve kişinin duygularının geçersiz olduğu hissini yaratır.",
+        "incorrect_html": "Hayır. 'Sakin olun' ifadesi emir kipi içerdiği için gerginliği artırır."
+      }
+    },
+    {
+      "type": "summary",
+      "id": "s1",
+      "title": "Eğitim Tamamlandı",
+      "body_html": "<p>Zor durum yönetiminde ustalaşmak için sabır ve empati en büyük silahlarınızdır. Pratik yapmaya devam edin!</p>"
+    }
+  ]
+}

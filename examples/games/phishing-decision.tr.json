@@ -1,0 +1,140 @@
+{
+  "title": "Siber Güvenlik: Oltalama (Phishing) Simülasyonu",
+  "description": "Gerçekçi bir oltalama saldırısı karşısında doğru kararları verme pratiği.",
+  "scorm_version": "1.2",
+  "language": "tr",
+  "theme": "default",
+  "tracking": {
+    "completion_rule": "viewed_all_and_passed",
+    "passing_score": 70
+  },
+  "screens": [
+    {
+      "type": "title_slide",
+      "id": "intro",
+      "title": "Oltalama Saldırılarına Karşı Hazır Mısınız?",
+      "subtitle": "Karar Senaryosu",
+      "body_html": "<p>Günümüzde siber saldırıların %90'ı bir e-posta ile başlar. Bu simülasyonda, gelen şüpheli bir e-posta karşısında vereceğiniz kararlar şirketin güvenliğini belirleyecek.</p>"
+    },
+    {
+      "type": "content_slide",
+      "id": "basics",
+      "title": "Oltalama (Phishing) Nedir?",
+      "body_html": "<p>Oltalama, saldırganların kendilerini güvenilir bir kurum veya kişi gibi göstererek kullanıcı adınız, şifreniz veya kredi kartı bilgileriniz gibi hassas verilere ulaşmaya çalıştığı bir dolandırıcılık yöntemidir.</p><ul><li><strong>Aciliyet hissi:</strong> 'Hemen yapmazsanız hesabınız kapanacak.'</li><li><strong>Şüpheli bağlantılar:</strong> Görünenden farklı URL'ler.</li><li><strong>Dilbilgisi hataları:</strong> Kurumsal kimliğe yakışmayan ifadeler.</li></ul>"
+    },
+    {
+      "type": "decision_scenario",
+      "id": "game",
+      "title": "Ofiste Sıradan Bir Sabah",
+      "intro_html": "<p>Kahvenizi aldınız ve bilgisayarınızı açtınız. Gelen kutunuzda 'İnsan Kaynakları'ndan gelen bir e-posta var. Başlık: <strong>'ACİL: Zorunlu Güvenlik Eğitimi ve Sertifika Güncellemesi'</strong>.</p>",
+      "points": 50,
+      "pass_score": 30,
+      "nodes": [
+        {
+          "id": "start",
+          "prompt_html": "<p>E-postada 'Eğitimi tamamlamak için bugün saat 17:00'ye kadar aşağıdaki bağlantıya tıklamanız gerekmektedir, aksi takdirde erişiminiz kısıtlanacaktır' yazıyor. Ne yaparsınız?</p>",
+          "choices": [
+            {
+              "id": "click_link",
+              "text_html": "Bağlantıya tıkla ve eğitimi tamamla.",
+              "feedback_html": "<p>Hızlı hareket ettiniz ama e-postanın kaynağını doğrulamadınız. Bağlantı sizi şirket dışı şüpheli bir sayfaya yönlendirdi.</p>",
+              "score_delta": -10,
+              "goto_node_id": "login_page"
+            },
+            {
+              "id": "check_sender",
+              "text_html": "Gönderen adresini ve bağlantı URL'sini kontrol et.",
+              "feedback_html": "<p>Harika bir refleks! Gönderen adresi 'hr-dept@sirket-portali.net' olarak görünüyor. Şirketinizin gerçek uzantısı '.com.tr'.</p>",
+              "score_delta": 20,
+              "goto_node_id": "suspicious_confirm"
+            },
+            {
+              "id": "report_it",
+              "text_html": "E-postayı doğrudan BT Güvenlik birimine raporla.",
+              "feedback_html": "<p>En güvenli yol! Hiç risk almadan uzmanlara danıştınız.</p>",
+              "score_delta": 30,
+              "goto_node_id": null
+            }
+          ]
+        },
+        {
+          "id": "login_page",
+          "prompt_html": "<p>Açılan sayfada şirket logosu var ve sizden Windows şifrenizle giriş yapmanız isteniyor. URL çubuğunda 'auth-verify-security.com' yazıyor.</p>",
+          "choices": [
+            {
+              "id": "enter_creds",
+              "text_html": "Şifremi girerim, sonuçta logo doğru görünüyor.",
+              "feedback_html": "<p>Maalesef şifreniz saldırganların eline geçti! Saldırganlar artık şirket ağındaki dosyalarınıza erişebilir.</p>",
+              "score_delta": -50,
+              "goto_node_id": null
+            },
+            {
+              "id": "close_page",
+              "text_html": "Sayfayı kapatırım ve durumu BT'ye bildiririm.",
+              "feedback_html": "<p>Son anda fark ettiniz! Şifrenizi kaptırmadınız ama sisteme bir 'oltalama e-postası' girmesine engel olamadınız.</p>",
+              "score_delta": 10,
+              "goto_node_id": null
+            }
+          ]
+        },
+        {
+          "id": "suspicious_confirm",
+          "prompt_html": "<p>Adresin sahte olduğundan emin oldunuz. Şimdi ne yapacaksınız?</p>",
+          "choices": [
+            {
+              "id": "delete_mail",
+              "text_html": "E-postayı siler ve işime devam ederim.",
+              "feedback_html": "<p>Kendinizi korudunuz ama aynı e-posta diğer iş arkadaşlarınıza da gitmiş olabilir. Onları uyarmadınız.</p>",
+              "score_delta": 0,
+              "goto_node_id": null
+            },
+            {
+              "id": "report_final",
+              "text_html": "Kurumsal 'Oltalama Raporla' butonunu kullanarak bildirim yaparım.",
+              "feedback_html": "<p>Mükemmel! BT ekibi e-postayı tüm sistemden silecek ve diğer çalışma arkadaşlarınızın da oltaya düşmesini engelleyeceksiniz.</p>",
+              "score_delta": 30,
+              "goto_node_id": null
+            }
+          ]
+        }
+      ],
+      "feedback": {
+        "correct_html": "Tebrikler! Siber güvenlik bilinciniz oldukça yüksek. Şirketi büyük bir riskten kurtardınız.",
+        "incorrect_html": "Dikkat! Kararlarınız şirketi veri sızıntısı riskine attı. Oltalama belirtilerine daha dikkatli bakmalısınız."
+      }
+    },
+    {
+      "type": "mcq",
+      "id": "quiz_1",
+      "title": "Bilgi Kontrolü",
+      "prompt_html": "<p>Aşağıdakilerden hangisi bir e-postanın oltalama saldırısı olduğunun en güçlü kanıtıdır?</p>",
+      "options": [
+        {
+          "id": "a",
+          "text_html": "E-postanın akşam saatlerinde gelmiş olması.",
+          "correct": false
+        },
+        {
+          "id": "b",
+          "text_html": "Gönderen adresinin kurumsal alan adıyla uyuşmaması (Örn: .com yerine .net).",
+          "correct": true
+        },
+        {
+          "id": "c",
+          "text_html": "E-postada birden fazla kişinin CC'de olması.",
+          "correct": false
+        }
+      ],
+      "feedback": {
+        "correct_html": "Doğru! Saldırganlar genellikle asıl alan adına çok benzeyen sahte adresler kullanırlar.",
+        "incorrect_html": "Yanlış. En kritik belirti gönderen adresi ve bağlantıların gerçekliğidir."
+      }
+    },
+    {
+      "type": "summary",
+      "id": "end",
+      "title": "Senaryo Tamamlandı",
+      "body_html": "<p>Oltalama simülasyonunu tamamladınız. Unutmayın: Şüphe duyduğunuzda asla tıklamayın, her zaman raporlayın!</p>"
+    }
+  ]
+}
