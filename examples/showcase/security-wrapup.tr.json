@@ -1,0 +1,121 @@
+{
+  "title": "Güvenlik Özeti ve Kapanış",
+  "description": "Temel güvenlik prensiplerinin gözden geçirilmesi ve değerlendirme.",
+  "scorm_version": "1.2",
+  "language": "tr",
+  "theme": "default",
+  "tracking": {
+    "completion_rule": "viewed_all_and_passed",
+    "passing_score": 70
+  },
+  "assets": [
+    {
+      "id": "img_safe",
+      "filename": "safe_site.png",
+      "source": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+    },
+    {
+      "id": "img_phish",
+      "filename": "phishing_site.png",
+      "source": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+    }
+  ],
+  "screens": [
+    {
+      "type": "title_slide",
+      "id": "start",
+      "title": "Güvenlik Özeti",
+      "subtitle": "Bilgilerinizi Tazeleyin",
+      "body_html": "<p>Bu bölümde siber güvenlik temellerini hızlıca hatırlayacak ve kendinizi test edeceksiniz.</p>"
+    },
+    {
+      "type": "content_slide",
+      "id": "intro",
+      "title": "Neden Önemli?",
+      "body_html": "<p>Siber güvenlik, sadece teknik bir konu değil, bir farkındalık meselesidir. Küçük bir ihmal büyük kayıplara yol açabilir.</p>",
+      "layout": "text"
+    },
+    {
+      "type": "mcq",
+      "id": "q_phish",
+      "title": "Oltalama (Phishing) Testi",
+      "prompt_html": "<p>Aşağıdakilerden hangisi bir oltalama e-postasının belirtisi olabilir?</p>",
+      "options": [
+        { "id": "a1", "text_html": "Kurumsal ve profesyonel dil", "correct": false },
+        { "id": "a2", "text_html": "Aciliyet hissi yaratan uyarılar", "correct": true },
+        { "id": "a3", "text_html": "Bildiğiniz bir gönderen adresi", "correct": false }
+      ],
+      "points": 10,
+      "feedback": {
+        "correct_html": "Doğru! Oltalama saldırıları genellikle sizi panikletmeye çalışır.",
+        "incorrect_html": "Yanlış. Aciliyet hissi ve şüpheli bağlantılar en büyük işaretlerdir."
+      }
+    },
+    {
+      "type": "mcq",
+      "id": "q_pass",
+      "title": "Parola Güvenliği",
+      "prompt_html": "<p>Güçlü bir parola oluştururken en önemli kural hangisidir?</p>",
+      "options": [
+        { "id": "b1", "text_html": "Sadece rakam kullanmak", "correct": false },
+        { "id": "b2", "text_html": "Doğum tarihi kullanmak", "correct": false },
+        { "id": "b3", "text_html": "Karmaşık ve benzersiz olması", "correct": true }
+      ],
+      "points": 10,
+      "feedback": {
+        "correct_html": "Harika! Parolalarınız ne kadar karmaşıksa o kadar güvendesiniz.",
+        "incorrect_html": "Maalesef. Parolalar tahmin edilemez olmalıdır."
+      }
+    },
+    {
+      "type": "image_compare",
+      "id": "compare",
+      "title": "Arayüz Karşılaştırması",
+      "prompt_html": "<p>Güvenli ve şüpheli bir giriş sayfasını karşılaştırın.</p>",
+      "before_asset_id": "img_safe",
+      "after_asset_id": "img_phish",
+      "before_label": "Güvenli Site",
+      "after_label": "Oltalama Sitesi"
+    },
+    {
+      "type": "results_breakdown",
+      "id": "results",
+      "title": "Performans Değerlendirmesi",
+      "body_html": "<p>İşte güvenlik konularındaki yetkinlik analiziniz:</p>",
+      "sections": [
+        {
+          "title": "Oltalama Farkındalığı",
+          "screen_ids": ["q_phish"],
+          "advice_html": "<p>Oltalama saldırılarına karşı daha dikkatli olmalısınız. Şüpheli linklere tıklamayın!</p>"
+        },
+        {
+          "title": "Parola Hijyeni",
+          "screen_ids": ["q_pass"],
+          "advice_html": "<p>Parolalarınızı güçlendirmek için parola yöneticisi kullanmayı düşünebilirsiniz.</p>"
+        }
+      ],
+      "weak_threshold": 60,
+      "show_total": true
+    },
+    {
+      "type": "poll",
+      "id": "feedback_poll",
+      "title": "Görüşleriniz",
+      "prompt_html": "<p>Sizce hangi bölüm en faydalıydı?</p>",
+      "options": [
+        { "id": "p1", "text_html": "Oltalama Testi" },
+        { "id": "p2", "text_html": "Parola Güvenliği" },
+        { "id": "p3", "text_html": "Görsel Karşılaştırma" }
+      ],
+      "reflection_html": "<p>Geri bildiriminiz için teşekkürler! Farkındalığınızı artırmaya devam edin.</p>"
+    },
+    {
+      "type": "summary",
+      "id": "end",
+      "title": "Tebrikler!",
+      "body_html": "<p>Güvenlik özetini tamamladınız. Güvende kalın!</p>",
+      "show_score": true,
+      "show_completion": true
+    }
+  ]
+}
