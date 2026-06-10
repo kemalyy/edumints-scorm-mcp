@@ -24,9 +24,12 @@ un paquete SCORM conforme a los estándares, sin dependencia de proveedor.
 
 ## Características
 
-- **18+ tipos de pantalla** — título, contenido, opción múltiple, verdadero/falso, completar huecos,
+- **26 tipos de pantalla** — título, contenido, opción múltiple, verdadero/falso, completar huecos,
   arrastrar y soltar, hotspot, escenario ramificado, acordeón, pestañas, tarjetas, emparejamiento,
-  ordenar, línea de tiempo, lottie, **simulación de software guiada**, vídeo, resumen.
+  ordenar, línea de tiempo, lottie, **simulación de software guiada**, vídeo, resumen,
+  **escenario de decisión**, **carrera de términos**, **sala de escape**, **diagrama etiquetado**,
+  **gráfico de datos**, **comparación de imágenes**, **desglose de resultados**,
+  **encuesta / reflexión**.
 - **Reproductor de escenario tipo diapositiva** — escenario fijo 16:9 que se adapta a cualquier
   pantalla, una barra de reproducción (play/buscar/subtítulos/menú/repetir) y **revelado por línea de
   tiempo** sincronizado con la narración. Menú de índice agrupado por secciones. Tamaño de escenario
@@ -122,4 +125,4 @@ Desarrollado por **edumints.com**. SCORM es una marca de ADL; otros nombres de p
 marcas de sus respectivos propietarios (uso nominativo únicamente).
 
 
-<!-- synced: 448f0cb -->
+<!-- synced: 5bd4f67 -->

@@ -23,9 +23,11 @@ runtime köprüsü ve paketleme. Sonuç standartlara uygun bir SCORM paketi — 
 
 ## Özellikler
 
-- **18+ ekran tipi** — başlık, içerik, çoktan seçmeli, doğru/yanlış, boşluk doldurma, sürükle-bırak,
+- **26 ekran tipi** — başlık, içerik, çoktan seçmeli, doğru/yanlış, boşluk doldurma, sürükle-bırak,
   hotspot, dallanan senaryo, akordeon, sekme, bilgi kartı, eşleştirme, sıralama, zaman çizelgesi,
-  lottie, **rehberli yazılım simülasyonu**, video, özet.
+  lottie, **rehberli yazılım simülasyonu**, video, özet, **karar senaryosu**, **terim yarışı**,
+  **kaçış odası**, **etiketli diyagram**, **veri grafiği**, **görsel karşılaştırma**,
+  **sonuç dökümü**, **anket / yansıma**.
 - **Slayt-sahne oynatıcı** — her ekrana ölçeklenen sabit 16:9 sahne, player bar (oynat/seekbar/
   altyazı/menü/replay) ve seslendirmeyle senkron **zamanlanmış timeline akışı**. Bölümlere göre
   gruplu menü. Ayarlanabilir sahne ölçüsü; tam responsive/mobil; inline SVG ikonlar (emoji yok).
@@ -119,4 +121,4 @@ Testler: `pytest`.
 ilgili sahiplerinin ticari markalarıdır (yalnız tanımlayıcı/nominative kullanım).
 
 
-<!-- synced: 448f0cb -->
+<!-- synced: 5bd4f67 -->

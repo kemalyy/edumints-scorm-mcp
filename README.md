@@ -23,9 +23,10 @@ runtime bridge, and packaging. The result is a standards-compliant SCORM package
 
 ## Features
 
-- **18+ screen types** — title, content, MCQ, true/false, fill-in-blank, drag & drop, hotspot,
+- **26 screen types** — title, content, MCQ, true/false, fill-in-blank, drag & drop, hotspot,
   branching scenario, accordion, tabs, flashcards, matching, sorting, timeline, lottie, **guided
-  software simulation**, video, summary.
+  software simulation**, video, summary, **decision scenario**, **term match race**, **escape room**,
+  **labeled diagram**, **data chart**, **image compare**, **results breakdown**, **poll**.
 - **Slide-stage player** — fixed 16:9 stage that scales to any screen, a player bar (play/seek/
   captions/menu/replay), and **timed timeline reveal** synced to narration. Section-grouped outline menu.
   Adjustable stage size; fully responsive/mobile; inline SVG icons (no emoji).

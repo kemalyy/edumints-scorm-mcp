@@ -23,9 +23,11 @@ runtime körpüsü və paketləmə. Nəticə standartlara uyğun SCORM paketidir
 
 ## İmkanlar
 
-- **18+ ekran növü** — başlıq, məzmun, çoxseçimli, doğru/yanlış, boşluq doldurma, sürüklə-burax,
+- **26 ekran növü** — başlıq, məzmun, çoxseçimli, doğru/yanlış, boşluq doldurma, sürüklə-burax,
   hotspot, budaqlanan ssenari, akkordeon, tablar, kartlar, uyğunlaşdırma, sıralama, zaman xətti,
-  lottie, **bələdçili proqram simulyasiyası**, video, xülasə.
+  lottie, **bələdçili proqram simulyasiyası**, video, xülasə, **qərar ssenarisi**, **term yarışı**,
+  **qaçış otağı**, **etiketli diaqram**, **məlumat qrafiki**, **şəkil müqayisəsi**,
+  **nəticə təhlili**, **sorğu / düşüncə**.
 - **Slayd-səhnə pleyeri** — istənilən ekrana miqyaslanan sabit 16:9 səhnə, pleyer paneli
   (oynat/axtar/altyazı/menyu/təkrar) və səsləndirmə ilə sinxron **zaman xətti üzrə görünmə**.
   Bölmələrə görə qruplaşdırılmış menyu. Tənzimlənən səhnə ölçüsü; tam responsiv/mobil; daxili SVG
@@ -120,4 +122,4 @@ Testləri `pytest` ilə işə salın.
 müvafiq sahiblərinin ticarət nişanlarıdır (yalnız nominativ istifadə).
 
 
-<!-- synced: 448f0cb -->
+<!-- synced: 5bd4f67 -->
