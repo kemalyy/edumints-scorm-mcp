@@ -254,6 +254,28 @@ def test_g1_gamification_hud():
     assert "currentLevel" in html and "updateLevel" in html and "updateLives" in html and "updateHud" in html
 
 
+def test_faz16_responsive_and_touch():
+    # Faz 16: cihaz uyumluluğu — içerik taşma kaydırması + mobil reflow + dokunma sürükleme
+    from core.project import ContentSlide, DragDropScreen, DragItem, DropTarget
+    p = Project(id=new_project_id(), title="resp", scorm_version="2004", screens=[
+        ContentSlide(id="c", title="A", body_html="<p>x</p>"),
+        DragDropScreen(id="d", title="D", prompt_html="<p>?</p>",
+                       items=[DragItem(id="i1", text_html="X", correct_target_id="t1")],
+                       targets=[DropTarget(id="t1", label_html="T")]),
+    ])
+    html = render_html(p, mode="preview", runtime_js="/*rt*/")
+    # içerik taşması kırpılmaz, kaydırılır
+    assert "overflow-y:auto;overflow-x:hidden;display:flex" in html
+    # mobilde sabit-tuval ölçeklemesi bırakılır → doğal akış reflow
+    assert "transform:none!important" in html and 'matchMedia("(max-width:640px)")' in html
+    # viewport meta
+    assert 'name="viewport"' in html and "width=device-width" in html
+    # dokunma sürükle-bırak (HTML5 drag dokunmada çalışmaz)
+    assert "touchmove" in html and "elementFromPoint" in html and "touch-action:none" in html
+    # tap gecikmesini önle
+    assert "touch-action:manipulation" in html
+
+
 def test_review_widget_only_in_preview():
     # Faz 2: feedback annotation widget yalnız preview'da aktif (pakette gizli/çalışmaz)
     p = Project(id=new_project_id(), title="R")

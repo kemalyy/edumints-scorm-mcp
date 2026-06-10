@@ -113,6 +113,7 @@ body[data-bg="grid"]{background-image:linear-gradient(color-mix(in srgb,var(--c-
   outline-offset:2px;border-radius:var(--r-sm)}
 .stage:focus{outline:none}
 .btn,.opt,.branch-choice{min-height:44px}
+.btn,.opt,.branch-choice,.scen-choice,.poll-opt,.pl-btn,.tab,.flashcard,select,input{touch-action:manipulation}
 .ui-stack{display:flex;flex-direction:column;gap:var(--space-4)}
 .ui-cluster{display:flex;flex-wrap:wrap;gap:var(--space-3);align-items:center}
 .ui-grid{display:grid;gap:var(--space-4);grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
@@ -176,7 +177,7 @@ body[data-bg="grid"]{background-image:linear-gradient(color-mix(in srgb,var(--c-
   background:var(--c-surface);
   border:1px solid color-mix(in srgb,var(--c-border) 60%,transparent);
   border-radius:var(--r-lg);box-shadow:0 4px 24px color-mix(in srgb,var(--c-primary) 4%,transparent),0 1px 2px rgba(0,0,0,.03);
-  padding:clamp(24px,3vw,44px) clamp(20px,3vw,40px);height:100%;overflow:hidden;display:flex;flex-direction:column}
+  padding:clamp(24px,3vw,44px) clamp(20px,3vw,40px);height:100%;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column}
 .screen[data-type="title_slide"] .screen-inner{background:
   linear-gradient(160deg,color-mix(in srgb,var(--c-primary) 4%,var(--c-surface)),var(--c-surface));
   box-shadow:0 8px 32px color-mix(in srgb,var(--c-primary) 6%,transparent);
@@ -315,7 +316,7 @@ body[data-bg="grid"]{background-image:linear-gradient(color-mix(in srgb,var(--c-
 .drag-pool{display:flex;flex-direction:column;gap:var(--space-3)}
 .drag-item{background:var(--c-bg);border:1.5px solid var(--c-border);border-radius:var(--r-md);
   padding:var(--space-3) var(--space-4);cursor:grab;box-shadow:var(--e1);user-select:none;
-  transition:all .15s ease}
+  touch-action:none;transition:all .15s ease}
 .drag-item.dragging{opacity:.5;transform:scale(.97)}
 .drop-list{display:flex;flex-direction:column;gap:var(--space-3)}
 .drop-target{border:1.5px dashed var(--c-border);border-radius:var(--r-md);padding:var(--space-3)}
@@ -719,6 +720,13 @@ body[data-layout="flow"] .stage{position:relative}
   .match-row{grid-template-columns:1fr}
   .match-select{min-width:0;width:100%}
   .options.tf{flex-direction:column}
+  /* Faz 16 — mobil/dar ekran: sabit-tuval ölçeklemesini BIRAK, içerik doğal akışla reflow
+     + dikey kaydırma (metin okunabilir kalır, tuval küçülmez) */
+  body[data-layout="stage"] .stage{align-items:stretch;justify-content:flex-start;overflow-y:auto}
+  body[data-layout="stage"] .stage-scaler{width:100%!important;height:auto!important;margin:0}
+  body[data-layout="stage"] .stage-frame{width:100%!important;height:auto!important;transform:none!important}
+  body[data-layout="stage"] .stage-frame .screen{position:relative;inset:auto;min-height:100%;overflow:visible}
+  .screen-inner{height:auto;min-height:100%;overflow:visible}
 }
 /* ===== RESPONSIVE — küçük mobil ===== */
 @media(max-width:380px){
@@ -1095,6 +1103,22 @@ function bindDrag(el,s){
   el.querySelectorAll(".drag-item").forEach(function(it){
     it.addEventListener("dragstart",function(){ dragging=it; it.classList.add("dragging"); });
     it.addEventListener("dragend",function(){ it.classList.remove("dragging"); dragging=null; });
+    // Faz 16 — dokunma desteği (HTML5 drag dokunmada tetiklenmez): touch ile sürükle-bırak
+    it.addEventListener("touchstart",function(){ it.classList.add("dragging"); },{passive:true});
+    it.addEventListener("touchmove",function(e){
+      var p=e.touches[0]; if(!p) return;
+      var over=document.elementFromPoint(p.clientX,p.clientY);
+      el.querySelectorAll(".drop-target").forEach(function(z){ z.classList.toggle("over", !!(over&&z.contains(over))); });
+      e.preventDefault();
+    },{passive:false});
+    it.addEventListener("touchend",function(e){
+      var p=e.changedTouches&&e.changedTouches[0];
+      var over=p?document.elementFromPoint(p.clientX,p.clientY):null;
+      var dt=over&&over.closest&&over.closest(".drop-target");
+      if(dt){ var z=dt.querySelector(".drop-zone"); if(z) z.appendChild(it); }
+      el.querySelectorAll(".drop-target").forEach(function(z){ z.classList.remove("over"); });
+      it.classList.remove("dragging");
+    });
   });
   el.querySelectorAll(".drop-target").forEach(function(tg){
     var zone=tg.querySelector(".drop-zone");
@@ -1412,6 +1436,11 @@ function fitStage(){
   var sc=document.getElementById("stageScaler"), fr=document.getElementById("stageFrame"),
       st=document.getElementById("stage");
   if(!fr||!st||!sc) return;
+  /* Faz 16 — mobil/dar: ölçekleme yok, CSS reflow devralır; inline stilleri temizle */
+  if(window.matchMedia && window.matchMedia("(max-width:640px)").matches){
+    fr.style.transform=""; fr.style.width=""; fr.style.height="";
+    sc.style.width=""; sc.style.height=""; return;
+  }
   var W=(COURSE&&COURSE.stage_width)||960, H=(COURSE&&COURSE.stage_height)||540;
   /* frame sabit boyut — scale ile ölçeklenecek */
   fr.style.width=W+"px"; fr.style.height=H+"px";
