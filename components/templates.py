@@ -417,6 +417,41 @@ body[data-bg="grid"]{background-image:linear-gradient(color-mix(in srgb,var(--c-
 .chart-svg{width:100%;max-width:600px;height:auto;color:var(--c-text)}
 .chart-cap{color:var(--c-muted);font-size:13px;margin-top:var(--space-2)}
 
+/* results_breakdown (Faz 14) */
+.results-breakdown{display:flex;flex-direction:column;gap:var(--space-4)}
+.rb-total{font-size:18px;align-self:flex-start;padding:var(--space-2) var(--space-4);
+  border-radius:var(--r-md);background:var(--c-surface);border:1px solid var(--c-border)}
+.rb-section{display:flex;flex-direction:column;gap:var(--space-2)}
+.rb-head{display:flex;justify-content:space-between;font-weight:var(--w-strong);font-size:15px}
+.rb-track{height:10px;background:var(--c-surface);border-radius:99px;overflow:hidden}
+.rb-fill{height:100%;border-radius:99px;transition:width .6s var(--ease);background:var(--c-success,#16a34a)}
+.rb-weak .rb-fill{background:var(--c-warning,#d97706)}
+.rb-advice{font-size:14px;color:var(--c-muted);padding:var(--space-2) var(--space-4);
+  border-left:3px solid var(--c-warning,#d97706);background:var(--c-surface);border-radius:0 var(--r-sm) var(--r-sm) 0}
+
+/* poll (Faz 14) */
+.poll-opts{display:flex;flex-direction:column;gap:var(--space-2);margin-bottom:var(--space-3)}
+.poll-opts.poll-nudge{animation:simshake .4s}
+.poll-opt{display:flex;align-items:center;gap:var(--space-3);padding:var(--space-3) var(--space-4);
+  border:1.5px solid var(--c-border);border-radius:var(--r-md);cursor:pointer;min-height:44px}
+.poll-opt:hover{border-color:var(--c-primary)}
+.poll-text{width:100%;padding:var(--space-3);border:1.5px solid var(--c-border);border-radius:var(--r-md);
+  background:var(--c-bg);color:var(--c-text);font-family:inherit;font-size:15px}
+.poll-reflection{margin-top:var(--space-3);padding:var(--space-3) var(--space-4);
+  border-left:3px solid var(--c-primary);background:var(--c-surface);border-radius:0 var(--r-sm) var(--r-sm) 0}
+
+/* image_compare (Faz 14) */
+.img-compare-wrap{margin:0;text-align:center}
+.img-compare{position:relative;display:inline-block;max-width:100%;user-select:none;line-height:0}
+.ic-img{display:block;width:100%;max-width:600px;height:auto;border-radius:var(--r-md)}
+.ic-after-wrap{position:absolute;top:0;left:0;width:50%;height:100%;overflow:hidden}
+.ic-after-wrap .ic-img{max-width:none;width:auto;height:100%}
+.ic-divider{position:absolute;top:0;left:50%;width:2px;height:100%;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.2);pointer-events:none}
+.ic-range{position:absolute;top:0;left:0;width:100%;height:100%;margin:0;opacity:0;cursor:ew-resize}
+.ic-label{position:absolute;bottom:8px;font-size:12px;font-weight:var(--w-strong);color:#fff;
+  background:rgba(0,0,0,.55);padding:2px 8px;border-radius:99px;pointer-events:none}
+.ic-before{left:8px}.ic-after{right:8px}
+
 /* video (genel kurallar — ekran-spesifik kurallar yukarıda) */
 .video-wrap{margin:0}
 .video{width:100%;border-radius:var(--r-md);box-shadow:var(--e2);background:#000;pointer-events:none}
@@ -895,6 +930,7 @@ function showAt(idx,push){
   applyAnsweredState(secById[id], byId[id]);
   updateChrome();
   renderSummaryIfNeeded(secById[id], byId[id]);
+  renderResultsIfNeeded(secById[id], byId[id]);
   evaluate();
   onScreenEnter(secById[id], byId[id]);   // Faz 9 — timeline reveal + player
   fitStage();
@@ -946,6 +982,28 @@ function renderSummaryIfNeeded(el,s){
     cp.className="summary-completion "+(hasQuiz?(passed?"passed":"failed"):""); }
 }
 
+// Faz 14 — özelleştirilmiş sonuç: bölüm bazlı skoru gösterim-zamanında öğrencinin cevaplarından hesapla
+function renderResultsIfNeeded(el,s){
+  if(!s||s.type!=="results_breakdown") return;
+  var root=el.querySelector(".results-breakdown"); if(!root) return;
+  var weak=parseInt(root.dataset.weak,10)||60;
+  var gTot=0, gMax=0;
+  root.querySelectorAll(".rb-section").forEach(function(sec){
+    var ids=(sec.dataset.screens||"").split(",").filter(Boolean);
+    var pts=0, mx=0;
+    ids.forEach(function(id){ var r=state.results[id]; if(r){ pts+=r.points||0; mx+=r.max||0; } });
+    var pct=mx>0?Math.round(pts/mx*100):0; gTot+=pts; gMax+=mx;
+    var fill=sec.querySelector(".rb-fill"), pctEl=sec.querySelector(".rb-pct");
+    if(fill) fill.style.width=pct+"%";
+    if(pctEl) pctEl.textContent="%"+pct;
+    sec.classList.add(pct>=weak?"rb-ok":"rb-weak");
+    var adv=sec.querySelector(".rb-advice"); if(adv && pct<weak) adv.hidden=false;
+  });
+  var tot=root.querySelector(".rb-total");
+  if(tot && tot.dataset.showTotal){ var gp=gMax>0?Math.round(gTot/gMax*100):0;
+    tot.hidden=false; tot.innerHTML="Toplam: <b>%"+gp+"</b>"; }
+}
+
 // ---- quiz: interaksiyon ----
 function recordResult(id,pts,maxpts,ok){ state.results[id]={points:pts,max:maxpts,ok:!!ok,answered:true}; }
 
@@ -980,6 +1038,8 @@ sections.forEach(function(el){
   else if(t==="term_match_race"){ bindTermRace(el,s); }
   else if(t==="escape_room"){ bindEscape(el,s); }
   else if(t==="labeled_diagram"){ bindLabeledDiagram(el,s); }
+  else if(t==="poll"){ bindPoll(el); }
+  else if(t==="image_compare"){ bindImageCompare(el); }
 });
 
 function bindChoice(el,s){
@@ -1245,6 +1305,27 @@ function bindLabeledDiagram(el,s){
   bindCheck(el,s,function(){ var ok=true;
     ld.querySelectorAll(".ld-select").forEach(function(sel){ var hit=sel.value===sel.dataset.label;
       sel.disabled=true; sel.closest(".ld-row").classList.add(hit?"correct":"wrong"); if(!hit) ok=false; }); return ok; });
+}
+// Faz 14 — anket/yansıma (skorlanmaz; gönderince yansıma belirir)
+function bindPoll(el){
+  var poll=el.querySelector(".poll"); if(!poll) return;
+  var btn=poll.querySelector(".poll-submit"), refl=poll.querySelector(".poll-reflection");
+  btn.addEventListener("click",function(){
+    var picked=poll.querySelector(".poll-opts input:checked");
+    var txt=poll.querySelector(".poll-text");
+    if(!picked && !(txt && txt.value.trim())){ var o=poll.querySelector(".poll-opts"); o.classList.add("poll-nudge");
+      setTimeout(function(){ o.classList.remove("poll-nudge"); },600); return; }
+    poll.querySelectorAll(".poll-opts input, .poll-text").forEach(function(i){ i.disabled=true; });
+    btn.disabled=true; if(refl) refl.hidden=false;
+  });
+}
+// Faz 14 — önce/sonra görsel karşılaştırma (sürüklenebilir slider)
+function bindImageCompare(el){
+  var ic=el.querySelector(".img-compare"); if(!ic) return;
+  var range=ic.querySelector(".ic-range"), after=ic.querySelector(".ic-after-wrap"), div=ic.querySelector(".ic-divider");
+  function set(v){ if(after) after.style.width=v+"%"; if(div) div.style.left=v+"%"; }
+  range.addEventListener("input",function(){ set(range.value); });
+  set(range.value);
 }
 function bindTabs(el){
   var tabs=Array.prototype.slice.call(el.querySelectorAll(".tab"));

@@ -1,6 +1,6 @@
 # Ekran Tipleri (Screen Types)
 
-`edumints-scorm-mcp` içerisinde tanımlı 23 ekran tipi bulunmaktadır. Her ekran tipi `core/project.py` içerisindeki modellerden türetilmiştir.
+`edumints-scorm-mcp` içerisinde tanımlı 26 ekran tipi bulunmaktadır. Her ekran tipi `core/project.py` içerisindeki modellerden türetilmiştir.
 
 ## Ortak Alanlar (Base Fields)
 
@@ -313,6 +313,56 @@ ekranı — pasif veri sunumu/karşılaştırma. **Skorlanmaz.**
 | `caption` | `str` | Hayır | Grafik altyazısı. |
 
 **`ChartDatum`:** `label`, `value` (float).
+
+## 24. Sonuç Dökümü (results_breakdown)
+
+**Özelleştirilmiş sonuç:** hedef/bölüm bazlı skor dökümü. Her bölümün oranı, öğrencinin verdiği
+cevaplardan **gösterim-zamanında** hesaplanır; eşik altındaki (zayıf) bölümler için adaptif öneri
+gösterilir. `summary`'nin performansa-duyarlı, kişiselleştirilmiş versiyonu. **Skorlanmaz.**
+
+**Model:** `ResultsBreakdownScreen`
+
+| Alan | Tip | Zorunlu mu? | Açıklama |
+| :--- | :--- | :---: | :--- |
+| `body_html` | `str` | Hayır | Giriş metni. |
+| `sections` | `list[ResultSection]` | Evet | Hedef/bölümler (≥1). |
+| `weak_threshold` | `int` | Hayır | Zayıf eşik % (Varsayılan: 60). |
+| `show_total` | `bool` | Hayır | Toplam oranı göster (Varsayılan: true). |
+
+**`ResultSection`:** `title`, `screen_ids` (`list[str]` — bu hedefe ait skorlanan ekran id'leri),
+ops. `advice_html` (bölüm zayıfsa gösterilir).
+
+## 25. Anket / Yansıma (poll)
+
+Puanlanmayan anket/yansıma. Öğrenci seçer (tek/çok) ya da açık metin yazar; gönderince yansıma
+mesajı belirir. Katılım/öz-değerlendirme — **skorlanmaz**, İleri'yi engellemez.
+
+**Model:** `PollScreen`
+
+| Alan | Tip | Zorunlu mu? | Açıklama |
+| :--- | :--- | :---: | :--- |
+| `prompt_html` | `str` | Evet | Soru. |
+| `options` | `list[PollOption]` | Hayır | Seçenekler (boş + `allow_text` → açık yansıma). |
+| `multi` | `bool` | Hayır | Çoklu seçim (Varsayılan: false). |
+| `allow_text` | `bool` | Hayır | Açık metin alanı (Varsayılan: false). |
+| `reflection_html` | `str` | Hayır | Gönderimden sonra gösterilir. |
+
+**`PollOption`:** `id`, `text_html`.
+
+## 26. Görsel Karşılaştırma (image_compare)
+
+Önce/sonra **sürüklenebilir** görsel karşılaştırma (slider). Değişim/fark gösterimi (tıp, tasarım,
+önce-sonra). İçerik — **skorlanmaz.**
+
+**Model:** `ImageCompareScreen`
+
+| Alan | Tip | Zorunlu mu? | Açıklama |
+| :--- | :--- | :---: | :--- |
+| `before_asset_id` | `str` | Evet | "Önce" görseli. |
+| `after_asset_id` | `str` | Evet | "Sonra" görseli. |
+| `before_label` | `str` | Hayır | "Önce" etiketi. |
+| `after_label` | `str` | Hayır | "Sonra" etiketi. |
+| `prompt_html` / `caption` | `str` | Hayır | Talimat / altyazı. |
 
 ---
 

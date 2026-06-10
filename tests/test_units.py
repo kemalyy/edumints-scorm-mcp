@@ -204,6 +204,38 @@ def test_render_g3_game_and_visual_types():
     assert smap["dc"]["is_quiz"] is False
 
 
+def test_render_faz14_results_poll_compare():
+    # Faz 14: results_breakdown (özelleştirilmiş sonuç) + poll + image_compare — hepsi içerik
+    from core.project import (ResultsBreakdownScreen, PollScreen, ImageCompareScreen,
+                              QUIZ_TYPES, ScreenType)
+    from components.renderer import _course_config
+    p = Project(id=new_project_id(), title="f14")
+    p.screens = [
+        ResultsBreakdownScreen(id="rb", title="Sonuç", weak_threshold=60, sections=[
+            {"title": "Bölüm A", "screen_ids": ["q1", "q2"], "advice_html": "<p>Tekrar et.</p>"},
+            {"title": "Bölüm B", "screen_ids": ["q3"]}]),
+        PollScreen(id="pl", title="Anket", prompt_html="<p>Görüş?</p>",
+                   options=[{"id": "a", "text_html": "X"}, {"id": "b", "text_html": "Y"}],
+                   reflection_html="<p>Teşekkürler.</p>"),
+        ImageCompareScreen(id="ic", title="Karşılaştır", before_asset_id="b", after_asset_id="a",
+                           before_label="Önce", after_label="Sonra"),
+    ]
+    html = render_html(p, mode="preview", runtime_js="/*rt*/")
+    # results_breakdown: bölümler + compute-on-show
+    assert "data-results" in html and 'data-screens="q1,q2"' in html and "rb-fill" in html
+    assert "renderResultsIfNeeded" in html and "rb-advice" in html
+    # poll: seçenek + gönder + yansıma
+    assert "data-poll" in html and "poll-submit" in html and "bindPoll" in html
+    # image_compare: slider
+    assert "data-compare" in html and "ic-range" in html and "bindImageCompare" in html
+    # üçü de içerik (skorlanmaz)
+    for t in (ScreenType.results_breakdown, ScreenType.poll, ScreenType.image_compare):
+        assert t not in QUIZ_TYPES
+    cfg = _course_config(p)
+    assert all(s["is_quiz"] is False for s in cfg["screens"])
+    assert cfg["total_points"] == 0  # hiçbiri skorlanmaz
+
+
 def test_review_widget_only_in_preview():
     # Faz 2: feedback annotation widget yalnız preview'da aktif (pakette gizli/çalışmaz)
     p = Project(id=new_project_id(), title="R")

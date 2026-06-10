@@ -252,6 +252,9 @@ class ScreenType(str, Enum):
     escape_room = "escape_room"  # Faz 13 (G3) — kilitli bulmaca zinciri (ipucu/can)
     labeled_diagram = "labeled_diagram"  # Faz 13 — etiketli diyagram (görsel öğrenme)
     data_chart = "data_chart"  # Faz 13 — veri-görseli (bar/line/pie, içerik)
+    results_breakdown = "results_breakdown"  # Faz 14 — hedef-bazlı skor dökümü + adaptif öneri (içerik)
+    poll = "poll"  # Faz 14 — puanlanmayan anket/yansıma (katılım)
+    image_compare = "image_compare"  # Faz 14 — önce/sonra sürüklenebilir görsel karşılaştırma (içerik)
 
 
 class ScreenBase(BaseModel):
@@ -576,6 +579,53 @@ class DataChartScreen(ScreenBase):
     caption: str | None = None
 
 
+# --- Faz 14: özelleştirilmiş sonuç + katılım + görsel karşılaştırma ----------
+class ResultSection(BaseModel):
+    """Sonuç dökümünde bir hedef/bölüm: ona ait quiz ekranlarının id'leri + zayıfsa öneri."""
+    title: str
+    screen_ids: list[str] = Field(min_length=1)  # bu hedefe ait skorlanan ekranlar
+    advice_html: str | None = None  # bu bölüm zayıfsa (eşik altı) gösterilir
+
+
+class ResultsBreakdownScreen(ScreenBase):
+    """Faz 14 — özelleştirilmiş sonuç: hedef-bazlı skor dökümü (her bölüm için kazanılan/azami
+    oran, gösterim-zamanında öğrencinin cevaplarından hesaplanır) + zayıf bölümlere adaptif öneri.
+    summary'nin performansa-duyarlı, kişiselleştirilmiş versiyonu. Skorlanmaz (içerik)."""
+    type: Literal[ScreenType.results_breakdown] = ScreenType.results_breakdown
+    body_html: str | None = None
+    sections: list[ResultSection] = Field(min_length=1)
+    weak_threshold: int = 60  # % — bu oranın altındaki bölümde advice_html gösterilir
+    show_total: bool = True
+
+
+class PollOption(BaseModel):
+    id: str
+    text_html: str
+
+
+class PollScreen(ScreenBase):
+    """Faz 14 — puanlanmayan anket/yansıma. Öğrenci seçer (tek/çok) ya da açık metin yazar;
+    gönderince yansıma mesajı belirir. Katılım/öz-değerlendirme — skorlanmaz, ileri engellemez."""
+    type: Literal[ScreenType.poll] = ScreenType.poll
+    prompt_html: str
+    options: list[PollOption] = Field(default_factory=list)  # boş + allow_text → açık yansıma
+    multi: bool = False
+    allow_text: bool = False
+    reflection_html: str | None = None  # gönderimden sonra gösterilir
+
+
+class ImageCompareScreen(ScreenBase):
+    """Faz 14 — önce/sonra sürüklenebilir görsel karşılaştırma (slider). Değişim/fark gösterimi
+    (tıp, tasarım, önce-sonra). İçerik (skorlanmaz)."""
+    type: Literal[ScreenType.image_compare] = ScreenType.image_compare
+    prompt_html: str | None = None
+    before_asset_id: str
+    after_asset_id: str
+    before_label: str | None = None
+    after_label: str | None = None
+    caption: str | None = None
+
+
 Screen = Annotated[
     Union[
         TitleSlide,
@@ -601,6 +651,9 @@ Screen = Annotated[
         EscapeRoomScreen,
         LabeledDiagramScreen,
         DataChartScreen,
+        ResultsBreakdownScreen,
+        PollScreen,
+        ImageCompareScreen,
     ],
     Field(discriminator="type"),
 ]

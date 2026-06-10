@@ -320,6 +320,7 @@ _AUTO_REVEAL_TYPES = {
     ScreenType.title_slide, ScreenType.content_slide, ScreenType.video,
     ScreenType.timeline, ScreenType.lottie, ScreenType.summary,
     ScreenType.data_chart,  # içerik (skorlanmaz)
+    ScreenType.results_breakdown, ScreenType.poll, ScreenType.image_compare,  # Faz 14 içerik
 }
 
 
@@ -847,6 +848,64 @@ def _num(v: float) -> str:
     return str(int(v)) if float(v).is_integer() else f"{v:g}"
 
 
+def _r_results_breakdown(s) -> str:
+    rows = ""
+    for sec in s.sections:
+        ids = _attr(",".join(sec.screen_ids))
+        advice = (f'<div class="rb-advice rich" hidden>{sanitize(sec.advice_html)}</div>'
+                  if sec.advice_html else "")
+        rows += (
+            f'<div class="rb-section" data-screens="{ids}">'
+            f'<div class="rb-head"><span class="rb-title">{_text(sec.title)}</span>'
+            f'<span class="rb-pct">—</span></div>'
+            f'<div class="rb-track"><div class="rb-fill" style="width:0%"></div></div>{advice}</div>'
+        )
+    head = f'<h2 class="screen-title">{_text(s.title)}</h2>'
+    if s.body_html:
+        head += f'<div class="rich">{sanitize(s.body_html)}</div>'
+    total = ('<div class="rb-total" data-show-total="1" hidden></div>' if s.show_total else "")
+    return (
+        f'{head}<div class="results-breakdown" data-results data-weak="{int(s.weak_threshold)}">'
+        f'{total}{rows}</div>'
+    )
+
+
+def _r_poll(s) -> str:
+    head = f'<h2 class="screen-title">{_text(s.title)}</h2><div class="rich prompt">{sanitize(s.prompt_html)}</div>'
+    inp_type = "checkbox" if s.multi else "radio"
+    opts = "".join(
+        f'<label class="poll-opt"><input type="{inp_type}" name="poll-{_attr(s.id or "p")}"'
+        f' value="{_attr(o.id)}"><span class="rich">{sanitize(o.text_html)}</span></label>'
+        for o in s.options
+    )
+    text = ('<textarea class="poll-text" rows="3" aria-label="Yansımanı yaz" '
+            'placeholder="Düşünceni yaz…"></textarea>' if s.allow_text else "")
+    reflection = (f'<div class="poll-reflection rich" hidden>{sanitize(s.reflection_html)}</div>'
+                  if s.reflection_html else '<div class="poll-reflection rich" hidden>Paylaştığın için teşekkürler.</div>')
+    return (
+        f'{head}<div class="poll" data-poll>'
+        f'<div class="poll-opts">{opts}</div>{text}'
+        f'<div class="quiz-actions"><button class="btn btn-primary poll-submit" type="button">Gönder</button></div>'
+        f'{reflection}</div>'
+    )
+
+
+def _r_image_compare(s) -> str:
+    bl = f'<span class="ic-label ic-before">{_text(s.before_label)}</span>' if s.before_label else ""
+    al = f'<span class="ic-label ic-after">{_text(s.after_label)}</span>' if s.after_label else ""
+    cap = f'<figcaption class="chart-cap">{_text(s.caption)}</figcaption>' if s.caption else ""
+    head = f'<h2 class="screen-title">{_text(s.title)}</h2>'
+    if s.prompt_html:
+        head += f'<div class="rich prompt">{sanitize(s.prompt_html)}</div>'
+    return (
+        f'{head}<figure class="img-compare-wrap"><div class="img-compare" data-compare>'
+        f'<img class="ic-img ic-img-before" data-asset="{_attr(s.before_asset_id)}" alt="">{bl}'
+        f'<div class="ic-after-wrap"><img class="ic-img ic-img-after" data-asset="{_attr(s.after_asset_id)}" alt="">{al}</div>'
+        f'<input class="ic-range" type="range" min="0" max="100" value="50" aria-label="Önce/sonra karşılaştır">'
+        f'<div class="ic-divider"></div></div>{cap}</figure>'
+    )
+
+
 def _render_unknown(s) -> str:
     return f'<h2 class="screen-title">{_text(getattr(s, "title", "?"))}</h2>'
 
@@ -885,6 +944,9 @@ _SCREEN_DISPATCH = {
     ScreenType.escape_room: _r_escape_room,
     ScreenType.labeled_diagram: _r_labeled_diagram,
     ScreenType.data_chart: _r_data_chart,
+    ScreenType.results_breakdown: _r_results_breakdown,
+    ScreenType.poll: _r_poll,
+    ScreenType.image_compare: _r_image_compare,
 }
 
 
