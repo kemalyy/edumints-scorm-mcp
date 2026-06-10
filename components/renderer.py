@@ -295,6 +295,9 @@ def _course_config(project: Project) -> dict:
         "variables": [{"name": v.name, "type": v.type, "default": v.default}
                       for v in project.variables],
         "points_var": project.points_var,
+        "levels": [{"name": lv.name, "min_points": lv.min_points} for lv in project.levels],
+        "lives_var": project.lives_var,
+        "max_lives": project.max_lives,
         "layout_mode": project.layout_mode,
         "stage_width": project.stage_width,
         "stage_height": project.stage_height,

@@ -236,6 +236,24 @@ def test_render_faz14_results_poll_compare():
     assert cfg["total_points"] == 0  # hiçbiri skorlanmaz
 
 
+def test_g1_gamification_hud():
+    # Faz 15 (G1): birleşik HUD — seviye (puan→rozet) + can (kalpler), points_var üzerine
+    from core.project import GameLevel
+    from components.renderer import _course_config
+    p = Project(id=new_project_id(), title="oyun", scorm_version="2004", points_var="puan",
+                lives_var="can", max_lives=3,
+                levels=[GameLevel(name="Çırak", min_points=0), GameLevel(name="Usta", min_points=100)],
+                screens=[MCQScreen(id="q", title="Q", prompt_html="<p>?</p>",
+                                   options=[Choice(id="a", text_html="1", correct=True),
+                                            Choice(id="b", text_html="2")])])
+    cfg = _course_config(p)
+    assert cfg["points_var"] == "puan" and cfg["lives_var"] == "can" and cfg["max_lives"] == 3
+    assert cfg["levels"] == [{"name": "Çırak", "min_points": 0}, {"name": "Usta", "min_points": 100}]
+    html = render_html(p, mode="preview", runtime_js="/*rt*/")
+    assert 'id="levelHud"' in html and 'id="livesHud"' in html
+    assert "currentLevel" in html and "updateLevel" in html and "updateLives" in html and "updateHud" in html
+
+
 def test_review_widget_only_in_preview():
     # Faz 2: feedback annotation widget yalnız preview'da aktif (pakette gizli/çalışmaz)
     p = Project(id=new_project_id(), title="R")

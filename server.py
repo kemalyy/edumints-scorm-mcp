@@ -187,8 +187,8 @@ async def _owner() -> ApiKey:
         if "mcp" not in (getattr(tok, "scopes", None) or []):
             raise ToolError(
                 "forbidden",
-                "This account does not have the 'mcp' scope on this server "
-                "(token is missing the required scope).",
+                "Hesabın henüz onaylanmadı. Bir yönetici onayladıktan sonra araçlar açılır "
+                "(mcp.edumints.com). Onaylandıysan Claude'da connector'ı yeniden bağla.",
             )
         return ApiKey(
             id=f"logto:{sub}", label="logto-user", key_hash="",
@@ -756,6 +756,9 @@ async def build_from_spec(spec: CourseSpec) -> BuildFromSpecOut:
             tracking=spec.tracking,
             variables=list(spec.variables),
             points_var=spec.points_var,
+            levels=list(spec.levels),
+            lives_var=spec.lives_var,
+            max_lives=spec.max_lives,
             layout_mode=spec.layout_mode,
             stage_width=spec.stage_width,
             stage_height=spec.stage_height,

@@ -689,6 +689,13 @@ class AssetRef(BaseModel):
 # --------------------------------------------------------------------------- #
 # Proje (CONTRACTS.md §1.4)
 # --------------------------------------------------------------------------- #
+class GameLevel(BaseModel):
+    """Faz 15 (G1) — puan→seviye eşiği. points_var değeri min_points'i geçince HUD'da bu seviye
+    rozeti gösterilir (en yüksek eşleşen kazanır). İçsel ilerleme — rozet/patlama değil, sade rozet."""
+    name: str
+    min_points: int
+
+
 class Project(BaseModel):
     schema_version: str = "1.0"
     id: str
@@ -700,6 +707,10 @@ class Project(BaseModel):
     tracking: Tracking = Field(default_factory=Tracking)
     variables: list[Variable] = Field(default_factory=list)  # Faz 5
     points_var: str | None = None  # Faz 6 — header puan HUD'u (gösterilecek değişken adı)
+    # Faz 15 (G1) — birleşik oyunlaştırma HUD'u: seviye (puan→rozet) + can (kalpler)
+    levels: list[GameLevel] = Field(default_factory=list)  # points_var → seviye rozeti
+    lives_var: str | None = None  # can değişkeni → header kalp HUD'u
+    max_lives: int = 0  # gösterilecek kalp sayısı (lives_var ile birlikte)
     layout_mode: Literal["stage", "flow"] = "stage"  # Faz 9 — sabit-sahne (vars.) | tam-akış
     stage_width: int = 960   # Faz 9.1 — tasarım tuvali genişliği (px); 16:9 için 960×540
     stage_height: int = 540
@@ -737,6 +748,9 @@ class CourseSpec(BaseModel):
     tracking: Tracking = Field(default_factory=Tracking)
     variables: list[Variable] = Field(default_factory=list)  # Faz 5
     points_var: str | None = None  # Faz 6
+    levels: list[GameLevel] = Field(default_factory=list)  # Faz 15 (G1)
+    lives_var: str | None = None  # Faz 15 (G1)
+    max_lives: int = 0  # Faz 15 (G1)
     layout_mode: Literal["stage", "flow"] = "stage"  # Faz 9 — sabit-sahne (vars.) | tam-akış
     stage_width: int = 960   # Faz 9.1 — ayarlanabilir tuval ölçüsü (px)
     stage_height: int = 540

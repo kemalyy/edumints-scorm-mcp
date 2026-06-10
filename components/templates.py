@@ -25,6 +25,8 @@ SHELL = """<!DOCTYPE html>
     <div class="brand"><span class="brand-dot"></span><span class="brand-title">{header_title}</span></div>
     <div class="progress" role="progressbar" aria-label="İlerleme" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="progress-bar"></div></div>
     <span class="timer-hud" id="timerHud" aria-live="polite" hidden></span>
+    <span class="level-hud" id="levelHud" aria-live="polite" hidden></span>
+    <span class="lives-hud" id="livesHud" aria-label="Can" hidden></span>
     <span class="points-hud" id="pointsHud" aria-live="polite" hidden></span>
     <div class="status-pill" aria-live="polite"></div>
   </header>
@@ -155,6 +157,12 @@ body[data-bg="grid"]{background-image:linear-gradient(color-mix(in srgb,var(--c-
 .points-hud{font-weight:var(--w-strong);font-size:13px;color:var(--c-warning);
   background:color-mix(in srgb,var(--c-warning) 8%,var(--c-surface));
   padding:4px 10px;border-radius:var(--r-pill);border:1px solid color-mix(in srgb,var(--c-warning) 15%,transparent)}
+/* Faz 15 (G1) — birleşik HUD: seviye rozeti + can */
+.level-hud{font-weight:var(--w-strong);font-size:13px;color:var(--c-primary);
+  background:color-mix(in srgb,var(--c-primary) 8%,var(--c-surface));
+  padding:4px 10px;border-radius:var(--r-pill);border:1px solid color-mix(in srgb,var(--c-primary) 15%,transparent)}
+.lives-hud{font-size:14px;letter-spacing:1px;color:var(--c-danger,#dc2626)}
+.lives-hud.lives-low{animation:badge .9s ease infinite}
 
 /* ===== STAGE + SCREENS — viewport-fit ===== */
 .stage{flex:1;position:relative;padding:0;overflow:hidden;min-height:0}
@@ -786,7 +794,7 @@ if(!state.vars){ state.vars={}; (COURSE.variables||[]).forEach(function(v){ stat
 function _vnum(x){ var n=parseFloat(x); return isNaN(n)?0:n; }
 function applyActions(acts){ if(!acts||!acts.length) return; acts.forEach(function(a){
   if(a.op==="add"){ state.vars[a.var]=_vnum(state.vars[a.var])+_vnum(a.value); }
-  else { state.vars[a.var]=a.value; } }); updatePoints(); }
+  else { state.vars[a.var]=a.value; } }); updateHud(); }
 function evalCond(c){ if(!c) return true; var v=state.vars[c.var];
   switch(c.cmp){ case "==":return v==c.value; case "!=":return v!=c.value;
     case ">":return _vnum(v)>_vnum(c.value); case "<":return _vnum(v)<_vnum(c.value);
@@ -803,6 +811,17 @@ function interpolateScreen(el){ if(!(el&&COURSE.variables&&COURSE.variables.leng
 // ---- Faz 6: oyunlaştırma (puan HUD + timer) ----
 function updatePoints(){ if(!COURSE.points_var) return; var h=document.getElementById("pointsHud");
   if(!h) return; h.hidden=false; var v=state.vars[COURSE.points_var]; h.innerHTML=STAR_SVG+" "+(v!=null?v:0); }
+// Faz 15 (G1) — birleşik oyunlaştırma HUD'u: seviye (puan→rozet) + can (kalpler)
+function currentLevel(){ if(!COURSE.levels||!COURSE.levels.length||!COURSE.points_var) return null;
+  var v=_vnum(state.vars[COURSE.points_var]); var lv=null;
+  COURSE.levels.forEach(function(L){ if(v>=L.min_points) lv=L; }); return lv; }
+function updateLevel(){ var el=document.getElementById("levelHud"); if(!el) return;
+  var L=currentLevel(); if(!L){ el.hidden=true; return; } el.hidden=false; el.textContent="◆ "+L.name; }
+function updateLives(){ if(!COURSE.lives_var) return; var el=document.getElementById("livesHud"); if(!el) return;
+  el.hidden=false; var v=_vnum(state.vars[COURSE.lives_var]); var max=COURSE.max_lives||0;
+  var s=""; for(var i=0;i<max;i++){ s+=(i<v?"●":"○"); } el.textContent=s;
+  el.classList.toggle("lives-low", v>0 && v<=1); }
+function updateHud(){ updatePoints(); updateLevel(); updateLives(); }
 var _timer=null;
 function clearTimer(){ if(_timer){ clearInterval(_timer); _timer=null; }
   var h=document.getElementById("timerHud"); if(h){ h.hidden=true; h.classList.remove("urgent"); } }
@@ -924,7 +943,7 @@ function showAt(idx,push){
   state.cursorId=id;
   var _sc=byId[id]; if(_sc&&_sc.on_enter) applyActions(_sc.on_enter);  // Faz 5
   interpolateScreen(secById[id]);
-  startTimer(_sc); updatePoints();  // Faz 6
+  startTimer(_sc); updateHud();  // Faz 6 + Faz 15 (G1)
   if(_sc&&_sc.type==="lottie") initLottie(secById[id],_sc);  // Faz 7
   if(cursor===order.length-1) state.reachedEnd=true;
   applyAnsweredState(secById[id], byId[id]);
