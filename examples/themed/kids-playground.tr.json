@@ -1,0 +1,72 @@
+{
+  "title": "Trafik Dedektifleri İş Başında!",
+  "description": "Çocuklar için eğlenceli trafik güvenliği eğitimi.",
+  "scorm_version": "1.2",
+  "language": "tr",
+  "theme": "playground",
+  "tracking": {
+    "completion_rule": "viewed_all_and_passed",
+    "passing_score": 80
+  },
+  "screens": [
+    {
+      "type": "title_slide",
+      "id": "t1",
+      "title": "Trafik Dedektifleri",
+      "subtitle": "Güvenli Yolculuk Kurallarını Öğreniyoruz",
+      "body_html": "<p>Merhaba küçük dedektif! Trafikte güvende kalmak için bilmen gereken kuralları keşfetmeye hazır mısın?</p>"
+    },
+    {
+      "type": "content_slide",
+      "id": "c1",
+      "title": "Karşıdan Karşıya Geçiş",
+      "body_html": "<p>Yolun karşısına geçerken şu adımları izlemelisin:</p><ol><li>Kaldırım kenarında dur.</li><li>Önce <strong>SOLA</strong>, sonra <strong>SAĞA</strong>, tekrar <strong>SOLA</strong> bak.</li><li>Yol boşsa hızlı adımlarla (koşmadan) karşıya geç.</li></ol><p>Yaya geçitlerini ve üst geçitleri kullanmayı unutma!</p>"
+    },
+    {
+      "type": "content_slide",
+      "id": "c2",
+      "title": "Trafik Işıkları Ne Diyor?",
+      "body_html": "<p>Trafik lambaları bizimle renklerle konuşur:</p><ul><li>🔴 <strong>Kırmızı:</strong> Dur ve bekle.</li><li>🟡 <strong>Sarı:</strong> Hazırlan.</li><li>🟢 <strong>Yeşil:</strong> Güvenliyse geç.</li></ul>"
+    },
+    {
+      "type": "content_slide",
+      "id": "c3",
+      "title": "Emniyet Kemeri",
+      "body_html": "<p>Arabaya biner binmez yapman gereken ilk şey <strong>emniyet kemerini takmaktır</strong>. Emniyet kemeri bizi bir kalkan gibi korur ve sarsılmamızı önler.</p>"
+    },
+    {
+      "type": "matching",
+      "id": "m1",
+      "title": "Eşleştirme Oyunu",
+      "prompt_html": "<p>Aşağıdaki trafik ışıklarını ve anlamlarını doğru şekilde eşleştir!</p>",
+      "pairs": [
+        {
+          "id": "p1",
+          "left_html": "Kırmızı Işık",
+          "right_html": "Dur ve Bekle"
+        },
+        {
+          "id": "p2",
+          "left_html": "Yeşil Işık",
+          "right_html": "Geç"
+        },
+        {
+          "id": "p3",
+          "left_html": "Yaya Geçidi",
+          "right_html": "Güvenli Geçiş Noktası"
+        }
+      ],
+      "points": 30,
+      "feedback": {
+        "correct_html": "<p>Harikasın dedektif! Tüm kuralları çok iyi öğrenmişsin. 🌟</p>",
+        "incorrect_html": "<p>Bazı kurallar karışmış gibi duruyor. Işıkları tekrar kontrol edelim mi?</p>"
+      }
+    },
+    {
+      "type": "summary",
+      "id": "s1",
+      "title": "Tebrikler!",
+      "body_html": "<p>Artık sen de eğitimli bir trafik dedektifisin. Kurallara uymayı ve çevrendekileri uyarmayı unutma!</p>"
+    }
+  ]
+}

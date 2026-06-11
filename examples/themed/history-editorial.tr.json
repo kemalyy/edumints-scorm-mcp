@@ -1,0 +1,66 @@
+{
+  "title": "Tanzimat Edebiyatı: Batılılaşma Dönemi",
+  "description": "Türk edebiyatında Batı etkisindeki ilk dönem ve temel özellikleri.",
+  "scorm_version": "1.2",
+  "language": "tr",
+  "theme": "editorial",
+  "tracking": {
+    "completion_rule": "viewed_all_and_passed",
+    "passing_score": 70
+  },
+  "screens": [
+    {
+      "type": "title_slide",
+      "id": "t1",
+      "title": "Tanzimat Edebiyatı",
+      "subtitle": "Yenileşme ve Hak Adalet Mücadelesi",
+      "body_html": "<p>Edebiyatımızda Tanzimat Fermanı'nın ilanıyla başlayan ve Batılı türlerin ilk örneklerinin verildiği dönemi keşfedin.</p>"
+    },
+    {
+      "type": "content_slide",
+      "id": "c1",
+      "title": "Birinci Dönem: Halk İçin Sanat",
+      "body_html": "<p>1860 yılında Tercüman-ı Ahvâl gazetesinin çıkmasıyla başlar. Temel özellikleri şunlardır:</p><ul><li><strong>Sanat toplum içindir</strong> anlayışı hakimdir.</li><li>Dilde sadeleşme savunulmuş ancak tam başarılı olunamamıştır.</li><li>Hak, hürriyet, vatan ve adalet gibi kavramlar ilk kez işlenmiştir.</li><li>Şinasi, Namık Kemal ve Ziya Paşa öncü isimlerdir.</li></ul>"
+    },
+    {
+      "type": "content_slide",
+      "id": "c2",
+      "title": "İkinci Dönem: Sanat İçin Sanat",
+      "body_html": "<p>Siyasi baskıların artmasıyla 1877'den sonra başlayan dönemdir. Birinci dönemden farklı olarak:</p><ul><li><strong>Sanat sanat içindir</strong> anlayışı benimsenmiştir.</li><li>Dil daha ağır ve süslüdür.</li><li>Bireysel temalar (ölüm, aşk, doğa) ön plana çıkmıştır.</li><li>Recaizade Mahmut Ekrem ve Abdülhak Hamit Tarhan bu dönemin temsilcileridir.</li></ul>"
+    },
+    {
+      "type": "mcq",
+      "id": "q1",
+      "title": "Bilgi Kontrolü",
+      "prompt_html": "<p>Tanzimat Birinci Dönem sanatçıları için aşağıdakilerden hangisi söylenebilir?</p>",
+      "options": [
+        {
+          "id": "a",
+          "text_html": "Sanatı sadece estetik bir kaygı olarak görmüşlerdir.",
+          "correct": false
+        },
+        {
+          "id": "b",
+          "text_html": "Toplumu eğitme ve bilinçlendirme amacı gütmüşlerdir.",
+          "correct": true
+        },
+        {
+          "id": "c",
+          "text_html": "Arapça ve Farsça kelimelerle dolu ağır bir dili savunmuşlardır.",
+          "correct": false
+        }
+      ],
+      "points": 20,
+      "feedback": {
+        "correct_html": "<p>Doğru! Birinci dönem sanatçıları edebiyatı toplumu aydınlatmak için bir araç olarak kullanmışlardır.</p>",
+        "incorrect_html": "<p>Maalesef yanlış. Birinci dönemde 'toplum için sanat' anlayışı esastı. İkinci dönemde ise bireysel konulara dönülmüştür.</p>"
+      }
+    },
+    {
+      "type": "summary",
+      "id": "s1",
+      "title": "Dönem Özeti",
+      "body_html": "<p>Tanzimat dönemi, Türk edebiyatının yönünü Doğu'dan Batı'ya çevirdiği kritik bir eşiktir. Roman, tiyatro ve makale gibi türlerin ilk örnekleri bu dönemde verilmiştir.</p>"
+    }
+  ]
+}
