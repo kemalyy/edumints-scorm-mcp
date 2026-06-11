@@ -276,6 +276,25 @@ def test_faz16_responsive_and_touch():
     assert "touch-action:manipulation" in html
 
 
+@pytest.mark.asyncio
+async def test_discovery_tools_list_screen_types_and_themes():
+    # Keşif tool'ları: list_screen_types (26) + list_themes — proje/auth gerektirmez
+    from core.project import ScreenType, QUIZ_TYPES
+    async with Client(server.mcp) as c:
+        names = sorted(t.name for t in await c.list_tools())
+        assert "list_screen_types" in names and "list_themes" in names
+        st = (await c.call_tool("list_screen_types", {})).data
+        assert st["count"] == len(list(ScreenType))
+        by = {x["type"]: x for x in st["screen_types"]}
+        assert by["decision_scenario"]["scored"] is True and by["content_slide"]["scored"] is False
+        assert by["decision_scenario"]["scored"] == (ScreenType.decision_scenario in QUIZ_TYPES)
+        th = (await c.call_tool("list_themes", {})).data
+        tnames = [t["name"] for t in th["themes"]]
+        assert th["count"] >= 12
+        for expected in ("editorial", "playground", "boardroom-clinic", "default"):
+            assert expected in tnames
+
+
 def test_review_widget_only_in_preview():
     # Faz 2: feedback annotation widget yalnız preview'da aktif (pakette gizli/çalışmaz)
     p = Project(id=new_project_id(), title="R")

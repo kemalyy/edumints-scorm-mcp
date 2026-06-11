@@ -841,6 +841,77 @@ async def resolve_feedback(project_id: str, feedback_id: str) -> OkOut:
 
 
 # --------------------------------------------------------------------------- #
+# Keşif tool'ları (discovery) — statik katalog; proje/auth gerektirmez.
+# Claude'un mevcut yetenekleri (ekran tipleri, temalar) programatik görmesi için.
+# --------------------------------------------------------------------------- #
+_SCREEN_TYPE_DESC: dict[str, str] = {
+    "title_slide": "Açılış/başlık ekranı — relevansla aç.",
+    "content_slide": "Tek-fikir içerik slaytı (metin/medya düzenleri).",
+    "mcq": "Çoktan seçmeli (tek/çok seçim).",
+    "true_false": "Doğru/yanlış hızlı yoklama.",
+    "fill_blank": "Boşluk doldurma (kabul edilen cevaplar).",
+    "drag_drop": "Öğeleri hedeflere sürükle (dokunma destekli).",
+    "hotspot": "Görsel üzerinde doğru bölgeyi bul.",
+    "branching": "Ekranlar-arası dallanma (seçim → gidilecek ekran).",
+    "video": "Video (asset/URL); require_complete ile kapı.",
+    "summary": "Kapanış — skor/tamamlanma/özet.",
+    "accordion": "Yoğun referans/SSS (genişleyen).",
+    "tabs": "Bir konunun paralel yönleri.",
+    "flashcards": "Terim ↔ tanım; kendini-test.",
+    "matching": "İki sütunu eşleştir (erişilebilir select).",
+    "sorting": "Adım/sıralama (doğru sırayı ver; runtime karıştırır).",
+    "timeline": "Kronoloji/süreç adımları.",
+    "lottie": "Tasarımcı animasyonu (opt-in/lazy).",
+    "simulation": "Rehberli yazılım simülasyonu (Uygula/try-mode).",
+    "decision_scenario": "Dallanan karar oyunu — durum/skor taşır (anlatı try-mode).",
+    "term_match_race": "Süreli terim↔tanım eşleştirme oyunu.",
+    "escape_room": "Kilitli bulmaca zinciri (ipucu/can).",
+    "labeled_diagram": "Görseldeki işaretçilere etiket ata (görsel öğrenme).",
+    "data_chart": "Veri-görseli (bar/line/pie; sunucu-SVG; içerik).",
+    "results_breakdown": "Özelleştirilmiş sonuç — hedef-bazlı skor dökümü + adaptif öneri.",
+    "poll": "Puanlanmayan anket/yansıma (katılım).",
+    "image_compare": "Önce/sonra sürüklenebilir görsel karşılaştırma.",
+}
+
+_THEME_DESC: dict[str, str] = {
+    "default": "Temiz mavi, beyaz zemin — güvenli kurumsal varsayılan.",
+    "modern-light": "Teal vurgu, crisp — modern/ürün eğitimi.",
+    "academic": "Serif başlık, lacivert/altın — akademik.",
+    "high-contrast": "WCAG AA+, erişilebilirlik-kritik.",
+    "agency": "Cesur indigo — pazarlama/yaratıcı.",
+    "dark": "Ölçülü koyu — yalnız bilinçli (dev/IT).",
+    "clinical-calm": "Teal, sakin — sağlık/klinik CPD.",
+    "warm-education": "Sıcak turuncu, dostane — ilkokul/dil.",
+    "quest-bright": "Canlı mor-pembe — oyun/oyunlaştırma.",
+    "editorial": "Serif + düz çift-çizgi kart + drop-cap — beşeri/akademik.",
+    "playground": "Yuvarlak + canlı + zıplayan butonlar — çocuk/oyun.",
+    "boardroom-clinic": "Rafine, güven, sıkı radii — kurumsal/sağlık.",
+}
+
+
+@mcp.tool
+async def list_screen_types() -> dict:
+    """Mevcut TÜM ekran tiplerini (build_from_spec/add_screen `screen.type` değerleri) ve kısa
+    açıklamalarını listeler. Skorlanan tipler `scored:true` ile işaretlenir. Yeni bir kurs
+    tasarlarken hangi ekran tiplerinin mevcut olduğunu görmek için çağır (keşif; proje gerektirmez)."""
+    from core.project import QUIZ_TYPES, ScreenType
+    items = [
+        {"type": t.value, "scored": t in QUIZ_TYPES, "description": _SCREEN_TYPE_DESC.get(t.value, "")}
+        for t in ScreenType
+    ]
+    return {"count": len(items), "screen_types": items}
+
+
+@mcp.tool
+async def list_themes() -> dict:
+    """Mevcut tema preset'lerini (build_from_spec/set_theme `theme` adı) ve konularına uygunluğunu
+    listeler. Arayüzü konuya göre farklılaştırmak için uygun temayı seçmek üzere çağır (keşif)."""
+    names = sorted(p.stem for p in THEMES_DIR.glob("*.json"))
+    items = [{"name": n, "description": _THEME_DESC.get(n, "")} for n in names]
+    return {"count": len(items), "themes": items}
+
+
+# --------------------------------------------------------------------------- #
 # HTTP route'ları (CONTRACTS.md §5)
 # --------------------------------------------------------------------------- #
 @mcp.custom_route("/health", methods=["GET"])
