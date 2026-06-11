@@ -1,0 +1,57 @@
+# Haftalık bağımlılık raporu — YALNIZ rapor (otomatik bump YOK), keysiz (GITHUB_TOKEN).
+# Dedup: tek açık 'deps-report' issue'su tutulur; her hafta onu yorumla günceller (yeni issue spam'i yok).
+name: deps-report
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"   # her Pazartesi 06:00 UTC (off-peak dakika)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Outdated raporu üret
+        id: rep
+        run: |
+          {
+            echo "### Python bağımlılıkları (pip list --outdated)"
+            echo '```'
+            pip install -q -e . 2>/dev/null || pip install -q . 2>/dev/null || true
+            pip list --outdated 2>/dev/null || echo "(rapor üretilemedi)"
+            echo '```'
+            if [ -f package.json ]; then
+              echo "### JS bağımlılıkları (npm outdated)"
+              echo '```'
+              npm outdated 2>/dev/null || echo "(npm outdated boş ya da çalışmadı)"
+              echo '```'
+            fi
+            echo ""
+            echo "_Otomatik haftalık rapor · $(date -u +%Y-%m-%d) · sadece bilgi; bump YAPILMADI._"
+          } > report.md
+          echo "ts=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
+      - name: Tek issue'yu aç/güncelle (label-bazlı dedup)
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          gh label create "deps-report" --repo "${{ github.repository }}" --force >/dev/null 2>&1 || true
+          title="📦 Bağımlılık raporu (haftalık)"
+          existing=$(gh issue list --repo "${{ github.repository }}" --state open \
+            --label "deps-report" --json number --jq '.[0].number' || true)
+          body="$(cat report.md)"
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "${{ github.repository }}" --body "$body"
+          else
+            gh issue create --repo "${{ github.repository }}" --title "$title" \
+              --label "deps-report" --body "$body"
+          fi

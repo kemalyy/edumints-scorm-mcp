@@ -1,0 +1,21 @@
+# Pre-commit — GERÇEK lint kapısı (façade değil). ruff, repo'nun pyproject [tool.ruff]
+# yapılandırmasını kullanır (default E/F seti: undefined names, unused imports, vb.) ve
+# TÜM dosyalarda çalışır — dosya dışlamasıyla vakum geçmez. Kod tabanı zaten ruff-temiz.
+# Not: biçimlendirme (ruff-format) ve trailing-whitespace hook'ları KASITLI eklenmedi —
+# bunlar büyük bir reformat churn'ü getirir ve henüz benimsenmedi; eklemek ayrı bir karar.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.12.1
+    hooks:
+      - id: ruff
+        name: ruff (lint — tüm dosyalar, gerçek kapı)
+        args: ["--no-fix"]   # commit'i otomatik değiştirme; ihlal varsa BAŞARISIZ ol
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-yaml
+      - id: check-json
+        exclude: ^runtime/   # vendored şema/asset dizini
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ["--maxkb=2048"]
