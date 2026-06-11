@@ -1,6 +1,6 @@
 [project]
 name = "scorm-mcp"
-version = "0.1.0"
+version = "1.0.0"
 description = "MCP server that assembles interactive, SCORM-compliant training packages (HTML5 + scorm-again runtime). Author = Claude, assembler = server."
 readme = "README.md"
 requires-python = ">=3.11"

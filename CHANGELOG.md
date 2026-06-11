@@ -3,6 +3,27 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.0.0] — 2026-06-11
+
+First stable release. 19 MCP tools, production-deployed.
+
+### Added — authoring surface
+- **26 screen types**, incl. games (`decision_scenario`, `escape_room`, `term_match_race`),
+  customized results (`results_breakdown`), participation (`poll`), and visuals
+  (`labeled_diagram`, `data_chart`, `image_compare`).
+- **G1 gamification HUD** — unified header showing levels (points→level badge), lives, and points
+  (`levels`, `lives_var`, `max_lives`); intrinsic-mastery oriented.
+- **Cross-device compatibility** — content overflow scrolls (no clipping), mobile/≤640px reflow
+  (drop the fixed-canvas scale → natural flow + readable fonts + vertical scroll), touch drag-and-drop
+  fallback, `touch-action` on controls. See `docs/DEVICE-COMPATIBILITY.md`.
+- **Topic-distinct themes** — `editorial`, `playground`, `boardroom-clinic` (plus existing presets);
+  themes exploit heading fonts, radii, patterns and `custom_css` so the interface differs by subject.
+- Curated example courses (`examples/games/`, `examples/visual/`, `examples/showcase/`,
+  `examples/themed/`); game-design guide (`docs/GAME-PATTERNS.md`); `docs/SCREEN_TYPES.md` for all 26.
+
+### Tooling
+- Real lint-gate pre-commit (ruff on all files) + weekly dependency report (deduped).
+
 ## [Unreleased]
 
 ### Added — SCORM conformance
