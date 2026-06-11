@@ -1,0 +1,40 @@
+{
+  "name": "editorial",
+  "typography": {
+    "font_heading": "Georgia, 'Times New Roman', 'Noto Serif', 'PT Serif', serif",
+    "font_body": "'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif",
+    "font_mono": "ui-monospace, 'SFMono-Regular', Menlo, monospace",
+    "base_size_px": 17,
+    "scale_ratio": 1.333,
+    "weight_heading": 700,
+    "weight_body": 400,
+    "weight_strong": 600,
+    "line_height_tight": 1.18,
+    "line_height_normal": 1.7,
+    "letter_spacing_heading": "0"
+  },
+  "color": {
+    "primary": "#7c2d12",
+    "primary_hover": "#9a3412",
+    "primary_contrast": "#fefce8",
+    "secondary": "#1c1917",
+    "accent": "#a16207",
+    "bg": "#faf8f1",
+    "surface": "#fffdf7",
+    "surface_alt": "#f3efe3",
+    "border": "#e0d8c4",
+    "text": "#1c1917",
+    "text_muted": "#78716c",
+    "text_on_dark": "#faf8f1",
+    "success": "#3f6212",
+    "success_bg": "#ecfccb",
+    "error": "#b91c1c",
+    "error_bg": "#fee2e2",
+    "warning": "#a16207",
+    "info": "#1d4ed8",
+    "focus_ring": "#7c2d12"
+  },
+  "radii": { "none": "0", "sm": "2px", "md": "3px", "lg": "4px", "pill": "999px" },
+  "background_pattern": "none",
+  "custom_css": ".screen-inner{box-shadow:none;border:none;background:transparent;border-top:3px double var(--c-border);padding-top:clamp(20px,3vw,36px)} .screen-title{letter-spacing:0;font-style:normal;border-bottom:1px solid var(--c-border);padding-bottom:.35em;margin-bottom:.7em} .rich p{max-width:62ch} .rich h2,.rich h3{font-style:italic;font-weight:600} .btn-primary,.btn-check{border-radius:2px;letter-spacing:.02em;text-transform:uppercase;font-size:12.5px} .opt,.branch-choice,.scen-choice{border-radius:2px;background:var(--c-surface)} .content-slide .rich>p:first-of-type::first-letter{font-size:3.1em;float:left;line-height:.8;padding:.05em .08em 0 0;font-weight:700;color:var(--c-primary)}"
+}
