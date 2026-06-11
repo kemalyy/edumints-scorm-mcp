@@ -10,3 +10,6 @@ packages/
 .DS_Store
 .pytest_cache/
 *.egg-info/
+
+node_modules/
+coverage/

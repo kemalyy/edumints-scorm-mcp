@@ -4,7 +4,7 @@ import pytest
 from core.project import (
     Project, new_project_id, ContentSlide, MCQScreen, Choice,
     DragDropScreen, DragItem, DropTarget, HotspotScreen, HotspotRegion,
-    VideoScreen, ScreenType
+    VideoScreen,
 )
 from components.renderer import render_html
 
