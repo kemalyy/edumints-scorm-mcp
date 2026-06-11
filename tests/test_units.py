@@ -295,6 +295,35 @@ async def test_discovery_tools_list_screen_types_and_themes():
             assert expected in tnames
 
 
+def test_w2_game_primitive_specs():
+    # W2: 6 mekanik primitif yapılandırma şeması (additive; mevcut 26 tipi etkilemez)
+    from core.game_primitives import (
+        TimerSpec, ScoreSpec, LivesSpec, HintLadderSpec, ItemBankSpec, BranchGraphSpec,
+        PRIMITIVE_KINDS,
+    )
+    assert set(PRIMITIVE_KINDS) == {
+        "timer", "score", "lives", "hint_ladder", "item_bank", "branch_graph"
+    }
+    t = TimerSpec(id="t", duration_sec=60)
+    assert t.kind == "timer" and t.allow_extend is True and t.allow_disable is True  # a11y 2.2.1
+    assert ScoreSpec(id="s", streak_step=3, max_multiplier=3).kind == "score"
+    assert LivesSpec(id="l", start=3).max is None
+    hl = HintLadderSpec(id="h", hints=[{"text": "Alan adına bak", "cost": 5}])
+    assert hl.hints[0].text and hl.hints[0].cost == 5
+    # parametrik + statik madde aynı bankada
+    ib = ItemBankSpec(id="b", items=[
+        {"id": "p", "template": "{{a}}+{{b}}", "vars": {"a": {"min": 2, "max": 9}, "b": {"min": 2, "max": 9}},
+         "answer": {"op": "add", "operands": ["a", "b"]}},
+        {"id": "st", "prompt": "Başkent?", "answer": "Ankara", "distractors": ["İzmir"]},
+    ])
+    assert ib.items[0].template and ib.items[1].answer == "Ankara"
+    bg = BranchGraphSpec(id="g", start="n1", nodes=[
+        {"id": "n1", "choices": [{"id": "c", "to": "n2", "condition": {"var": "lvl", "cmp": ">=", "value": 2}}]},
+        {"id": "n2", "choices": []},
+    ])
+    assert bg.nodes[0].choices[0].condition.cmp == ">="
+
+
 def test_review_widget_only_in_preview():
     # Faz 2: feedback annotation widget yalnız preview'da aktif (pakette gizli/çalışmaz)
     p = Project(id=new_project_id(), title="R")
