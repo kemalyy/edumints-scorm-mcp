@@ -22,6 +22,7 @@ from typing import Literal
 
 import nh3
 
+from core.engine_bundle import load_engine_bundle  # W3b — oyun motoru lazy inline
 from core.project import Project, QUIZ_TYPES, ScreenType, ThemeTokens
 
 from .templates import BASE_CSS, ENGINE_JS, FALLBACK_RUNTIME_SHIM, SHELL
@@ -75,6 +76,15 @@ def _uses_lottie(project: Project) -> bool:
     return any(s.type == ScreenType.lottie for s in project.screens)
 
 
+_ENGINE_SCREEN_TYPES = {ScreenType.game, ScreenType.adaptive_practice}
+
+
+def _uses_engine_bundle(project: Project) -> bool:
+    """W3b/W4b — kurs motor bundle'ını gerektiren bir ekran (game / adaptive_practice) içeriyor mu?
+    İçeriyorsa components/engine/* tek runtime JS olarak lazy inline edilir (aksi halde zero-load)."""
+    return any(s.type in _ENGINE_SCREEN_TYPES for s in project.screens)
+
+
 def extra_runtime_files(project: Project) -> list[tuple[str, str]]:
     """Paket için gereken EK runtime dosyaları (rel_path, içerik). Opt-in/lazy: animasyonsuz
     kurs → boş liste → pakette lottie YOK (zero-load)."""
@@ -108,11 +118,15 @@ def render_html(
         runtime_block = '<script src="runtime/scorm-again.min.js"></script>'
 
     # Faz 7 — opt-in/lazy: lottie lib YALNIZ animasyon kullanılırsa eklenir (zero-load)
+    extras = []
     if _uses_lottie(project):
-        extra_runtime = (f"<script>{_load_lottie_js()}</script>" if mode == "preview"
-                         else f'<script src="{_LOTTIE_REL}"></script>')
-    else:
-        extra_runtime = ""
+        extras.append(f"<script>{_load_lottie_js()}</script>" if mode == "preview"
+                      else f'<script src="{_LOTTIE_REL}"></script>')
+    # W3b/W4b — motor bundle'ı YALNIZ game/adaptive_practice ekranı varsa inline (saf JS, harici dosya
+    # yok; window.SCORMGame'i bind'lerden ÖNCE tanımlar — SHELL'de extra_runtime, engine_js'ten önce).
+    if _uses_engine_bundle(project):
+        extras.append(f"<script>{load_engine_bundle()}</script>")
+    extra_runtime = "".join(extras)
 
     if mode == "preview" and asset_data:
         # Tek-dosya self-contained önizleme: asset'leri data-URI olarak göm
@@ -241,6 +255,14 @@ def _course_config(project: Project) -> dict:
         elif s.type == ScreenType.labeled_diagram:
             item["points"] = s.points
             total_points += s.points  # doğru = her işaretçinin select'i kendi label id'si (DOM)
+        elif s.type == ScreenType.game:
+            item["points"] = s.points
+            item["game"] = _game_cfg(s)  # mekanik specs + kurallar + düğüm-mantığı (runtime kurar)
+            total_points += s.points  # skor primitifi pass_score'a göre geçer/kalır (DOM'da)
+        elif s.type == ScreenType.adaptive_practice:
+            item["points"] = s.points
+            item["adaptive"] = _adaptive_cfg(s)  # tahminci + öğe zorlukları/cevapları (runtime seçer)
+            total_points += s.points  # doğru/cevaplanan oranı pass_ratio'ya göre geçer/kalır (DOM'da)
         elif s.type == ScreenType.branching:
             item["routes"] = {c.id: c.goto_screen_id for c in s.choices}
             item["default_goto"] = s.default_goto
@@ -312,6 +334,60 @@ def _act(a) -> dict:
 
 def _cond(c) -> dict:
     return {"var": c.var, "cmp": c.cmp, "value": c.value}
+
+
+def _game_cfg(s) -> dict:
+    """W3b — GameScreen → runtime oyun konfigürasyonu (JSON-serileştirilebilir).
+    İçerik (content_html/feedback) statik HTML'de (data-asset çözümü + tek sanitize); BURADA yalnız
+    MANTIK: mekanik specs + `when olay if koşul then aksiyon` kuralları + düğüm-mantığı (to/cond/on_choose,
+    `nodeId/choiceId` ile anahtarlanır). Runtime bunu engine bundle ile primitiflere/kurallara çevirir."""
+    def dump(m):
+        return m.model_dump(exclude_none=True) if m is not None else None
+
+    mech = s.mechanics
+    logic: dict[str, dict] = {}
+    for n in s.nodes:
+        for c in n.choices:
+            logic[f"{n.id}/{c.id}"] = {
+                "to": c.to,
+                "cond": _cond(c.condition) if c.condition is not None else None,
+                "on": [a.model_dump(exclude_none=True) for a in c.on_choose],
+            }
+    return {
+        "seed": s.seed or (s.id or "game"),
+        "mechanics": {
+            "score": dump(mech.score),
+            "lives": dump(mech.lives),
+            "timer": dump(mech.timer),
+            "hints": dump(mech.hints),
+        },
+        "rules": [r.model_dump(by_alias=True, exclude_none=True) for r in s.rules],
+        "start": s.start_node_id or s.nodes[0].id,
+        "logic": logic,
+        "pass_score": s.pass_score,
+        "points": s.points,
+        "template": s.template,
+    }
+
+
+def _adaptive_cfg(s) -> dict:
+    """W4b — AdaptivePracticeScreen → runtime adaptif konfigürasyonu (JSON).
+    İçerik (öğe metni/seçenekler) statik HTML'de; BURADA yalnız MANTIK: tahminci spec + öğe-başına
+    doğru cevap id'leri + zorluk + skill. Runtime tahminciyi kurup her cevap sonrası observe→seçim yapar."""
+    return {
+        "seed": s.seed or (s.id or "adaptive"),
+        "adaptive": s.adaptive.model_dump(),  # {strategy, ...} — createEstimator yönlendirir
+        "target_success": s.target_success,
+        "max_items": s.max_items,
+        "mastery_stop": s.mastery_stop,
+        "pass_ratio": s.pass_ratio,
+        "points": s.points,
+        "items": {
+            it.id: {"correct": [o.id for o in it.options if o.correct],
+                    "difficulty": it.difficulty, "skill": it.skill}
+            for it in s.items
+        },
+    }
 
 
 # --------------------------------------------------------------------------- #
@@ -909,6 +985,88 @@ def _r_image_compare(s) -> str:
     )
 
 
+def _r_game(s) -> str:
+    """W3b — kompozisyonel oyun ekranı. İÇERİK statik HTML'de (data-asset çözümü + progresif
+    geliştirme: start düğümü JS olmadan da görünür); MANTIK config.game'de (runtime kurar).
+    HUD chip'leri/a11y kontrolleri gizli render edilir; bindGame mevcut mekaniğe göre açar."""
+    start = s.start_node_id or s.nodes[0].id
+    nodes_html = ""
+    for node in s.nodes:
+        img = (f'<img class="game-img" data-asset="{_attr(node.image_asset_id)}" alt="">'
+               if node.image_asset_id else "")
+        rows = ""
+        for c in node.choices:
+            conseq = (f'<div class="game-conseq rich" hidden>{sanitize(c.feedback_html)}</div>'
+                      if c.feedback_html else "")
+            rows += (
+                f'<li class="game-row">'
+                f'<button class="game-choice" type="button" data-node="{_attr(node.id)}"'
+                f' data-choice="{_attr(c.id)}" data-goto="{_attr(c.to or "")}">'
+                f'{sanitize(c.text_html)}</button>{conseq}</li>'
+            )
+        hidden = "" if node.id == start else " hidden"
+        nodes_html += (
+            f'<div class="game-node" data-node="{_attr(node.id)}"{hidden}>'
+            f'<div class="game-content rich">{sanitize(node.content_html)}</div>{img}'
+            f'<ul class="game-choices">{rows}</ul>'
+            f'<button class="btn btn-primary game-next" type="button" hidden>Devam &rarr;</button>'
+            f'</div>'
+        )
+    head = f'<h2 class="screen-title">{_text(s.title)}</h2>'
+    if s.intro_html:
+        head += f'<div class="rich prompt">{sanitize(s.intro_html)}</div>'
+    # HUD: chip'ler + a11y kontrolleri (WCAG 2.2.1 süre uzat/kapat) — hepsi gizli, bindGame açar
+    hud = (
+        '<div class="game-hud" role="status" aria-live="polite">'
+        '<span class="game-hud-score ui-chip" hidden>Skor: <b>0</b></span>'
+        '<span class="game-hud-lives ui-chip" hidden>&hearts; <b>0</b></span>'
+        '<span class="game-hud-timer ui-chip" hidden>&#9201; <b>0</b></span>'
+        '<button class="game-hint btn btn-ghost" type="button" hidden>İpucu</button>'
+        '<button class="game-timer-extend btn btn-ghost" type="button" hidden>+30 sn</button>'
+        '<button class="game-timer-off btn btn-ghost" type="button" hidden>Süreyi kapat</button>'
+        '</div>'
+    )
+    return (
+        f'{head}<div class="game" data-game data-start="{_attr(start)}">'
+        f'{hud}<div class="game-hints" aria-live="polite"></div>'
+        f'<div class="game-nodes">{nodes_html}</div></div>'
+        f'<div class="feedback" role="status" aria-live="polite"></div>'
+    )
+
+
+def _r_adaptive_practice(s) -> str:
+    """W4b — adaptif pratik. Tüm öğeler statik HTML'de (gizli); runtime tahminciye göre BİR öğe gösterir,
+    her cevaptan sonra observe edip ZPD/akış hedefine en yakın (Elo) veya kolaydan-zora (BKT) sıradakini seçer.
+    HUD: ilerleme + canlı seviye/ustalık. Seçenekler `.opt` (klavye-erişilebilir), tek-seçim."""
+    items_html = ""
+    for it in s.items:
+        opts = "".join(
+            f'<button class="opt" type="button" data-opt="{_attr(o.id)}">{sanitize(o.text_html)}</button>'
+            for o in it.options
+        )
+        explain = (f'<div class="ap-explain rich" hidden>{sanitize(it.explain_html)}</div>'
+                   if it.explain_html else "")
+        items_html += (
+            f'<div class="ap-item" data-item="{_attr(it.id)}" data-difficulty="{float(it.difficulty)}" hidden>'
+            f'<div class="ap-prompt rich">{sanitize(it.prompt_html)}</div>'
+            f'<div class="ap-options ui-stack">{opts}</div>{explain}'
+            f'<div class="quiz-actions"><button class="btn btn-check ap-check" type="button">Kontrol Et</button></div>'
+            f'</div>'
+        )
+    head = f'<h2 class="screen-title">{_text(s.title)}</h2>'
+    if s.prompt_html:
+        head += f'<div class="rich prompt">{sanitize(s.prompt_html)}</div>'
+    total = s.max_items if s.max_items else len(s.items)
+    return (
+        f'{head}<div class="adaptive" data-adaptive>'
+        f'<div class="ap-hud" role="status" aria-live="polite">'
+        f'<span class="ap-progress ui-chip">0 / {int(total)}</span>'
+        f'<span class="ap-level ui-chip"></span></div>'
+        f'{items_html}</div>'
+        f'<div class="feedback" role="status" aria-live="polite"></div>'
+    )
+
+
 def _render_unknown(s) -> str:
     return f'<h2 class="screen-title">{_text(getattr(s, "title", "?"))}</h2>'
 
@@ -950,6 +1108,8 @@ _SCREEN_DISPATCH = {
     ScreenType.results_breakdown: _r_results_breakdown,
     ScreenType.poll: _r_poll,
     ScreenType.image_compare: _r_image_compare,
+    ScreenType.game: _r_game,
+    ScreenType.adaptive_practice: _r_adaptive_practice,
 }
 
 

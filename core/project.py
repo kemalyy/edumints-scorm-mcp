@@ -12,6 +12,9 @@ from typing import Annotated, Literal, Union
 from pydantic import BaseModel, Field
 from ulid import ULID
 
+# W3b/W4 — kompozisyonel oyun + adaptif katman (additive). game_primitives project'i import ETMEZ → döngü yok.
+from core.game_primitives import AdaptiveSpec, GameMechanics, GameNode, GameRule
+
 
 # --------------------------------------------------------------------------- #
 # ID üreticileri (CONTRACTS.md §0)
@@ -255,6 +258,8 @@ class ScreenType(str, Enum):
     results_breakdown = "results_breakdown"  # Faz 14 — hedef-bazlı skor dökümü + adaptif öneri (içerik)
     poll = "poll"  # Faz 14 — puanlanmayan anket/yansıma (katılım)
     image_compare = "image_compare"  # Faz 14 — önce/sonra sürüklenebilir görsel karşılaştırma (içerik)
+    game = "game"  # W3b — kompozisyonel oyun: mekanik primitif (score/lives/timer/hint) + kural + dallanan düğüm
+    adaptive_practice = "adaptive_practice"  # W4b — adaptif pratik: yeterlilik tahmini (Elo/BKT) → ZPD zorluk seçimi
 
 
 class ScreenBase(BaseModel):
@@ -626,6 +631,59 @@ class ImageCompareScreen(ScreenBase):
     caption: str | None = None
 
 
+class GameScreen(ScreenBase):
+    """W3b — kompozisyonel oyun ekranı. Sabit bir oyun TİPİ değil; mekanik primitiflerin
+    (score/lives/timer/hint) + `when olay if koşul then aksiyon` kurallarının + dallanan içerik
+    düğümlerinin kompozisyonu. Mantık tek-kaynak `components/engine/*.js` (vitest); pakette
+    `core.engine_bundle` ile lazy inline edilir, runtime spec'ten primitifleri kurup kuralları bağlar.
+    İçsel-bütünleşme (Habgood): mekanik öğrenme hedefini taşır. SUNUCUDA LLM YOK — zekâ spec + runtime.
+
+    template: ECD/şablon referansı (case_sim=dallanan vaka simülasyonu, escape_room=kaçış odası);
+    yalnız dokümantasyon/anti-slop sınıflandırma — renderer düğümleri generic işler.
+    Skorlanır: oyun bitince score primitifi `pass_score` eşiğine göre geçer/kalır; `points` kursa katkı."""
+    type: Literal[ScreenType.game] = ScreenType.game
+    template: Literal["case_sim", "escape_room", "custom"] = "custom"
+    intro_html: str | None = None
+    mechanics: GameMechanics = Field(default_factory=GameMechanics)
+    nodes: list[GameNode] = Field(min_length=1)
+    start_node_id: str | None = None  # None → ilk düğüm
+    rules: list[GameRule] = Field(default_factory=list)
+    seed: str | None = None  # None → ekran id'sinden türetilir (üretilebilir oynanış)
+    pass_score: int | None = None  # None → skor > 0 geçer; verilirse skor ≥ pass_score
+    points: int = 25
+    feedback: Feedback = Field(default_factory=Feedback)
+
+
+class AdaptiveItem(BaseModel):
+    """W4b — adaptif pratik öğesi (MCQ biçimi + zorluk). difficulty: logit ölçeği (yüksek = zor);
+    tahminci pCorrect ile akış hedefine en yakın öğeyi seçer. skill: BKT beceri-başına ustalık (ops.)."""
+    id: str
+    prompt_html: str
+    options: list[Choice] = Field(min_length=2)
+    difficulty: float = 0.0
+    skill: str | None = None
+    explain_html: str | None = None  # cevaptan sonra gösterilen açıklama (NEEDS gerekçe — anti-slop)
+
+
+class AdaptivePracticeScreen(ScreenBase):
+    """W4b — adaptif pratik: öğe bankasından her cevaptan sonra yeterliliği güncelle (Elo/BKT) ve
+    bir sonraki öğeyi AKIŞ/ZPD hedefine (target_success) en yakın zorlukta seç. İçsel-bütünleşme:
+    zorluk öğrenciye kalibre olur (ne bunaltır ne sıkar). Mantık tek-kaynak components/engine/adaptive.js
+    (vitest); pakette engine bundle lazy inline. SUNUCUDA LLM YOK — seçim deterministik, seed'li tie-break.
+    Skorlanır: doğru/cevaplanan oranı pass_ratio'ya göre geçer/kalır; points kursa katkı."""
+    type: Literal[ScreenType.adaptive_practice] = ScreenType.adaptive_practice
+    prompt_html: str | None = None
+    items: list[AdaptiveItem] = Field(min_length=3)
+    adaptive: AdaptiveSpec = Field(discriminator="strategy")
+    target_success: float = 0.7  # akış hedefi (Bjork arzu edilen zorluk)
+    max_items: int = 0  # 0 → tüm öğeler birer kez; >0 → en çok bu kadar öğe sun
+    mastery_stop: float | None = None  # BKT: ustalık ≥ bu olunca erken bitir (ops.)
+    points: int = 20
+    pass_ratio: float = 0.6  # doğru/cevaplanan ≥ bu → geçer
+    seed: str | None = None  # None → ekran id'sinden türetilir
+    feedback: Feedback = Field(default_factory=Feedback)
+
+
 Screen = Annotated[
     Union[
         TitleSlide,
@@ -654,6 +712,8 @@ Screen = Annotated[
         ResultsBreakdownScreen,
         PollScreen,
         ImageCompareScreen,
+        GameScreen,
+        AdaptivePracticeScreen,
     ],
     Field(discriminator="type"),
 ]
@@ -671,6 +731,8 @@ QUIZ_TYPES = {
     ScreenType.term_match_race,
     ScreenType.escape_room,
     ScreenType.labeled_diagram,
+    ScreenType.game,
+    ScreenType.adaptive_practice,
 }
 
 

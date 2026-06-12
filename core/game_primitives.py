@@ -183,7 +183,55 @@ class GameMechanics(BaseModel):
 
 class GameDefinition(BaseModel):
     """Mekanik + kuralların kompozisyonu = bir oyunun MANTIK tanımı (sunumdan bağımsız).
-    W3b GameScreen bunu bir ekran tipine + renderer'a bağlayacak; ECD üç-modeli docs'ta."""
+    W3b GameScreen bunu bir ekran tipine + renderer'a bağlar; ECD üç-modeli docs'ta."""
     mechanics: GameMechanics = Field(default_factory=GameMechanics)
     rules: list[GameRule] = Field(default_factory=list)
     seed: str | None = None  # üretilebilir oynanış (None → kurs id'sinden türetilir)
+
+
+# --- W3b: oyunun SUNUM yapısı (dallanan istasyon/düğüm + içerik + seçimler) ---
+class GameChoice(BaseModel):
+    """Bir düğümdeki seçim. on_choose: bu seçime özel aksiyonlar (global rules'a EK)."""
+    id: str
+    text_html: str
+    to: str | None = None  # gidilecek düğüm; None → oyun biter (uç)
+    condition: BranchCondition | None = None  # kilitli seçim (koşul geçmezse görünmez/disabled)
+    feedback_html: str | None = None  # seçimden sonra gösterilen sonuç (NEEDS gerekçe — anti-slop)
+    on_choose: list[GameAction] = Field(default_factory=list)
+
+
+class GameNode(BaseModel):
+    """Oyun düğümü/istasyonu: durum metni (+ görsel) + seçimler. branch_graph yapısı + içerik."""
+    id: str
+    content_html: str
+    image_asset_id: str | None = None
+    choices: list[GameChoice] = Field(default_factory=list)
+
+
+# GameScreen core/project.py'de (ScreenBase üzerine) tanımlı — döngüsel import'tan kaçınma.
+
+
+# --- W4: adaptif katman — yeterlilik tahmini + akış/ZPD zorluk kalibrasyonu --
+# İki tahminci ortak arayüz arkasında (components/engine/adaptive.js, vitest). Spec `strategy` ile seçer.
+# KÜÇÜK durum (SCORM 1.2 4096B): Elo=tek float ability; BKT=tek float P(ustalık)+parametreler.
+class EloSpec(BaseModel):
+    """Elo-lite (Rasch-benzeri 1-param lojistik). Zorluk eşleştirmeye doğal yatkın (akış).
+    ability: başlangıç yeteneği (logit ölçeği); k: öğrenme oranı (büyük → hızlı ama gürültülü)."""
+    strategy: Literal["elo"] = "elo"
+    ability: float = 0.0
+    k: float = Field(default=0.24, gt=0)
+
+
+class BktSpec(BaseModel):
+    """BKT-lite (Bayesian Knowledge Tracing). ECD yeterlilik modeline doğrudan eşlenir (P(ustalık)).
+    p_init: ön ustalık; p_transit: öğrenme geçişi; p_slip: bilip yanlış; p_guess: bilmeden doğru."""
+    strategy: Literal["bkt"] = "bkt"
+    p_init: float = Field(default=0.2, ge=0, le=1)
+    p_transit: float = Field(default=0.15, ge=0, le=1)
+    p_slip: float = Field(default=0.1, ge=0, le=1)
+    p_guess: float = Field(default=0.2, ge=0, le=1)
+
+
+# strategy ile ayrılan birlik — W4b adaptif öğe akışı bunu kullanacak.
+AdaptiveSpec = Union[EloSpec, BktSpec]
+ADAPTIVE_STRATEGIES = ("elo", "bkt")

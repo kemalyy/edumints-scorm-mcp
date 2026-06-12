@@ -406,6 +406,44 @@ body[data-bg="grid"]{background-image:linear-gradient(color-mix(in srgb,var(--c-
 .esc-hint{margin-top:var(--space-3);font-size:14px;color:var(--c-muted);padding:var(--space-2) var(--space-4);
   border-left:3px solid var(--c-warning,#d97706);background:var(--c-surface);border-radius:0 var(--r-sm) var(--r-sm) 0}
 
+/* W3b — kompozisyonel oyun (game) */
+.game{display:flex;flex-direction:column;gap:var(--space-4)}
+.game-hud{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2)}
+.game-hud-score b,.game-hud-lives b,.game-hud-timer b{font-variant-numeric:tabular-nums}
+.game-hud-lives{color:var(--c-error)}
+.game-hint,.game-timer-extend,.game-timer-off{margin-left:auto;font-size:12px;min-height:36px}
+.game-timer-extend,.game-timer-off{margin-left:0}
+.game-hints{display:flex;flex-direction:column;gap:var(--space-2)}
+.game-hint-text{font-size:14px;color:var(--c-muted);padding:var(--space-2) var(--space-4);
+  border-left:3px solid var(--c-warning,#d97706);background:var(--c-surface);border-radius:0 var(--r-sm) var(--r-sm) 0}
+.game-content{font-size:16px}
+.game-img{width:100%;max-height:280px;object-fit:contain;border-radius:var(--r-md);background:var(--c-surface)}
+.game-choices{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-3)}
+.game-row{display:flex;flex-direction:column;gap:var(--space-2)}
+.game-choice{text-align:left;cursor:pointer;background:var(--c-bg);border:1.5px solid var(--c-border);
+  border-radius:var(--r-md);padding:var(--space-4) var(--space-5);font-size:15px;color:var(--c-text);
+  min-height:44px;display:flex;align-items:center;gap:var(--space-3);transition:all .2s cubic-bezier(.4,0,.2,1)}
+.game-choice::before{content:"▸";color:var(--c-primary);font-weight:700}
+.game-choice:hover:not(:disabled){border-color:var(--c-primary);transform:translateX(4px);
+  box-shadow:0 2px 12px color-mix(in srgb,var(--c-primary) 10%,transparent)}
+.game-choice:disabled{cursor:default}
+.game-choice.chosen{border-color:var(--c-primary);background:color-mix(in srgb,var(--c-primary) 8%,var(--c-bg))}
+.game-choice.dim{opacity:.5}
+.game-choice.locked{opacity:.45;border-style:dashed;cursor:not-allowed}
+.game-conseq{font-size:14px;color:var(--c-muted);padding:var(--space-2) var(--space-4);
+  border-left:3px solid var(--c-primary);background:var(--c-surface);border-radius:0 var(--r-sm) var(--r-sm) 0}
+.game-next{align-self:flex-start}
+@media(prefers-reduced-motion:reduce){.game-choice:hover:not(:disabled){transform:none}}
+
+/* W4b — adaptif pratik (adaptive_practice) */
+.adaptive{display:flex;flex-direction:column;gap:var(--space-4)}
+.ap-hud{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2)}
+.ap-level{margin-left:auto;font-variant-numeric:tabular-nums}
+.ap-prompt{font-size:16px;margin-bottom:var(--space-3)}
+.ap-options{margin-bottom:var(--space-2)}
+.ap-explain{font-size:14px;color:var(--c-muted);padding:var(--space-2) var(--space-4);
+  border-left:3px solid var(--c-primary);background:var(--c-surface);border-radius:0 var(--r-sm) var(--r-sm) 0}
+
 /* labeled_diagram */
 .ld-stage{position:relative;display:inline-block;max-width:100%}
 .ld-pin{position:absolute;transform:translate(-50%,-50%);width:28px;height:28px;border-radius:50%;
@@ -1067,6 +1105,8 @@ sections.forEach(function(el){
   else if(t==="labeled_diagram"){ bindLabeledDiagram(el,s); }
   else if(t==="poll"){ bindPoll(el); }
   else if(t==="image_compare"){ bindImageCompare(el); }
+  else if(t==="game"){ bindGame(el,s); }
+  else if(t==="adaptive_practice"){ bindAdaptive(el,s); }
 });
 
 function bindChoice(el,s){
@@ -1334,6 +1374,154 @@ function bindEscape(el,s){
     inp.addEventListener("keydown",function(e){ if(e.key==="Enter"){ e.preventDefault(); check(); } });
   });
   showPuzzle(0);
+}
+// W3b — kompozisyonel oyun: engine bundle'dan (window.SCORMGame) primitifleri spec'ten kur,
+// kuralları olay veriyoluna bağla, dallanan düğümleri DOM'da yürüt. Mantık tek-kaynak components/engine.
+function bindGame(el,s){
+  var root=el.querySelector(".game"); if(!root) return;
+  var cfg=s.game, G=window.SCORMGame;
+  var fb=el.querySelector(".feedback");
+  if(!cfg||!G){ // motor bundle yoksa: içerik statik HTML'de görünür kalır (progresif geliştirme)
+    if(fb){ fb.textContent="Oyun motoru yüklenemedi."; } return; }
+  var bus=G.createEventBus();
+  var rng=G.createRng(G.seedFromString(cfg.seed||s.id||"game"));
+  var m=cfg.mechanics||{}, mech={};
+  if(m.score) mech.score=G.createScore(m.score,bus);
+  if(m.lives) mech.lives=G.createLives(m.lives,bus);
+  if(m.timer) mech.timer=G.createTimer(m.timer,bus);
+  if(m.hints) mech.hints=G.createHintLadder(m.hints,bus);
+  var ctx={bus:bus,vars:{},mechanics:mech,rng:rng};
+  G.attachRules(cfg.rules||[],ctx);
+  var logic=cfg.logic||{}, pass=cfg.pass_score, points=cfg.points||0, finished=false, clock=null;
+  // HUD elemanları (gizli render edildi — mevcut mekaniğe göre aç)
+  var scW=root.querySelector(".game-hud-score"), scB=scW&&scW.querySelector("b");
+  var lvW=root.querySelector(".game-hud-lives"), lvB=lvW&&lvW.querySelector("b");
+  var tmW=root.querySelector(".game-hud-timer"), tmB=tmW&&tmW.querySelector("b");
+  var hintBtn=root.querySelector(".game-hint"), hintsBox=root.querySelector(".game-hints");
+  var extBtn=root.querySelector(".game-timer-extend"), offBtn=root.querySelector(".game-timer-off");
+  function updHud(){
+    if(mech.score){ scW.hidden=false; scB.textContent=mech.score.value; }
+    if(mech.lives){ lvW.hidden=false; lvB.textContent=mech.lives.current; }
+    if(mech.timer){ tmW.hidden=false; tmB.textContent=mech.timer.value; }
+  }
+  bus.on("score.changed",updHud); bus.on("lives.changed",updHud);
+  bus.on("timer.tick",function(){ if(tmB&&mech.timer) tmB.textContent=mech.timer.value; });
+  if(mech.hints){ hintBtn.hidden=false;
+    bus.on("hint.revealed",function(h){ var d=document.createElement("div"); d.className="game-hint-text rich";
+      d.textContent=h.text+(h.cost?(" (−"+h.cost+")"):""); hintsBox.appendChild(d); });
+    hintBtn.addEventListener("click",function(){ if(finished) return; mech.hints.reveal();
+      if(!mech.hints.hasMore()) hintBtn.disabled=true; updHud(); });
+  }
+  if(mech.timer){ extBtn.hidden=false; offBtn.hidden=false;          // a11y WCAG 2.2.1: süre uzat/kapat
+    extBtn.addEventListener("click",function(){ if(finished) return; mech.timer.extend(30); if(tmB) tmB.textContent=mech.timer.value; });
+    offBtn.addEventListener("click",function(){ mech.timer.disable(); if(tmB) tmB.textContent="∞"; if(clock){ clearInterval(clock); clock=null; } });
+    bus.on("timer.expired",function(){ if(clock){ clearInterval(clock); clock=null; } finalize(); });
+    clock=setInterval(function(){ if(finished){ clearInterval(clock); return; } if(state.cursorId!==s.id) return; mech.timer.tick(1000); },1000);
+  }
+  if(mech.lives){ bus.on("lives.depleted",function(){ finalize(); }); }
+  function condOk(c){ return G.evalCond?G.evalCond(c,ctx.vars):true; }
+  function applyLocks(node){ node.querySelectorAll(".game-choice").forEach(function(b){
+    var L=logic[b.dataset.node+"/"+b.dataset.choice];
+    if(L&&L.cond){ var ok=condOk(L.cond); b.disabled=!ok; b.classList.toggle("locked",!ok); } }); }
+  function show(id){ root.querySelectorAll(".game-node").forEach(function(n){ n.hidden=(n.dataset.node!==id); });
+    var node=root.querySelector('.game-node[data-node="'+id+'"]'); if(node) applyLocks(node); }
+  function finalize(){ if(finished) return; finished=true; if(clock){ clearInterval(clock); clock=null; }
+    var sc=mech.score?mech.score.value:0; var ok;
+    if(mech.lives&&mech.lives.depleted) ok=false;       // can bitti → kaybetti
+    else if(pass!=null) ok=sc>=pass; else ok=sc>0;
+    recordResult(s.id, ok?points:0, points, ok);
+    applyActions(ok?s.on_correct:s.on_wrong);
+    root.querySelectorAll(".game-choice,.game-hint,.game-next").forEach(function(x){ x.disabled=true; });
+    if(fb){ var msg=ok?(s.feedback&&s.feedback.correct||""):(s.feedback&&s.feedback.incorrect||"");
+      fb.innerHTML=msg+' <b>Skor: '+sc+'</b>'; fb.className="feedback show "+(ok?"ok":"no"); }
+    var nb=document.getElementById("btnNext"); if(nb&&cursor<order.length-1) nb.disabled=false;
+    evaluate();
+  }
+  root.querySelectorAll(".game-node").forEach(function(node){
+    var nextBtn=node.querySelector(".game-next"), goTo="";
+    node.querySelectorAll(".game-choice").forEach(function(b){
+      b.addEventListener("click",function(){
+        if(finished||node.dataset.done||b.disabled) return; node.dataset.done="1";
+        var L=logic[b.dataset.node+"/"+b.dataset.choice]||{};
+        (L.on||[]).forEach(function(a){ var fn=G.ACTIONS&&G.ACTIONS[a.do]; if(fn) fn(a,ctx); });  // seçime özel aksiyonlar
+        ctx.vars._choice=b.dataset.choice;
+        bus.emit("choice.taken",{node:node.dataset.node,choice:b.dataset.choice});                // global kurallar
+        node.querySelectorAll(".game-choice").forEach(function(x){ x.disabled=true; if(x!==b) x.classList.add("dim"); });
+        b.classList.add("chosen");
+        var cf=b.parentNode.querySelector(".game-conseq"); if(cf) cf.hidden=false;
+        goTo=(L.to||b.dataset.goto||"");
+        updHud();
+        if(finished) return;                            // can bitince depletion handler bitirdi
+        if(nextBtn) nextBtn.hidden=false;
+      });
+    });
+    if(nextBtn) nextBtn.addEventListener("click",function(){ if(finished) return;
+      if(goTo && root.querySelector('.game-node[data-node="'+goTo+'"]')) show(goTo); else finalize(); });
+  });
+  updHud(); show(cfg.start);
+}
+// W4b — adaptif pratik: engine bundle'dan tahminciyi (Elo/BKT) kur; her cevaptan sonra observe edip
+// sıradaki öğeyi seç — Elo: ZPD/akış (hedef başarıya en yakın zorluk), BKT: ustalık (kolaydan zora +
+// erken-bitir). Mantık tek-kaynak components/engine/adaptive.js. SUNUCUDA LLM YOK; seed'li tie-break.
+function bindAdaptive(el,s){
+  var root=el.querySelector(".adaptive"); if(!root) return;
+  var cfg=s.adaptive, G=window.SCORMGame, fb=el.querySelector(".feedback");
+  if(!cfg||!G){ if(fb) fb.textContent="Adaptif motor yüklenemedi."; return; }
+  var strategy=(cfg.adaptive&&cfg.adaptive.strategy)||"elo";
+  var est=G.createEstimator(cfg.adaptive||{});
+  var rng=G.createRng(G.seedFromString(cfg.seed||s.id||"adaptive"));
+  var itemsCfg=cfg.items||{}, target=cfg.target_success||0.7;
+  var pool=[]; root.querySelectorAll(".ap-item").forEach(function(node){
+    pool.push({id:node.dataset.item, d:parseFloat(node.dataset.difficulty)||0, node:node, done:false}); });
+  var cap=(cfg.max_items&&cfg.max_items>0)?Math.min(cfg.max_items,pool.length):pool.length;
+  var answered=0, correctN=0, finished=false, current=null;
+  var prog=root.querySelector(".ap-progress"), lvl=root.querySelector(".ap-level");
+  function levelText(){ return strategy==="bkt" ? ("Ustalık: "+Math.round(est.mastery*100)+"%")
+                                                : ("Seviye: "+est.ability.toFixed(2)); }
+  function updHud(){ if(prog) prog.textContent=answered+" / "+cap; if(lvl) lvl.textContent=levelText(); }
+  function show(p){ current=p; pool.forEach(function(x){ x.node.hidden=(x!==p); });
+    var o=p.node.querySelector(".opt"); if(o) setTimeout(function(){ o.focus(); },50); }
+  function next(){
+    if(finished) return;
+    if(answered>=cap) return finalize();
+    if(cfg.mastery_stop!=null && strategy==="bkt" && est.mastery>=cfg.mastery_stop) return finalize();
+    var avail=pool.filter(function(p){ return !p.done; });
+    if(!avail.length) return finalize();
+    var pick;
+    if(strategy==="bkt"){ avail.sort(function(a,b){ return a.d-b.d; }); pick=avail[0]; }   // ustalık: kolaydan zora
+    else { pick=G.pickByTargetSuccess(function(p){ return est.pCorrect(p.d); }, avail, {target:target}, rng); } // akış: ZPD
+    show(pick);
+  }
+  function finalize(){ if(finished) return; finished=true;
+    pool.forEach(function(x){ x.node.hidden=true; });
+    var ratio=answered?correctN/answered:0, ok=ratio>=(cfg.pass_ratio||0.6);
+    recordResult(s.id, ok?cfg.points:0, cfg.points, ok);
+    applyActions(ok?s.on_correct:s.on_wrong);
+    if(fb){ var msg=ok?(s.feedback&&s.feedback.correct||""):(s.feedback&&s.feedback.incorrect||"");
+      fb.innerHTML=msg+' <b>'+correctN+" / "+answered+" doğru · "+levelText()+'</b>';
+      fb.className="feedback show "+(ok?"ok":"no"); }
+    var nb=document.getElementById("btnNext"); if(nb&&cursor<order.length-1) nb.disabled=false; evaluate();
+  }
+  pool.forEach(function(p){
+    var node=p.node, opts=node.querySelectorAll(".opt"), check=node.querySelector(".ap-check");
+    opts.forEach(function(b){ b.addEventListener("click",function(){ if(p.done) return;
+      opts.forEach(function(o){ o.classList.remove("selected"); }); b.classList.add("selected"); }); });
+    check.addEventListener("click",function(){
+      if(p.done||finished||p!==current) return;
+      var sel=node.querySelector(".opt.selected"); if(!sel) return;
+      p.done=true; check.disabled=true;
+      var correct=(itemsCfg[p.id]&&itemsCfg[p.id].correct)||[];
+      var ok=correct.indexOf(sel.dataset.opt)>=0;
+      opts.forEach(function(o){ o.disabled=true;
+        if(correct.indexOf(o.dataset.opt)>=0 && s.feedback && s.feedback.show_correct) o.classList.add("correct");
+        if(o.classList.contains("selected")&&!ok) o.classList.add("wrong"); });
+      if(strategy==="bkt") est.observe(ok); else est.observe(p.d, ok);   // yeterliliği güncelle
+      answered++; if(ok) correctN++;
+      var ex=node.querySelector(".ap-explain"); if(ex) ex.hidden=false;
+      updHud(); setTimeout(next,60);
+    });
+  });
+  updHud(); next();
 }
 // Faz 13 — etiketli diyagram (görsel öğrenme; select == pin id ise doğru)
 function bindLabeledDiagram(el,s){

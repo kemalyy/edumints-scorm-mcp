@@ -1,0 +1,139 @@
+{
+  "title": "Şifre Odası: Veri Güvenliği Kaçış Oyunu",
+  "description": "Kompozisyonel oyun (game) şablonu — escape_room: süre + can + ipucu + skor mekaniklerinin kilitli oda zinciriyle birleşimi. Süre erişilebilir (WCAG 2.2.1: uzat/kapat). İçsel-bütünleşme: doğru güvenlik kararı bir sonraki odanın kilidini açar.",
+  "scorm_version": "1.2",
+  "language": "tr",
+  "theme": "default",
+  "tracking": {
+    "completion_rule": "viewed_all_and_passed",
+    "passing_score": 70
+  },
+  "screens": [
+    {
+      "type": "title_slide",
+      "id": "intro",
+      "title": "Şifre Odasından Kaçış",
+      "subtitle": "Veri Güvenliği Kaçış Oyunu",
+      "body_html": "<p>Üç kilitli odadasın. Her odada doğru güvenlik kararını ver, kilidi aç ve ilerle. Süren ve üç canın var — ama panikleme: süreyi uzatabilir ya da tamamen kapatabilirsin.</p>"
+    },
+    {
+      "type": "content_slide",
+      "id": "primer",
+      "title": "Sahadan Kurallar",
+      "body_html": "<p>Bu odalar gerçek olay-müdahale ilkelerini sınar.</p><ul><li><strong>Parolalar:</strong> uzunluk &gt; karmaşıklık; tekrar kullanma.</li><li><strong>Oltalama:</strong> gönderen adresini ve bağlantı hedefini doğrula.</li><li><strong>Olay anı:</strong> önce izole et, sonra bildir; kanıtı bozma.</li></ul>"
+    },
+    {
+      "type": "game",
+      "id": "escape_game",
+      "title": "Kilitli Odalar",
+      "template": "escape_room",
+      "intro_html": "<p>İlk odadasın. Saat işliyor. Her yanlış denemede bir can ve biraz puan kaybedersin; ipucu maliyetlidir ama seni kurtarabilir.</p>",
+      "points": 60,
+      "pass_score": 40,
+      "seed": "cipher-room-1",
+      "mechanics": {
+        "score": { "id": "puan", "start": 0, "streak_step": 3, "max_multiplier": 3 },
+        "lives": { "id": "can", "start": 3 },
+        "timer": { "id": "sure", "duration_sec": 150, "mode": "down", "allow_extend": true, "allow_disable": true },
+        "hints": {
+          "id": "ipucu",
+          "hints": [
+            { "text": "Oda 1: En güçlü parola en uzun ve tahmin edilemeyen olandır, semboller tek başına yetmez.", "cost": 4 },
+            { "text": "Oda 2: Gerçek gönderen, görünen ad değil, '@' sonrası alan adıdır.", "cost": 4 },
+            { "text": "Oda 3: Bir cihaz ele geçtiyse ilk refleks ağdan izole etmektir.", "cost": 4 }
+          ]
+        }
+      },
+      "rules": [
+        { "when": "choice.taken", "then": [ { "do": "var.add", "var": "deneme", "value": 1 } ] }
+      ],
+      "start_node_id": "oda1",
+      "nodes": [
+        {
+          "id": "oda1",
+          "content_html": "<p><strong>Oda 1 — Parola Kilidi.</strong> Kapıyı açacak en güvenli parola hangisi?</p>",
+          "choices": [
+            {
+              "id": "p_uzun",
+              "text_html": "mor-kedi-yagmurda-kosar-2019",
+              "to": "oda2",
+              "feedback_html": "<p>Doğru. Uzun bir parola-cümlesi, kısa karmaşık dizilerden çok daha güçlüdür. Kilit açıldı.</p>",
+              "on_choose": [ { "do": "score.correct", "points": 15 } ]
+            },
+            {
+              "id": "p_kisa",
+              "text_html": "P@ss1!",
+              "to": "oda1",
+              "feedback_html": "<p>Kısa ve yaygın kalıp; kaba-kuvvetle saniyeler içinde kırılır. Bir can kaybettin, tekrar dene.</p>",
+              "on_choose": [ { "do": "lives.lose", "n": 1 }, { "do": "score.wrong" } ]
+            },
+            {
+              "id": "p_isim",
+              "text_html": "Mehmet1985",
+              "to": "oda1",
+              "feedback_html": "<p>İsim + doğum yılı sözlük saldırısına açıktır. Bir can gitti, tekrar dene.</p>",
+              "on_choose": [ { "do": "lives.lose", "n": 1 }, { "do": "score.wrong" } ]
+            }
+          ]
+        },
+        {
+          "id": "oda2",
+          "content_html": "<p><strong>Oda 2 — Oltalama Kilidi.</strong> 'destek@bank-guvenlik.com' adından gelen, 'Hesabınız donduruldu, doğrulayın' diyen e-posta. Gerçek gönderen hangisine bakılarak anlaşılır?</p>",
+          "choices": [
+            {
+              "id": "alan",
+              "text_html": "'@' sonrasındaki alan adının bankanın gerçek alanı olup olmadığına.",
+              "to": "oda3",
+              "feedback_html": "<p>Doğru. Görünen ad sahte olabilir; kimlik alan adındadır. İlerliyorsun.</p>",
+              "on_choose": [ { "do": "score.correct", "points": 15 } ]
+            },
+            {
+              "id": "logo",
+              "text_html": "E-postadaki logonun bankanınkine benzeyip benzemediğine.",
+              "to": "oda2",
+              "feedback_html": "<p>Logo kopyalanabilir; güvenilmez. Bir can kaybettin.</p>",
+              "on_choose": [ { "do": "lives.lose", "n": 1 }, { "do": "score.wrong" } ]
+            }
+          ]
+        },
+        {
+          "id": "oda3",
+          "content_html": "<p><strong>Oda 3 — Olay Kilidi.</strong> İş istasyonunun fidye yazılımına bulaştığını fark ettin. İlk hareketin?</p>",
+          "choices": [
+            {
+              "id": "izole",
+              "text_html": "Cihazı ağ kablosunu çekerek/Wi-Fi'yi kapatarak izole et, sonra olayı bildir.",
+              "to": "kacis",
+              "feedback_html": "<p>Doğru. Yayılımı durdurmak önceliktir; kanıtı bozmadan bildirirsin. Son kilit açıldı!</p>",
+              "on_choose": [ { "do": "score.correct", "points": 20 } ]
+            },
+            {
+              "id": "kapat",
+              "text_html": "Cihazı hemen kapat (güç düğmesi).",
+              "to": "oda3",
+              "feedback_html": "<p>Anlık kapatma uçucu kanıtı (bellek) yok eder ve bazı zararlıları tetikler. İzole et, kapatma. Bir can gitti.</p>",
+              "on_choose": [ { "do": "lives.lose", "n": 1 }, { "do": "score.wrong" } ]
+            }
+          ]
+        },
+        {
+          "id": "kacis",
+          "content_html": "<p>Üç kilidi de açtın ve odadan çıktın! 'Devam' ile skorunu gör.</p>",
+          "choices": [
+            { "id": "cik", "text_html": "Çık ve skoru gör.", "to": null }
+          ]
+        }
+      ],
+      "feedback": {
+        "correct_html": "<p>Tüm kilitleri açtın — soğukkanlı ve doğru güvenlik refleksleri sergiledin.</p>",
+        "incorrect_html": "<p>Odadan çıkamadın. Geri bildirimleri oku, ipuçlarını kullan ve tekrar dene.</p>"
+      }
+    },
+    {
+      "type": "summary",
+      "id": "ozet",
+      "title": "Özet",
+      "body_html": "<p>Güçlü parola-cümlesi, gönderen alan adını doğrulama ve 'önce izole et' refleksi: üçü de günlük savunmanın temelidir.</p>"
+    }
+  ]
+}

@@ -871,6 +871,10 @@ _SCREEN_TYPE_DESC: dict[str, str] = {
     "results_breakdown": "Özelleştirilmiş sonuç — hedef-bazlı skor dökümü + adaptif öneri.",
     "poll": "Puanlanmayan anket/yansıma (katılım).",
     "image_compare": "Önce/sonra sürüklenebilir görsel karşılaştırma.",
+    "game": "Kompozisyonel oyun — mekanik primitifler (skor/can/süre/ipucu) + 'when olay if koşul "
+            "then aksiyon' kuralları + dallanan içerik düğümleri (case_sim / escape_room şablonları).",
+    "adaptive_practice": "Adaptif pratik — yeterlilik tahmini (Elo/BKT) ile her cevaptan sonra ZPD/akış "
+                         "hedefine en yakın zorlukta sıradaki öğeyi seçer (öğrenciye kalibre).",
 }
 
 _THEME_DESC: dict[str, str] = {

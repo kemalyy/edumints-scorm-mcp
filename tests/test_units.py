@@ -670,3 +670,164 @@ def test_faz91_icons_no_emoji_and_sections():
     assert 'id="btnPlay"' in html and 'class="ic-a"' in html and 'class="ic-b"' in html
     # mobil media query + menu-section CSS
     assert "@media(max-width:640px)" in html and ".menu-section" in html
+
+
+# ---- W3b: kompozisyonel oyun (game) ekranı ----
+def _game_screen(**over):
+    from core.project import GameScreen
+    base = dict(
+        id="g1", title="Oyun",
+        nodes=[
+            {"id": "n1", "content_html": "<p>Başla</p>", "choices": [
+                {"id": "a", "text_html": "Doğru", "to": "n2",
+                 "on_choose": [{"do": "score.correct", "points": 10}]},
+                {"id": "b", "text_html": "Yanlış", "to": None,
+                 "on_choose": [{"do": "lives.lose", "n": 1}]},
+            ]},
+            {"id": "n2", "content_html": "<p>İkinci</p>", "choices": [
+                {"id": "c", "text_html": "Bitir", "to": None}]},
+        ],
+        mechanics={"score": {"id": "sc"}, "lives": {"id": "lv", "start": 3}},
+        rules=[{"when": "choice.taken", "then": [{"do": "var.add", "var": "k", "value": 1}]}],
+        points=30, pass_score=20,
+    )
+    base.update(over)
+    return GameScreen(**base)
+
+
+def test_w3b_game_renders_and_inlines_engine_bundle_only_when_present():
+    from core.project import ScreenType, QUIZ_TYPES
+    assert ScreenType.game in QUIZ_TYPES  # skorlanır
+    g = _game_screen()
+    p = Project(id=new_project_id(), title="K", screens=[g])
+    html = render_html(p, mode="preview", runtime_js="/*rt*/")
+    assert 'data-type="game"' in html
+    # bindGame kaynağı 'window.SCORMGame'i string olarak içerir (her zaman) → bundle'a-ÖZGÜ token kullan
+    assert "/* engine/rng.js */" in html
+    assert "window.SCORMGame = __E" in html       # bundle gerçekten inline (lazy)
+    assert "function bindGame" in html
+    assert 'data-node="n1"' in html and 'data-choice="a"' in html
+    # game ekranı OLMAYAN kursta bundle inline EDİLMEZ (zero-load)
+    p2 = Project(id=new_project_id(), title="K2",
+                 screens=[ContentSlide(id="c", title="x", body_html="<p>y</p>")])
+    html2 = render_html(p2, mode="preview", runtime_js="/*rt*/")
+    assert "/* engine/rng.js */" not in html2
+
+
+def test_w3b_game_config_serializes_logic_and_mechanics():
+    from components.renderer import _course_config
+    p = Project(id=new_project_id(), title="K", screens=[_game_screen()])
+    cfg = _course_config(p)
+    item = [s for s in cfg["screens"] if s["type"] == "game"][0]
+    gc = item["game"]
+    assert set(gc["logic"].keys()) == {"n1/a", "n1/b", "n2/c"}
+    assert gc["logic"]["n1/a"]["to"] == "n2"
+    assert gc["mechanics"]["score"] and gc["mechanics"]["timer"] is None
+    assert gc["rules"][0]["when"] == "choice.taken"
+    assert item["points"] == 30 and cfg["total_points"] == 30
+
+
+def test_w3b_game_validator_rejects_bad_target_and_a11y_timer_gate():
+    from core.validator import validate_project
+    # geçersiz `to` hedefi → hata
+    bad = _game_screen(nodes=[
+        {"id": "n1", "content_html": "<p>x</p>", "choices": [
+            {"id": "a", "text_html": "git", "to": "YOK"}]}])
+    p = Project(id=new_project_id(), title="K", screens=[bad])
+    errs = validate_project(p)
+    assert any("seçim hedefi" in e.message for e in errs)
+    # a11y süre kapısı: timer hem extend hem disable kapalıysa → hata (WCAG 2.2.1)
+    g2 = _game_screen(mechanics={
+        "score": {"id": "sc"},
+        "timer": {"id": "t", "duration_sec": 60, "allow_extend": False, "allow_disable": False}})
+    p2 = Project(id=new_project_id(), title="K2", screens=[g2])
+    assert any("2.2.1" in e.message for e in validate_project(p2))
+    # geçerli oyun → temiz
+    p3 = Project(id=new_project_id(), title="K3", screens=[_game_screen()])
+    assert validate_project(p3) == []
+
+
+# ---- W4a: adaptif katman (Elo-vs-BKT tahminci + akış/ZPD seçici) ----
+def test_w4a_adaptive_specs_discriminate_by_strategy():
+    from core.game_primitives import EloSpec, BktSpec, AdaptiveSpec, ADAPTIVE_STRATEGIES
+    from pydantic import TypeAdapter
+    assert ADAPTIVE_STRATEGIES == ("elo", "bkt")
+    ad = TypeAdapter(AdaptiveSpec)
+    e = ad.validate_python({"strategy": "elo", "ability": 1.0, "k": 0.3})
+    assert isinstance(e, EloSpec) and e.ability == 1.0
+    b = ad.validate_python({"strategy": "bkt", "p_init": 0.3})
+    assert isinstance(b, BktSpec) and b.p_init == 0.3
+    # parametre sınırları (olasılıklar [0,1], k>0)
+    import pytest as _pt
+    from pydantic import ValidationError
+    with _pt.raises(ValidationError):
+        BktSpec(p_slip=1.5)
+    with _pt.raises(ValidationError):
+        EloSpec(k=0)
+
+
+def test_w4a_engine_bundle_inlines_adaptive_module():
+    from core.engine_bundle import load_engine_bundle
+    b = load_engine_bundle()
+    # adaptif modül bundle'a dahil + export'lar window.SCORMGame'e açık
+    assert "/* engine/adaptive.js */" in b
+    for fn in ("createElo", "createBkt", "createEstimator", "pickByTargetSuccess"):
+        assert f"__E.{fn} = {fn}" in b
+
+
+# ---- W4b: adaptif pratik ekranı ----
+def _adaptive_screen(**over):
+    from core.project import AdaptivePracticeScreen
+    base = dict(
+        id="ap1", title="Pratik",
+        items=[
+            {"id": "i1", "prompt_html": "<p>kolay</p>", "difficulty": -2.0,
+             "options": [{"id": "a", "text_html": "x", "correct": True}, {"id": "b", "text_html": "y"}]},
+            {"id": "i2", "prompt_html": "<p>orta</p>", "difficulty": 0.0,
+             "options": [{"id": "a", "text_html": "x", "correct": True}, {"id": "b", "text_html": "y"}]},
+            {"id": "i3", "prompt_html": "<p>zor</p>", "difficulty": 2.0,
+             "options": [{"id": "a", "text_html": "x", "correct": True}, {"id": "b", "text_html": "y"}]},
+        ],
+        adaptive={"strategy": "elo", "ability": 0.0},
+        target_success=0.7, points=20,
+    )
+    base.update(over)
+    return AdaptivePracticeScreen(**base)
+
+
+def test_w4b_adaptive_renders_and_serializes_difficulties():
+    from core.project import ScreenType, QUIZ_TYPES
+    from components.renderer import _course_config
+    assert ScreenType.adaptive_practice in QUIZ_TYPES
+    p = Project(id=new_project_id(), title="K", screens=[_adaptive_screen()])
+    html = render_html(p, mode="preview", runtime_js="/*rt*/")
+    assert 'data-type="adaptive_practice"' in html
+    assert "/* engine/rng.js */" in html and "function bindAdaptive" in html
+    assert 'data-difficulty="-2.0"' in html and 'data-item="i1"' in html
+    cfg = _course_config(p)
+    item = [s for s in cfg["screens"] if s["type"] == "adaptive_practice"][0]
+    ad = item["adaptive"]
+    assert ad["adaptive"]["strategy"] == "elo"
+    assert ad["items"]["i3"]["difficulty"] == 2.0 and ad["items"]["i1"]["correct"] == ["a"]
+    assert item["points"] == 20 and cfg["total_points"] == 20
+
+
+def test_w4b_adaptive_validator_requires_correct_option_and_bounds():
+    from core.validator import validate_project
+    # doğru seçeneği olmayan öğe → hata
+    bad = _adaptive_screen(items=[
+        {"id": "i1", "prompt_html": "<p>x</p>", "difficulty": 0.0,
+         "options": [{"id": "a", "text_html": "x"}, {"id": "b", "text_html": "y"}]},
+        {"id": "i2", "prompt_html": "<p>y</p>", "difficulty": 1.0,
+         "options": [{"id": "a", "text_html": "x", "correct": True}, {"id": "b", "text_html": "y"}]},
+        {"id": "i3", "prompt_html": "<p>z</p>", "difficulty": 2.0,
+         "options": [{"id": "a", "text_html": "x", "correct": True}, {"id": "b", "text_html": "y"}]},
+    ])
+    p = Project(id=new_project_id(), title="K", screens=[bad])
+    assert any("doğru seçenek" in e.message for e in validate_project(p))
+    # max_items > öğe sayısı → hata
+    p2 = Project(id=new_project_id(), title="K2", screens=[_adaptive_screen(max_items=99)])
+    assert any("max_items" in e.message for e in validate_project(p2))
+    # geçerli → temiz
+    p3 = Project(id=new_project_id(), title="K3", screens=[_adaptive_screen()])
+    assert validate_project(p3) == []

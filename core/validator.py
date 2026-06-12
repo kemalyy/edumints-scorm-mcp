@@ -12,7 +12,9 @@ import zipfile
 from lxml import etree
 
 from .project import (
+    AdaptivePracticeScreen,
     BranchingScreen,
+    GameScreen,
     Project,
     ScreenType,
     VideoScreen,
@@ -55,6 +57,43 @@ def validate_project(project: Project) -> list[ValidationError]:
             if s.default_goto and s.default_goto not in screen_ids:
                 errors.append(ValidationError(code="validation_error",
                               message=f"default_goto bulunamadı: {s.default_goto}", path=path))
+
+        # W3b — oyun iç-tutarlılığı: düğüm-grafiği referansları + a11y süre kapısı (WCAG 2.2.1)
+        if isinstance(s, GameScreen):
+            node_ids = {n.id for n in s.nodes}
+            if s.start_node_id and s.start_node_id not in node_ids:
+                errors.append(ValidationError(code="validation_error",
+                              message=f"Oyun başlangıç düğümü bulunamadı: {s.start_node_id}",
+                              path=f"{path}.start_node_id"))
+            for n in s.nodes:
+                for c in n.choices:
+                    if c.to is not None and c.to not in node_ids:
+                        errors.append(ValidationError(code="validation_error",
+                                      message=f"Oyun seçim hedefi (to) bulunamadı: {c.to}",
+                                      path=f"{path}.nodes[{n.id}].choices[{c.id}]"))
+                # düğüm-içi asset ref'i jenerik döngüde kontrol edilmez (s.* alanları) → ayrı
+                if n.image_asset_id and n.image_asset_id not in asset_ids:
+                    errors.append(ValidationError(code="validation_error",
+                                  message=f"Bilinmeyen asset referansı: {n.image_asset_id}",
+                                  path=f"{path}.nodes[{n.id}].image_asset_id"))
+            t = s.mechanics.timer
+            if t is not None and not t.allow_extend and not t.allow_disable:
+                errors.append(ValidationError(code="validation_error",
+                              message="Süreli oyun erişilebilir olmalı (WCAG 2.2.1): timer.allow_extend "
+                                      "veya allow_disable en az biri açık olmalı",
+                              path=f"{path}.mechanics.timer"))
+
+        # W4b — adaptif pratik: her öğe puanlanabilir olmalı (≥1 doğru seçenek)
+        if isinstance(s, AdaptivePracticeScreen):
+            for it in s.items:
+                if not any(o.correct for o in it.options):
+                    errors.append(ValidationError(code="validation_error",
+                                  message=f"Adaptif öğe en az bir doğru seçenek gerektirir: {it.id}",
+                                  path=f"{path}.items[{it.id}]"))
+            if s.max_items and s.max_items > len(s.items):
+                errors.append(ValidationError(code="validation_error",
+                              message=f"max_items ({s.max_items}) öğe sayısından ({len(s.items)}) büyük olamaz",
+                              path=f"{path}.max_items"))
 
     # suspend_data tahmini (branching durumu) — 1.2 limiti
     if project.scorm_version == "1.2":

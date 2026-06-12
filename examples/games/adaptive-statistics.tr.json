@@ -1,0 +1,115 @@
+{
+  "title": "Veri Okuryazarlığı: Adaptif Pratik",
+  "description": "W4b adaptif pratik — yeterlilik tahmini (Elo) ile her cevaptan sonra ZPD/akış hedefine en yakın zorlukta sıradaki soruyu seçer. Öğrenci ne bunalır ne sıkılır; zorluk ona kalibre olur.",
+  "scorm_version": "1.2",
+  "language": "tr",
+  "theme": "default",
+  "tracking": {
+    "completion_rule": "viewed_all_and_passed",
+    "passing_score": 60
+  },
+  "screens": [
+    {
+      "type": "title_slide",
+      "id": "intro",
+      "title": "Veriyi Doğru Oku",
+      "subtitle": "Adaptif Pratik",
+      "body_html": "<p>Bu pratik kendini sana göre ayarlar: doğru cevapladıkça zorlaşır, zorlandıkça kolaylaşır. Hedef, seni tam doğru zorluk bandında (ne çok kolay ne çok zor) tutmak.</p>"
+    },
+    {
+      "type": "content_slide",
+      "id": "primer",
+      "title": "Temel Kavramlar",
+      "body_html": "<p>Hızlı hatırlatma:</p><ul><li><strong>Ortalama</strong> uç değerlerden etkilenir; <strong>medyan</strong> etkilenmez.</li><li><strong>Korelasyon</strong> nedensellik değildir.</li><li>Bir <strong>yüzde değişimi</strong>, başlangıç tabanına bağlıdır.</li></ul>"
+    },
+    {
+      "type": "adaptive_practice",
+      "id": "practice",
+      "title": "Pratik Soruları",
+      "prompt_html": "<p>Her sorudan sonra bir sonraki, performansına göre seçilir. Seviyen sağ üstte görünür.</p>",
+      "adaptive": { "strategy": "elo", "ability": 0.0, "k": 0.3 },
+      "target_success": 0.7,
+      "points": 40,
+      "pass_ratio": 0.6,
+      "seed": "veri-pratik",
+      "items": [
+        {
+          "id": "q_easy_mean",
+          "difficulty": -1.5,
+          "prompt_html": "<p>2, 4, 6, 8 sayılarının ortalaması kaçtır?</p>",
+          "options": [
+            { "id": "a", "text_html": "5", "correct": true },
+            { "id": "b", "text_html": "6" },
+            { "id": "c", "text_html": "4" }
+          ],
+          "explain_html": "<p>Ortalama = (2+4+6+8)/4 = 20/4 = 5.</p>"
+        },
+        {
+          "id": "q_easy_chart",
+          "difficulty": -1.0,
+          "prompt_html": "<p>Bir çubuk grafikte en yüksek çubuk neyi gösterir?</p>",
+          "options": [
+            { "id": "a", "text_html": "En sık/en büyük değere sahip kategoriyi", "correct": true },
+            { "id": "b", "text_html": "Her zaman ortalamayı" },
+            { "id": "c", "text_html": "Toplam veri sayısını" }
+          ],
+          "explain_html": "<p>Çubuğun yüksekliği o kategorinin değerini gösterir; en yüksek çubuk en büyük değerdir.</p>"
+        },
+        {
+          "id": "q_med_median",
+          "difficulty": 0.0,
+          "prompt_html": "<p>1, 2, 2, 100 veri kümesinde, tipik değeri en iyi hangisi temsil eder?</p>",
+          "options": [
+            { "id": "a", "text_html": "Medyan (2), çünkü 100 bir aykırı değer", "correct": true },
+            { "id": "b", "text_html": "Ortalama (26,25)" },
+            { "id": "c", "text_html": "En büyük değer (100)" }
+          ],
+          "explain_html": "<p>100 ortalamayı yukarı çeker; medyan aykırı değerlerden etkilenmediği için tipik değeri daha iyi yansıtır.</p>"
+        },
+        {
+          "id": "q_med_pct",
+          "difficulty": 0.5,
+          "prompt_html": "<p>Bir fiyat 50₺'den 40₺'ye düştü. Yüzde değişim nedir?</p>",
+          "options": [
+            { "id": "a", "text_html": "%20 düşüş", "correct": true },
+            { "id": "b", "text_html": "%10 düşüş" },
+            { "id": "c", "text_html": "%25 düşüş" }
+          ],
+          "explain_html": "<p>Değişim = (40−50)/50 = −10/50 = −%20. Taban başlangıç değeridir (50).</p>"
+        },
+        {
+          "id": "q_hard_corr",
+          "difficulty": 1.2,
+          "prompt_html": "<p>Dondurma satışı ile boğulma vakaları birlikte artıyor. En doğru yorum?</p>",
+          "options": [
+            { "id": "a", "text_html": "Ortak bir neden (sıcak hava) ikisini de artırıyor olabilir", "correct": true },
+            { "id": "b", "text_html": "Dondurma boğulmaya neden oluyor" },
+            { "id": "c", "text_html": "Boğulmalar dondurma satışını artırıyor" }
+          ],
+          "explain_html": "<p>Korelasyon nedensellik değildir; gizli bir değişken (mevsim/sıcaklık) iki olguyu birlikte sürükler.</p>"
+        },
+        {
+          "id": "q_hard_pct_base",
+          "difficulty": 1.8,
+          "prompt_html": "<p>Bir hisse önce %50 düştü, sonra %50 arttı. Başlangıca göre net durum?</p>",
+          "options": [
+            { "id": "a", "text_html": "Başlangıcın %75'i — net %25 kayıp", "correct": true },
+            { "id": "b", "text_html": "Başa döndü — değişim yok" },
+            { "id": "c", "text_html": "%25 kazanç" }
+          ],
+          "explain_html": "<p>100 → %50 düşüş = 50 → %50 artış = 75. Yüzdeler farklı tabanlara uygulanır; bu yüzden başa dönmez.</p>"
+        }
+      ],
+      "feedback": {
+        "correct_html": "<p>Veriyi eleştirel okudun — tuzaklara düşmeden doğru çıkarımlar yaptın.</p>",
+        "incorrect_html": "<p>Birkaç kavram daha pekişmeli. Açıklamaları oku ve tekrar dene.</p>"
+      }
+    },
+    {
+      "type": "summary",
+      "id": "ozet",
+      "title": "Özet",
+      "body_html": "<p>Aykırı değerlerde medyan, korelasyon≠nedensellik ve yüzde değişiminde taban: veriyi yanlış okumaya karşı üç temel savunma.</p>"
+    }
+  ]
+}

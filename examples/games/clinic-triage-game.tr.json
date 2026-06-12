@@ -1,0 +1,120 @@
+{
+  "title": "Acil Serviste Triyaj: Göğüs Ağrısı Vakası",
+  "description": "Kompozisyonel oyun (game) şablonu — case_sim: skor + can + ipucu merdiveni mekaniklerinin dallanan klinik karar düğümleriyle birleşimi. İçsel-bütünleşme: doğru klinik akıl yürütme puan/can kazandırır.",
+  "scorm_version": "1.2",
+  "language": "tr",
+  "theme": "default",
+  "tracking": {
+    "completion_rule": "viewed_all_and_passed",
+    "passing_score": 70
+  },
+  "screens": [
+    {
+      "type": "title_slide",
+      "id": "intro",
+      "title": "Acil Serviste Bir Gece",
+      "subtitle": "Klinik Karar Oyunu",
+      "body_html": "<p>Nöbetçi hekimsiniz. Verdiğiniz her karar hastanın seyrini değiştirecek. Doğru akıl yürütme puan ve güven kazandırır; hatalar can kaybettirir. Üç canınız var.</p>"
+    },
+    {
+      "type": "content_slide",
+      "id": "primer",
+      "title": "Triyajın Temeli",
+      "body_html": "<p>Akut göğüs ağrısında ilk hedef <strong>yaşamı tehdit eden tanıları</strong> (AKS, pulmoner emboli, aort diseksiyonu) hızla dışlamaktır.</p><ul><li><strong>İlk 10 dakika:</strong> EKG + vital bulgular.</li><li><strong>Öykü:</strong> ağrının niteliği, yayılımı, risk faktörleri.</li><li><strong>Asla:</strong> tipik kardiyak ağrıyı doğrulamadan eve gönderme.</li></ul>"
+    },
+    {
+      "type": "game",
+      "id": "triage_game",
+      "title": "Vaka: 58 Yaş, Erkek, Göğüs Ağrısı",
+      "template": "case_sim",
+      "intro_html": "<p>Hasta bir saattir süren baskı tarzında retrosternal ağrı ile geldi. Terli ve huzursuz. Kararlarını ver — ipucu isteyebilirsin ama ipucu güven puanından düşer.</p>",
+      "points": 50,
+      "pass_score": 35,
+      "mechanics": {
+        "score": { "id": "guven", "start": 0, "streak_step": 2, "max_multiplier": 2 },
+        "lives": { "id": "can", "start": 3 },
+        "hints": {
+          "id": "ipucu",
+          "hints": [
+            { "text": "Akut göğüs ağrısında ilk basamak görüntüleme değil, EKG'dir.", "cost": 5 },
+            { "text": "ST elevasyonu varsa hedef: kapı-balon süresini kısaltmak.", "cost": 5 }
+          ]
+        }
+      },
+      "rules": [
+        { "when": "choice.taken", "then": [ { "do": "var.add", "var": "adim", "value": 1 } ] }
+      ],
+      "start_node_id": "geldi",
+      "nodes": [
+        {
+          "id": "geldi",
+          "content_html": "<p>Hasta sedyede. İlk işin ne?</p>",
+          "choices": [
+            {
+              "id": "ekg",
+              "text_html": "Hemen 12 derivasyonlu EKG çek ve vitalleri al.",
+              "to": "ekg_sonuc",
+              "feedback_html": "<p>Doğru. İlk 10 dakikada EKG, hayat kurtaran tanıyı yakalar.</p>",
+              "on_choose": [ { "do": "score.correct", "points": 15 } ]
+            },
+            {
+              "id": "agri_kes",
+              "text_html": "Önce ağrıyı kesmek için opioid ver, tetkiki sonra düşün.",
+              "to": "ekg_sonuc",
+              "feedback_html": "<p>Ağrı kontrolü önemli ama tanıyı geciktirdin; EKG hâlâ şart. Bir can kaybettin.</p>",
+              "on_choose": [ { "do": "lives.lose", "n": 1 }, { "do": "score.wrong" } ]
+            },
+            {
+              "id": "eve",
+              "text_html": "Kas-iskelet ağrısı deyip taburcu et.",
+              "to": null,
+              "feedback_html": "<p>Tehlikeli karar: doğrulanmamış kardiyak ağrı asla eve gönderilmez. Hasta yolda arrest oldu.</p>",
+              "on_choose": [ { "do": "lives.lose", "n": 3 }, { "do": "score.wrong" } ]
+            }
+          ]
+        },
+        {
+          "id": "ekg_sonuc",
+          "content_html": "<p>EKG: <strong>V1–V4'te ST elevasyonu</strong>. Anterior STEMI ile uyumlu. Sırada ne var?</p>",
+          "choices": [
+            {
+              "id": "kateter",
+              "text_html": "Kardiyolojiyi ara, primer PKG (kateter) için hazırla.",
+              "to": "sonuc_iyi",
+              "feedback_html": "<p>Mükemmel. STEMI'de reperfüzyon zamanı miyokart kurtarır.</p>",
+              "on_choose": [ { "do": "score.correct", "points": 20 } ]
+            },
+            {
+              "id": "bekle",
+              "text_html": "Troponin sonucu çıkana kadar bekle.",
+              "to": "sonuc_iyi",
+              "feedback_html": "<p>STEMI'de tanı EKG ile konur; troponin için reperfüzyonu geciktirmek zarar verir. Bir can gitti.</p>",
+              "on_choose": [ { "do": "lives.lose", "n": 1 }, { "do": "score.wrong" } ]
+            }
+          ]
+        },
+        {
+          "id": "sonuc_iyi",
+          "content_html": "<p>Hasta kateter laboratuvarına alındı. Kararlarının özeti aşağıda. 'Devam' ile vakayı kapat.</p>",
+          "choices": [
+            {
+              "id": "kapat",
+              "text_html": "Vakayı kapat ve güven puanını gör.",
+              "to": null
+            }
+          ]
+        }
+      ],
+      "feedback": {
+        "correct_html": "<p>Vakayı güvenle yönettin. Akıl yürütmen yaşam kurtardı.</p>",
+        "incorrect_html": "<p>Bazı kritik adımlar atlandı. Geri bildirimleri inceleyip tekrar dene.</p>"
+      }
+    },
+    {
+      "type": "summary",
+      "id": "ozet",
+      "title": "Özet",
+      "body_html": "<p>Akut göğüs ağrısında sıralama: EKG → risk sınıflama → reperfüzyon. Doğrulanmamış kardiyak ağrı taburcu edilmez.</p>"
+    }
+  ]
+}
