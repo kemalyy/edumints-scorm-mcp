@@ -324,6 +324,42 @@ def test_w2_game_primitive_specs():
     assert bg.nodes[0].choices[0].condition.cmp == ">="
 
 
+def test_w3_engine_bundle_inlines_cleanly():
+    # W3 köprü: components/engine/ → tek JS bundle (ESM-strip, per-modül IIFE, çakışmasız)
+    from core.engine_bundle import load_engine_bundle
+    b = load_engine_bundle()
+    assert "export " not in b  # ESM export sızıntısı yok
+    assert "\nimport " not in b and not b.startswith("import ")  # import sızıntısı yok
+    assert "window.SCORMGame" in b and "var __E" in b
+    # tüm primitif/çekirdek fonksiyonları + kural motoru açık
+    for fn in ("createRng", "createEventBus", "createBranchGraph", "createItemBank",
+               "createTimer", "createScore", "createLives", "createHintLadder", "attachRules"):
+        assert fn in b, f"bundle eksik: {fn}"
+    # iki modülde de `const CMP` var → per-modül IIFE ile çakışmamalı (sayım ≥ 2)
+    assert b.count("const CMP") >= 2 and b.count("(function(){") >= 10  # her modül + dış sarmal
+    assert load_engine_bundle() is b  # lru_cache deterministik
+
+
+def test_w3_game_rule_schema():
+    # W3 kural dili (when/if/then) + oyun tanımı şeması
+    from core.game_primitives import GameRule, GameAction, GameDefinition, GameMechanics, ACTION_DOS
+    r = GameRule(when="answer.correct", then=[{"do": "score.correct", "points": 10}])
+    assert r.when == "answer.correct" and r.then[0].do == "score.correct" and r.then[0].points == 10
+    # 'if' alias çalışır
+    r2 = GameRule(when="x", **{"if": {"var": "lvl", "cmp": ">=", "value": 2}}, then=[{"do": "lives.lose", "n": 1}])
+    assert r2.if_.cmp == ">=" and r2.then[0].do == "lives.lose"
+    # her aksiyon do'su şemada
+    for do in ACTION_DOS:
+        GameAction(do=do)
+    # oyun tanımı: mekanik + kural kompozisyonu
+    g = GameDefinition(
+        mechanics=GameMechanics(score={"id": "s"}, lives={"id": "l", "start": 3}),
+        rules=[{"when": "choice.taken", "then": [{"do": "score.add", "value": 5}]}],
+        seed="case-2026",
+    )
+    assert g.mechanics.score.id == "s" and g.rules[0].then[0].value == 5 and g.seed == "case-2026"
+
+
 def test_review_widget_only_in_preview():
     # Faz 2: feedback annotation widget yalnız preview'da aktif (pakette gizli/çalışmaz)
     p = Project(id=new_project_id(), title="R")

@@ -130,9 +130,60 @@ class BranchGraphSpec(BaseModel):
     start: str | None = None
 
 
-# Primitif birliği — W3 GameSpec `mechanics: list[GamePrimitive]` ile kullanacak.
+# Primitif birliği — GameSpec `mechanics` ile kullanılır.
 GamePrimitive = Union[
     TimerSpec, ScoreSpec, LivesSpec, HintLadderSpec, ItemBankSpec, BranchGraphSpec,
 ]
 
 PRIMITIVE_KINDS = ("timer", "score", "lives", "hint_ladder", "item_bank", "branch_graph")
+
+
+# --- W3: kural dili (when <olay> if <koşul> then <aksiyon>) -------------------
+# Aksiyonlar deklaratif: `do` + parametreler. components/engine/rules.js ACTIONS ile eşleşir.
+ACTION_DOS = (
+    "score.correct", "score.wrong", "score.add",
+    "lives.lose", "lives.gain", "timer.extend", "timer.disable",
+    "hint.reveal", "var.set", "var.add", "emit",
+)
+
+
+class GameAction(BaseModel):
+    do: Literal[
+        "score.correct", "score.wrong", "score.add",
+        "lives.lose", "lives.gain", "timer.extend", "timer.disable",
+        "hint.reveal", "var.set", "var.add", "emit",
+    ]
+    # opsiyonel parametreler (aksiyona göre kullanılır)
+    points: int | None = None
+    value: Union[int, float, str, bool, None] = None
+    var: str | None = None
+    n: int | None = None
+    sec: int | None = None
+    event: str | None = None
+
+
+class GameRule(BaseModel):
+    """when <olay> if <koşul> then <aksiyonlar>. rules.js'in eşi."""
+    when: str  # olay tipi (ör. "answer.correct", "choice.taken", "timer.expired")
+    if_: BranchCondition | None = Field(default=None, alias="if")
+    then: list[GameAction] = Field(min_length=1)
+
+    model_config = {"populate_by_name": True}
+
+
+class GameMechanics(BaseModel):
+    """Bir oyunun kullandığı primitifler (hepsi opsiyonel — kompozisyon)."""
+    score: ScoreSpec | None = None
+    lives: LivesSpec | None = None
+    timer: TimerSpec | None = None
+    hints: HintLadderSpec | None = None
+    item_bank: ItemBankSpec | None = None
+    branch_graph: BranchGraphSpec | None = None
+
+
+class GameDefinition(BaseModel):
+    """Mekanik + kuralların kompozisyonu = bir oyunun MANTIK tanımı (sunumdan bağımsız).
+    W3b GameScreen bunu bir ekran tipine + renderer'a bağlayacak; ECD üç-modeli docs'ta."""
+    mechanics: GameMechanics = Field(default_factory=GameMechanics)
+    rules: list[GameRule] = Field(default_factory=list)
+    seed: str | None = None  # üretilebilir oynanış (None → kurs id'sinden türetilir)
