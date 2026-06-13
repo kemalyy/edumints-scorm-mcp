@@ -12,8 +12,8 @@ from typing import Annotated, Literal, Union
 from pydantic import BaseModel, Field
 from ulid import ULID
 
-# W3b/W4 — kompozisyonel oyun + adaptif katman (additive). game_primitives project'i import ETMEZ → döngü yok.
-from core.game_primitives import AdaptiveSpec, GameMechanics, GameNode, GameRule
+# W3b/W4/W5 — kompozisyonel oyun + adaptif + telemetri (additive). game_primitives project'i import ETMEZ → döngü yok.
+from core.game_primitives import AdaptiveSpec, GameMechanics, GameNode, GameRule, XapiConfig
 
 
 # --------------------------------------------------------------------------- #
@@ -776,6 +776,7 @@ class Project(BaseModel):
     layout_mode: Literal["stage", "flow"] = "stage"  # Faz 9 — sabit-sahne (vars.) | tam-akış
     stage_width: int = 960   # Faz 9.1 — tasarım tuvali genişliği (px); 16:9 için 960×540
     stage_height: int = 540
+    xapi: XapiConfig | None = None  # W5 — xAPI/cmi5 telemetri (kurs düzeyinde; varsayılan kapalı)
     screens: list[Screen] = Field(default_factory=list)
     assets: list[AssetRef] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=utcnow)
@@ -816,6 +817,7 @@ class CourseSpec(BaseModel):
     layout_mode: Literal["stage", "flow"] = "stage"  # Faz 9 — sabit-sahne (vars.) | tam-akış
     stage_width: int = 960   # Faz 9.1 — ayarlanabilir tuval ölçüsü (px)
     stage_height: int = 540
+    xapi: XapiConfig | None = None  # W5 — xAPI/cmi5 telemetri (kurs düzeyinde; varsayılan kapalı)
     screens: list[Screen]
     assets: list[AssetInput] = Field(default_factory=list)
 

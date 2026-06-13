@@ -235,3 +235,20 @@ class BktSpec(BaseModel):
 # strategy ile ayrılan birlik — W4b adaptif öğe akışı bunu kullanacak.
 AdaptiveSpec = Union[EloSpec, BktSpec]
 ADAPTIVE_STRATEGIES = ("elo", "bkt")
+
+
+# --- W5: xAPI/cmi5 telemetri yapılandırması ----------------------------------
+# Motor olayları (choice/answer/hint/adaptive observe/finalize) → xAPI ifadeleri (components/engine/xapi.js).
+# Varsayılan KAPALI (mahremiyet + zero-load). W5b runtime ifadeleri kurup bir LRS'e iletecek.
+XAPI_VERB_KEYS = ("answered", "experienced", "completed", "passed", "failed", "progressed", "mastered")
+
+
+class XapiConfig(BaseModel):
+    """xAPI/cmi5 telemetri ayarı (kurs düzeyinde, opsiyonel).
+    mode=cmi5: LMS başlatma parametrelerinden LRS endpoint/auth/actor bulunur (W5b; öz-host LRS gerekmez).
+    mode=explicit: endpoint spec'te (öz-host LRS); auth runtime/launch'tan. activity_base: nesne IRI öneki.
+    LRS yoksa ifadeler güvenle yutulur (graceful degrade) — paket yine de geçerli SCORM."""
+    enabled: bool = False
+    mode: Literal["cmi5", "explicit"] = "cmi5"
+    endpoint: str | None = None  # explicit modda LRS endpoint (https)
+    activity_base: str = "https://edumints.com/xapi/activity"

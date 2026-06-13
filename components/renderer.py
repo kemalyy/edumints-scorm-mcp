@@ -80,8 +80,11 @@ _ENGINE_SCREEN_TYPES = {ScreenType.game, ScreenType.adaptive_practice}
 
 
 def _uses_engine_bundle(project: Project) -> bool:
-    """W3b/W4b — kurs motor bundle'ını gerektiren bir ekran (game / adaptive_practice) içeriyor mu?
-    İçeriyorsa components/engine/* tek runtime JS olarak lazy inline edilir (aksi halde zero-load)."""
+    """W3b/W4b/W5b — kurs motor bundle'ını gerektiriyor mu? game/adaptive_practice ekranı VEYA açık
+    xAPI telemetri (fromEngineEvent/parseLaunch için). İçeriyorsa components/engine/* tek runtime JS
+    olarak lazy inline edilir (aksi halde zero-load)."""
+    if project.xapi and project.xapi.enabled:
+        return True
     return any(s.type in _ENGINE_SCREEN_TYPES for s in project.screens)
 
 
@@ -325,6 +328,10 @@ def _course_config(project: Project) -> dict:
         "stage_height": project.stage_height,
         "screens": screens,
         "id_order": [s.id or f"idx{i}" for i, s in enumerate(project.screens)],
+        # W5 — xAPI/cmi5 telemetri config'i YALNIZ açıkken serileşir (kapalıysa runtime no-op)
+        **({"xapi": {"enabled": True, "mode": project.xapi.mode,
+                     "endpoint": project.xapi.endpoint, "activity_base": project.xapi.activity_base}}
+           if project.xapi and project.xapi.enabled else {}),
     }
 
 

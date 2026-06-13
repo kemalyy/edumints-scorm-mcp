@@ -831,3 +831,58 @@ def test_w4b_adaptive_validator_requires_correct_option_and_bounds():
     # geçerli → temiz
     p3 = Project(id=new_project_id(), title="K3", screens=[_adaptive_screen()])
     assert validate_project(p3) == []
+
+
+# ---- W5a: xAPI/cmi5 telemetri (ifade modeli + builder) ----
+def test_w5a_xapi_config_defaults_and_modes():
+    from core.game_primitives import XapiConfig, XAPI_VERB_KEYS
+    c = XapiConfig()
+    assert c.enabled is False and c.mode == "cmi5"  # varsayılan kapalı + cmi5
+    assert c.activity_base.startswith("https://")
+    ex = XapiConfig(enabled=True, mode="explicit", endpoint="https://lrs.example/xapi")
+    assert ex.mode == "explicit" and ex.endpoint.endswith("/xapi")
+    import pytest as _pt
+    from pydantic import ValidationError
+    with _pt.raises(ValidationError):
+        XapiConfig(mode="invalid")
+    assert "answered" in XAPI_VERB_KEYS and "passed" in XAPI_VERB_KEYS
+
+
+def test_w5a_engine_bundle_inlines_xapi_module():
+    from core.engine_bundle import load_engine_bundle
+    b = load_engine_bundle()
+    assert "/* engine/xapi.js */" in b
+    for fn in ("verb", "activity", "result", "statement", "fromEngineEvent"):
+        assert f"__E.{fn} = {fn}" in b
+    assert "__E.XAPI_VERBS = XAPI_VERBS" in b
+
+
+# ---- W5b: xAPI telemetri runtime bağlama (kurs düzeyi config + forwarder) ----
+def test_w5b_xapi_config_serializes_and_inlines_only_when_enabled():
+    from core.game_primitives import XapiConfig
+    from components.renderer import _course_config
+    scr = [ContentSlide(id="c", title="A", body_html="<p>x</p>")]
+    # AÇIK → config'e düşer + bundle inline + forwarder
+    on = Project(id=new_project_id(), title="K", screens=scr, xapi=XapiConfig(enabled=True, mode="cmi5"))
+    cfg = _course_config(on)
+    assert cfg["xapi"]["enabled"] is True and cfg["xapi"]["mode"] == "cmi5"
+    html = render_html(on, mode="preview", runtime_js="/*rt*/")
+    assert "/* engine/xapi.js */" in html and "var XAPI=(function" in html
+    assert "SCORMGame.parseLaunch" in html
+    # KAPALI (varsayılan) → config'te xapi YOK + bundle inline EDİLMEZ (zero-load); forwarder yine var ama no-op
+    off = Project(id=new_project_id(), title="K2", screens=scr)
+    cfg2 = _course_config(off)
+    assert "xapi" not in cfg2
+    html2 = render_html(off, mode="preview", runtime_js="/*rt*/")
+    assert "/* engine/xapi.js */" not in html2 and "var XAPI=(function" in html2
+
+
+def test_w5b_build_from_spec_carries_xapi(tmp_path):
+    # CourseSpec.xapi → Project.xapi aktarımı (build_from_spec)
+    from core.project import CourseSpec, Project
+    spec = CourseSpec(title="K", screens=[ContentSlide(id="c", title="A", body_html="<p>x</p>")],
+                      xapi={"enabled": True, "mode": "explicit", "endpoint": "https://lrs.example/xapi"})
+    assert spec.xapi.enabled and spec.xapi.endpoint.endswith("/xapi")
+    # Project'e taşındığında da geçerli
+    p = Project(id=new_project_id(), title="K", screens=list(spec.screens), xapi=spec.xapi)
+    assert p.xapi.mode == "explicit"

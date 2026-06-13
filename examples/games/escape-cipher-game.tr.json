@@ -8,6 +8,11 @@
     "completion_rule": "viewed_all_and_passed",
     "passing_score": 70
   },
+  "xapi": {
+    "enabled": true,
+    "mode": "cmi5",
+    "activity_base": "https://edumints.com/xapi/activity/escape-cipher"
+  },
   "screens": [
     {
       "type": "title_slide",

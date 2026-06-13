@@ -80,6 +80,8 @@ async def test_escape_cipher_game_builds():
     assert "/* engine/rng.js */" in index and "window.SCORMGame = __E" in index
     # a11y süre kontrolleri (WCAG 2.2.1): uzat + kapat butonları render edilmeli
     assert "game-timer-extend" in index and "game-timer-off" in index
+    # W5b — bu örnek cmi5 telemetri açık: xapi config + forwarder + xapi modülü inline
+    assert '"xapi"' in index and "var XAPI=(function" in index and "/* engine/xapi.js */" in index
 
 
 # --- W4b: adaptif pratik (Elo/BKT tahminci → ZPD zorluk seçimi) ---

@@ -762,6 +762,7 @@ async def build_from_spec(spec: CourseSpec) -> BuildFromSpecOut:
             layout_mode=spec.layout_mode,
             stage_width=spec.stage_width,
             stage_height=spec.stage_height,
+            xapi=spec.xapi,
             screens=list(spec.screens),
             owner_key_id=owner.id,
         )

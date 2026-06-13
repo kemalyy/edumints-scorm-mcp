@@ -1085,6 +1085,42 @@ function applyAnsweredState(el,s){
     fb.className="feedback show "+(r.ok?"ok":"no"); }
 }
 
+// W5b — xAPI/cmi5 telemetri forwarder: launch'tan LRS bul (cmi5/explicit), ifadeleri EN-İYİ-ÇABA POST et.
+// Saf ifade/ayrıştırma mantığı window.SCORMGame'de (vitest); burada YALNIZ DOM/ağ köprüsü (defansif —
+// başarısızlık SCORM izlemeyi ASLA bozmaz). Kapalıysa/LRS yoksa sessiz no-op (graceful degrade).
+var XAPI=(function(){
+  var cfg=(window.__COURSE__&&window.__COURSE__.xapi)||null;
+  var enabled=!!(cfg&&cfg.enabled&&window.SCORMGame&&window.SCORMGame.fromEngineEvent);
+  var lrs=null, auth=null, actor=null, ready=false, queue=[];
+  var base=(cfg&&cfg.activity_base)||"https://edumints.com/xapi/activity";
+  function ctx(){ return { actor:actor, activityBase:base, timestamp:new Date().toISOString() }; }
+  function post(st){ try{
+    var xhr=new XMLHttpRequest(); xhr.open("POST", lrs.replace(/\/$/,"")+"/statements", true);
+    xhr.setRequestHeader("Content-Type","application/json");
+    xhr.setRequestHeader("X-Experience-API-Version","1.0.3");
+    if(auth) xhr.setRequestHeader("Authorization", auth);
+    xhr.send(JSON.stringify(st));
+  }catch(e){} }
+  function flush(){ if(!ready||!lrs) return; while(queue.length) post(queue.shift()); }
+  function init(){ if(!enabled) return;
+    var lp=window.SCORMGame.parseLaunch(location.search||"");
+    lrs=(cfg.mode==="explicit"&&cfg.endpoint)?cfg.endpoint:(lp.endpoint||cfg.endpoint||null);
+    actor=lp.actor||window.SCORMGame.normalizeActor(null);
+    if(lp.activityId) base=lp.activityId;
+    if(lp.auth){ auth=lp.auth; ready=true; return flush(); }
+    if(lp.fetch){ try{ var x=new XMLHttpRequest(); x.open("POST",lp.fetch,true);   // cmi5: auth-token al
+      x.onreadystatechange=function(){ if(x.readyState===4){ try{ var d=JSON.parse(x.responseText);
+        if(d&&d["auth-token"]) auth="Basic "+d["auth-token"]; }catch(e){} ready=true; flush(); } };
+      x.send(""); }catch(e){ ready=true; } return; }
+    ready=true; flush(); // LRS varsa (auth'suz) gönder; yoksa emit sessizce yutar
+  }
+  function emit(event,payload){ if(!enabled||!lrs) return;   // LRS yok → hiç ifade üretme (degrade)
+    try{ var st=window.SCORMGame.fromEngineEvent(event,payload||{},ctx());
+      if(ready) post(st); else queue.push(st); }catch(e){} }
+  init();
+  return { emit:emit, enabled:enabled };
+})();
+
 sections.forEach(function(el){
   var s=byId[el.dataset.screenId]; if(!s) return;
   var t=s.type;
@@ -1409,7 +1445,8 @@ function bindGame(el,s){
   if(mech.hints){ hintBtn.hidden=false;
     bus.on("hint.revealed",function(h){ var d=document.createElement("div"); d.className="game-hint-text rich";
       d.textContent=h.text+(h.cost?(" (−"+h.cost+")"):""); hintsBox.appendChild(d); });
-    hintBtn.addEventListener("click",function(){ if(finished) return; mech.hints.reveal();
+    hintBtn.addEventListener("click",function(){ if(finished) return; var hh=mech.hints.reveal();
+      if(hh) XAPI.emit("hint.revealed",{index:hh.index,cost:hh.cost});                              // telemetri (W5b)
       if(!mech.hints.hasMore()) hintBtn.disabled=true; updHud(); });
   }
   if(mech.timer){ extBtn.hidden=false; offBtn.hidden=false;          // a11y WCAG 2.2.1: süre uzat/kapat
@@ -1430,6 +1467,7 @@ function bindGame(el,s){
     if(mech.lives&&mech.lives.depleted) ok=false;       // can bitti → kaybetti
     else if(pass!=null) ok=sc>=pass; else ok=sc>0;
     recordResult(s.id, ok?points:0, points, ok);
+    XAPI.emit("finalize",{ok:ok,score:sc,max:points});                                            // telemetri (W5b)
     applyActions(ok?s.on_correct:s.on_wrong);
     root.querySelectorAll(".game-choice,.game-hint,.game-next").forEach(function(x){ x.disabled=true; });
     if(fb){ var msg=ok?(s.feedback&&s.feedback.correct||""):(s.feedback&&s.feedback.incorrect||"");
@@ -1446,6 +1484,7 @@ function bindGame(el,s){
         (L.on||[]).forEach(function(a){ var fn=G.ACTIONS&&G.ACTIONS[a.do]; if(fn) fn(a,ctx); });  // seçime özel aksiyonlar
         ctx.vars._choice=b.dataset.choice;
         bus.emit("choice.taken",{node:node.dataset.node,choice:b.dataset.choice});                // global kurallar
+        XAPI.emit("choice.taken",{node:node.dataset.node,choice:b.dataset.choice});                // telemetri (W5b)
         node.querySelectorAll(".game-choice").forEach(function(x){ x.disabled=true; if(x!==b) x.classList.add("dim"); });
         b.classList.add("chosen");
         var cf=b.parentNode.querySelector(".game-conseq"); if(cf) cf.hidden=false;
@@ -1496,6 +1535,7 @@ function bindAdaptive(el,s){
     pool.forEach(function(x){ x.node.hidden=true; });
     var ratio=answered?correctN/answered:0, ok=ratio>=(cfg.pass_ratio||0.6);
     recordResult(s.id, ok?cfg.points:0, cfg.points, ok);
+    XAPI.emit("finalize",{ok:ok,score:correctN,max:answered});                                    // telemetri (W5b)
     applyActions(ok?s.on_correct:s.on_wrong);
     if(fb){ var msg=ok?(s.feedback&&s.feedback.correct||""):(s.feedback&&s.feedback.incorrect||"");
       fb.innerHTML=msg+' <b>'+correctN+" / "+answered+" doğru · "+levelText()+'</b>';
@@ -1516,6 +1556,9 @@ function bindAdaptive(el,s){
         if(correct.indexOf(o.dataset.opt)>=0 && s.feedback && s.feedback.show_correct) o.classList.add("correct");
         if(o.classList.contains("selected")&&!ok) o.classList.add("wrong"); });
       if(strategy==="bkt") est.observe(ok); else est.observe(p.d, ok);   // yeterliliği güncelle
+      XAPI.emit("adaptive.observe", strategy==="bkt"                       // telemetri (W5b): ability VEYA mastery
+        ? {itemId:p.id,correct:ok,mastery:est.mastery}
+        : {itemId:p.id,correct:ok,ability:est.ability,difficulty:p.d});
       answered++; if(ok) correctN++;
       var ex=node.querySelector(".ap-explain"); if(ex) ex.hidden=false;
       updHud(); setTimeout(next,60);

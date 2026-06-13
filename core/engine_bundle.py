@@ -20,7 +20,7 @@ _ORDER = [
     "rng.js", "eventbus.js", "state.js",
     "primitives/timer.js", "primitives/score.js", "primitives/lives.js",
     "primitives/hint.js", "primitives/itembank.js", "primitives/branchgraph.js",
-    "rules.js", "adaptive.js",
+    "rules.js", "adaptive.js", "xapi.js",
 ]
 
 _IMPORT_RE = re.compile(r"^\s*import\s.*?;\s*$", re.MULTILINE)
