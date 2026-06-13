@@ -102,6 +102,12 @@ def validate_project(project: Project) -> list[ValidationError]:
             errors.append(ValidationError(code="validation_error",
                           message=f"Tahmini suspend_data ({est}) SCORM 1.2 limitini ({SUSPEND_DATA_LIMIT_12}) aşıyor",
                           path="tracking"))
+
+    # W6 — oyun anti-slop kapısı: YAPISAL bug'lar (ulaşılamaz düğüm, sahte seçim) build'i bloklar.
+    # Pedagojik kokular (süs skor, bedava ipucu, dar zorluk) WARN'dur → lint_course aracı (build'i bloklamaz).
+    from .antislop import lint_errors
+    for li in lint_errors(project):
+        errors.append(ValidationError(code="validation_error", message=li.message, path=li.path))
     return errors
 
 

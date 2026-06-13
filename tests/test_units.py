@@ -886,3 +886,62 @@ def test_w5b_build_from_spec_carries_xapi(tmp_path):
     # Project'e taşındığında da geçerli
     p = Project(id=new_project_id(), title="K", screens=list(spec.screens), xapi=spec.xapi)
     assert p.xapi.mode == "explicit"
+
+
+# ---- W6: oyun anti-slop kalite kapısı ----
+def test_w6_antislop_catches_structural_errors_and_pedagogical_warns():
+    from core.project import GameScreen, AdaptivePracticeScreen
+    from core.antislop import lint_course, lint_errors
+    bad = GameScreen(
+        id="g", title="Kötü",
+        mechanics={"score": {"id": "sc"}, "hints": {"id": "h", "hints": [{"text": "ip", "cost": 0}]}},
+        nodes=[
+            {"id": "n1", "content_html": "<p>x</p>", "choices": [
+                {"id": "a", "text_html": "A", "to": "n2"},
+                {"id": "b", "text_html": "B", "to": "n2"}]},  # sahte seçim (özdeş sonuç)
+            {"id": "n2", "content_html": "<p>y</p>", "choices": [{"id": "c", "text_html": "son", "to": None}]},
+            {"id": "orphan", "content_html": "<p>ölü</p>", "choices": [{"id": "d", "text_html": "x", "to": None}]},
+        ], rules=[])  # skor var ama hiç değişmiyor → süs
+    p = Project(id=new_project_id(), title="K", screens=[bad])
+    codes = {i.code for i in lint_course(p)}
+    assert {"unreachable_node", "fake_choice", "decorative_score", "free_hints"} <= codes
+    # ERROR alt-kümesi yalnız yapısal bug'lar
+    ecodes = {i.code for i in lint_errors(p)}
+    assert ecodes == {"unreachable_node", "fake_choice"}
+    # adaptif kokular
+    ad = AdaptivePracticeScreen(id="ap", title="K", adaptive={"strategy": "elo"},
+        items=[{"id": f"i{k}", "prompt_html": "<p>q</p>", "difficulty": 0.1,
+                "options": [{"id": "a", "text_html": "x", "correct": True}, {"id": "b", "text_html": "y"}]}
+               for k in range(3)])
+    p2 = Project(id=new_project_id(), title="K2", screens=[ad])
+    acodes = {i.code for i in lint_course(p2)}
+    assert {"narrow_difficulty", "few_items", "item_without_explanation"} <= acodes
+
+
+def test_w6_antislop_errors_block_validate_project():
+    from core.project import GameScreen
+    from core.validator import validate_project
+    bad = GameScreen(id="g", title="K", mechanics={},
+        nodes=[
+            {"id": "n1", "content_html": "<p>x</p>", "choices": [{"id": "a", "text_html": "A", "to": None}]},
+            {"id": "dead", "content_html": "<p>ölü</p>", "choices": [{"id": "b", "text_html": "B", "to": None}]},
+        ])
+    p = Project(id=new_project_id(), title="K", screens=[bad])
+    msgs = " ".join(e.message for e in validate_project(p))
+    assert "Ulaşılamaz" in msgs  # anti-slop ERROR validate'i bloklar
+
+
+def test_w6_clean_game_passes_lint():
+    from core.project import GameScreen
+    from core.antislop import lint_course
+    # ulaşılabilir + gerçek (farklı) seçimler + skor aksiyonlu + ceza seçiminde gerekçe
+    g = GameScreen(id="g", title="Temiz", mechanics={"score": {"id": "sc"}, "lives": {"id": "lv", "start": 3}},
+        nodes=[
+            {"id": "n1", "content_html": "<p>x</p>", "choices": [
+                {"id": "a", "text_html": "Doğru", "to": "n2", "on_choose": [{"do": "score.correct", "points": 10}]},
+                {"id": "b", "text_html": "Yanlış", "to": None, "feedback_html": "<p>Çünkü …</p>",
+                 "on_choose": [{"do": "lives.lose", "n": 1}]}]},
+            {"id": "n2", "content_html": "<p>y</p>", "choices": [{"id": "c", "text_html": "Bitir", "to": None}]},
+        ])
+    p = Project(id=new_project_id(), title="K", screens=[g])
+    assert lint_course(p) == []

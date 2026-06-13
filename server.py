@@ -428,6 +428,31 @@ async def list_screens(project_id: str) -> ListScreensOut:
 
 
 @mcp.tool
+async def lint_course(project_id: str) -> dict:
+    """W6 oyun anti-slop kalite kapısı: game/adaptive_practice ekranlarını araştırma-temelli
+    deterministik kurallarla denetler (içsel-bütünleşme, anlamlı seçim, scaffolding dengesi, adaptif
+    anlam, a11y). İki şiddet: 'error' (yapısal bug — build'i de bloklar) ve 'warn' (pedagojik koku —
+    danışsal, build'i bloklamaz). Yazar bunu yayından ÖNCE çalıştırıp slop'u temizler. Sunucuda LLM YOK."""
+    await SVC.ensure()
+    try:
+        from core.antislop import lint_course as _lint
+        owner = await _owner()
+        p = await _load(project_id, owner)
+        issues = _lint(p)
+        items = [{"severity": i.severity, "code": i.code, "message": i.message, "path": i.path}
+                 for i in issues]
+        return {
+            "project_id": project_id,
+            "error_count": sum(1 for i in items if i["severity"] == "error"),
+            "warn_count": sum(1 for i in items if i["severity"] == "warn"),
+            "clean": len(items) == 0,
+            "issues": items,
+        }
+    except ToolError as e:
+        raise _wrap(e)
+
+
+@mcp.tool
 async def remove_screen(project_id: str, screen_id: str) -> OkOut:
     """Bir ekranı siler."""
     await SVC.ensure()
