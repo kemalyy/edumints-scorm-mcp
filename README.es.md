@@ -24,7 +24,7 @@ un paquete SCORM conforme a los estándares, sin dependencia de proveedor.
 
 ## Características
 
-- **26 tipos de pantalla** — título, contenido, opción múltiple, verdadero/falso, completar huecos,
+- **28 tipos de pantalla** — título, contenido, opción múltiple, verdadero/falso, completar huecos,
   arrastrar y soltar, hotspot, escenario ramificado, acordeón, pestañas, tarjetas, emparejamiento,
   ordenar, línea de tiempo, lottie, **simulación de software guiada**, vídeo, resumen,
   **escenario de decisión**, **carrera de términos**, **sala de escape**, **diagrama etiquetado**,
