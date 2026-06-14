@@ -23,10 +23,16 @@ runtime bridge, and packaging. The result is a standards-compliant SCORM package
 
 ## Features
 
-- **26 screen types** — title, content, MCQ, true/false, fill-in-blank, drag & drop, hotspot,
+- **28 screen types** — title, content, MCQ, true/false, fill-in-blank, drag & drop, hotspot,
   branching scenario, accordion, tabs, flashcards, matching, sorting, timeline, lottie, **guided
   software simulation**, video, summary, **decision scenario**, **term match race**, **escape room**,
-  **labeled diagram**, **data chart**, **image compare**, **results breakdown**, **poll**.
+  **labeled diagram**, **data chart**, **image compare**, **results breakdown**, **poll**,
+  **composable game**, **adaptive practice**.
+- **Composable game engine** — the **`game`** screen composes mechanic primitives (score/lives/timer/
+  hints) + declarative `when event if cond then action` rules + branching nodes; the **`adaptive_practice`**
+  screen estimates competency (Elo or Bayesian Knowledge Tracing) to calibrate difficulty to the learner.
+  Optional **xAPI/cmi5** telemetry, an **anti-slop quality gate** (`lint_course`), and game accessibility
+  (WCAG 2.2.1). All deterministic — no server-side LLM. See `docs/GAME-ECD.md`, `docs/GAME-ADAPTIVE.md`.
 - **Slide-stage player** — fixed 16:9 stage that scales to any screen, a player bar (play/seek/
   captions/menu/replay), and **timed timeline reveal** synced to narration. Section-grouped outline menu.
   Adjustable stage size; fully responsive/mobile; inline SVG icons (no emoji).

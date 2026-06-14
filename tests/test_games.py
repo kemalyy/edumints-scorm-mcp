@@ -100,3 +100,33 @@ async def test_adaptive_statistics_builds():
     assert "function bindAdaptive" in index
     # config: tahminci spec + öğe zorlukları serileşmeli
     assert '"adaptive":' in index and '"difficulty"' in index
+
+
+# --- W7: kalan şablonlar (BKT-modu adaptif + i18n İngilizce oyun) ---
+@pytest.mark.asyncio
+async def test_adaptive_fractions_bkt_builds():
+    """BKT modu adaptif pratik (ustalık takibi + mastery_stop erken-bitir + kolaydan-zora)."""
+    spec = _spec("adaptive-fractions-bkt.tr.json")
+    raw = await _build_and_get_zip(spec)
+    zf = zipfile.ZipFile(io.BytesIO(raw))
+    names = set(zf.namelist())
+    assert "index.html" in names and "imsmanifest.xml" in names
+    index = zf.read("index.html").decode("utf-8")
+    assert 'data-type="adaptive_practice"' in index
+    assert "/* engine/adaptive.js */" in index and "function bindAdaptive" in index
+    # BKT spec config'e serileşmeli (strategy + mastery_stop)
+    assert '"strategy": "bkt"' in index and '"mastery_stop"' in index
+
+
+@pytest.mark.asyncio
+async def test_lab_safety_game_en_builds():
+    """i18n: İngilizce kompozisyonel oyun (case_sim). dil=en + game motoru."""
+    spec = _spec("lab-safety-game.en.json")
+    raw = await _build_and_get_zip(spec)
+    zf = zipfile.ZipFile(io.BytesIO(raw))
+    names = set(zf.namelist())
+    assert "index.html" in names and "imsmanifest.xml" in names
+    index = zf.read("index.html").decode("utf-8")
+    assert 'data-type="game"' in index
+    assert 'lang="en"' in index  # i18n: dil etiketi
+    assert "/* engine/rng.js */" in index and "window.SCORMGame = __E" in index

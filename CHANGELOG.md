@@ -26,6 +26,42 @@ First stable release. 19 MCP tools, production-deployed.
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-06-15
+
+Composable game engine + adaptive learning + telemetry. 22 MCP tools. All additive — existing
+screen types untouched, no server-side LLM (intelligence is in the spec + deterministic runtime).
+
+### Added — composable game layer
+- **`game` screen type** — a composition of mechanic primitives (`score`/`lives`/`timer`/`hints`) +
+  declarative `when <event> if <cond> then <action>` rules + branching content nodes, rather than a
+  fixed game type. Logic single-sourced in vitest-tested `components/engine/*.js`, lazy-inlined into the
+  package at runtime via `core/engine_bundle.py`. Templates: case simulation, escape room. Game
+  accessibility enforced (hint text, timer extend/disable — WCAG 2.2.1). See `docs/GAME-ECD.md`
+  (Evidence-Centered Design), `docs/GAME-A11Y.md`.
+- **`adaptive_practice` screen type** — competency estimation → ZPD/flow difficulty calibration.
+  Two estimators behind one interface: **Elo** (Rasch-like, closest-to-target difficulty) and **BKT**
+  (Bayesian Knowledge Tracing, mastery tracking + early stop). Tiny state (SCORM 1.2 4096B budget).
+  See `docs/GAME-ADAPTIVE.md`.
+- **`game`/`adaptive_practice`** are now in `list_screen_types` (28 screen types total).
+
+### Added — telemetry (xAPI / cmi5)
+- Course-level `xapi` config (default **off**). Engine events (choice/answer/adaptive observe/hint/
+  finalize) become xAPI statements; W4 ability/mastery flow to the LRS as result extensions. cmi5
+  launch parsing + explicit-LRS mode, best-effort POST with offline buffer; **no LRS → silent no-op,
+  SCORM tracking never breaks**. See `docs/GAME-XAPI.md`.
+
+### Added — anti-slop quality gate
+- **`lint_course` tool** + `core/antislop.py`: research-based deterministic checks for game/adaptive
+  specs (intrinsic integration, meaningful choice, scaffolding balance, adaptive spread, a11y).
+  Structural bugs (unreachable node, fake choice) **block the build** via `validate_project`;
+  pedagogical smells are advisory warnings. See `docs/GAME-ANTISLOP.md`.
+
+### Added — examples & docs
+- `examples/games/`: `clinic-triage-game`, `escape-cipher-game` (cmi5), `adaptive-statistics` (Elo),
+  `adaptive-fractions-bkt` (BKT), `lab-safety-game.en` (i18n). All pass the anti-slop gate.
+- `docs/GAME-ECD.md`, `docs/GAME-ADAPTIVE.md`, `docs/GAME-XAPI.md`, `docs/GAME-ANTISLOP.md`,
+  `docs/GAME-TEMPLATES.md`.
+
 ### Added — SCORM conformance
 - `validate_package` validates the generated `imsmanifest.xml` against the official ADL/IMS XSD
   schemas for SCORM 1.2 and 2004 4th Edition. ADL schemas are vendored (`runtime/schemas/adl/`);

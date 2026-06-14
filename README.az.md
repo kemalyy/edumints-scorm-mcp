@@ -23,7 +23,7 @@ runtime körpüsü və paketləmə. Nəticə standartlara uyğun SCORM paketidir
 
 ## İmkanlar
 
-- **26 ekran növü** — başlıq, məzmun, çoxseçimli, doğru/yanlış, boşluq doldurma, sürüklə-burax,
+- **28 ekran növü** — başlıq, məzmun, çoxseçimli, doğru/yanlış, boşluq doldurma, sürüklə-burax,
   hotspot, budaqlanan ssenari, akkordeon, tablar, kartlar, uyğunlaşdırma, sıralama, zaman xətti,
   lottie, **bələdçili proqram simulyasiyası**, video, xülasə, **qərar ssenarisi**, **term yarışı**,
   **qaçış otağı**, **etiketli diaqram**, **məlumat qrafiki**, **şəkil müqayisəsi**,

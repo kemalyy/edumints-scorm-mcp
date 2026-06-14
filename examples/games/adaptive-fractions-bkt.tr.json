@@ -1,0 +1,115 @@
+{
+  "title": "Kesirlerde Ustalık: Adaptif Pratik (BKT)",
+  "description": "W7 adaptif pratik — BKT (Bayesian Knowledge Tracing) modu: tek beceri (kesir kavramı) için ustalık olasılığını izler; kolaydan zora ilerler ve ustalık eşiğine ulaşınca erken biter. Elo'dan farkı: zorluk eşleştirme değil, ustalık takibi + erken-çıkış.",
+  "scorm_version": "1.2",
+  "language": "tr",
+  "theme": "default",
+  "tracking": {
+    "completion_rule": "viewed_all_and_passed",
+    "passing_score": 60
+  },
+  "screens": [
+    {
+      "type": "title_slide",
+      "id": "intro",
+      "title": "Kesirlerde Ustalık",
+      "subtitle": "Adaptif Pratik (BKT)",
+      "body_html": "<p>Bu pratik tek bir beceriyi izler: kesirleri anlama. Kolaydan başlar, zorlaşır; sistem ustalaştığını anladığında erken bitirir — gereksiz tekrar yok.</p>"
+    },
+    {
+      "type": "content_slide",
+      "id": "primer",
+      "title": "Hızlı Hatırlatma",
+      "body_html": "<p>Kesir = pay / payda.</p><ul><li>Aynı paydalı kesirlerde paylar toplanır.</li><li>Sadeleştirme: pay ve paydayı ortak bölenle böl.</li><li>Bir bütün = payda/payda (ör. 4/4 = 1).</li></ul>"
+    },
+    {
+      "type": "adaptive_practice",
+      "id": "practice",
+      "title": "Kesir Soruları",
+      "prompt_html": "<p>Ustalık göstergen sağ üstte. Eşiğe ulaşınca pratik biter.</p>",
+      "adaptive": { "strategy": "bkt", "p_init": 0.2, "p_transit": 0.18, "p_slip": 0.1, "p_guess": 0.25 },
+      "mastery_stop": 0.9,
+      "points": 40,
+      "pass_ratio": 0.6,
+      "seed": "kesir-bkt",
+      "items": [
+        {
+          "id": "q1",
+          "difficulty": -1.5,
+          "prompt_html": "<p>Bir pastanın 4 eşit diliminden 1'i yendi. Kalan kesir nedir?</p>",
+          "options": [
+            { "id": "a", "text_html": "3/4", "correct": true },
+            { "id": "b", "text_html": "1/4" },
+            { "id": "c", "text_html": "4/3" }
+          ],
+          "explain_html": "<p>4 dilimden 1'i gidince 3 kalır → 3/4.</p>"
+        },
+        {
+          "id": "q2",
+          "difficulty": -0.8,
+          "prompt_html": "<p>1/5 + 2/5 = ?</p>",
+          "options": [
+            { "id": "a", "text_html": "3/5", "correct": true },
+            { "id": "b", "text_html": "3/10" },
+            { "id": "c", "text_html": "2/5" }
+          ],
+          "explain_html": "<p>Paydalar aynı (5) → paylar toplanır: 1+2=3 → 3/5.</p>"
+        },
+        {
+          "id": "q3",
+          "difficulty": 0.0,
+          "prompt_html": "<p>6/8 kesrinin en sade hâli nedir?</p>",
+          "options": [
+            { "id": "a", "text_html": "3/4", "correct": true },
+            { "id": "b", "text_html": "2/3" },
+            { "id": "c", "text_html": "6/8 zaten sade" }
+          ],
+          "explain_html": "<p>Pay ve paydayı 2'ye böl: 6/8 = 3/4.</p>"
+        },
+        {
+          "id": "q4",
+          "difficulty": 0.6,
+          "prompt_html": "<p>Hangisi 1/2'ye eşittir?</p>",
+          "options": [
+            { "id": "a", "text_html": "4/8", "correct": true },
+            { "id": "b", "text_html": "2/5" },
+            { "id": "c", "text_html": "3/8" }
+          ],
+          "explain_html": "<p>4/8 = 1/2 (ikisini de 4'e böl). 2/5 ve 3/8 yarımdan farklıdır.</p>"
+        },
+        {
+          "id": "q5",
+          "difficulty": 1.2,
+          "prompt_html": "<p>3/4 ile 2/3'ten hangisi daha büyüktür?</p>",
+          "options": [
+            { "id": "a", "text_html": "3/4 (çünkü 9/12 > 8/12)", "correct": true },
+            { "id": "b", "text_html": "2/3" },
+            { "id": "c", "text_html": "Eşittirler" }
+          ],
+          "explain_html": "<p>Ortak payda 12: 3/4 = 9/12, 2/3 = 8/12. 9/12 > 8/12 → 3/4 büyüktür.</p>"
+        },
+        {
+          "id": "q6",
+          "difficulty": 1.8,
+          "prompt_html": "<p>Bir su deposunun 2/5'i dolu. Yarıya çıkması için deponun ne kadarı daha doldurulmalı?</p>",
+          "options": [
+            { "id": "a", "text_html": "1/10", "correct": true },
+            { "id": "b", "text_html": "1/5" },
+            { "id": "c", "text_html": "3/10" }
+          ],
+          "explain_html": "<p>1/2 − 2/5 = 5/10 − 4/10 = 1/10. Ortak payda 10 üzerinden hesaplanır.</p>"
+        }
+      ],
+      "feedback": {
+        "correct_html": "<p>Kesir kavramında ustalaştın — soyut işlemleri günlük durumlara bağladın.</p>",
+        "incorrect_html": "<p>Birkaç adım daha pekişmeli. Açıklamaları oku ve tekrar dene.</p>"
+      }
+    },
+    {
+      "type": "summary",
+      "id": "ozet",
+      "title": "Özet",
+      "body_html": "<p>Aynı paydalı toplama, sadeleştirme, denklik ve ortak payda ile karşılaştırma: kesir akıl yürütmesinin dört temeli.</p>"
+    }
+  ]
+}

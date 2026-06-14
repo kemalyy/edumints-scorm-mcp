@@ -1,0 +1,116 @@
+{
+  "title": "Lab Safety: The Spill Decision",
+  "description": "W7 composable game (case_sim) in English (i18n demonstration) — score + lives + hints over branching laboratory-safety decisions. Passes the W6 anti-slop gate: reachable nodes, real choices, score tied to decisions, rationale on every consequence.",
+  "scorm_version": "1.2",
+  "language": "en",
+  "theme": "default",
+  "tracking": {
+    "completion_rule": "viewed_all_and_passed",
+    "passing_score": 70
+  },
+  "screens": [
+    {
+      "type": "title_slide",
+      "id": "intro",
+      "title": "A Spill in the Lab",
+      "subtitle": "Safety Decision Game",
+      "body_html": "<p>You are working in a chemistry lab when an accident happens. Every decision affects safety. Correct judgment earns confidence; mistakes cost a life. You have three lives.</p>"
+    },
+    {
+      "type": "content_slide",
+      "id": "primer",
+      "title": "Ground Rules",
+      "body_html": "<p>Before you start, remember:</p><ul><li><strong>People first:</strong> protect yourself and others before property.</li><li><strong>Know the chemical:</strong> the Safety Data Sheet (SDS) drives the response.</li><li><strong>Contain, don't spread:</strong> never wash unknown chemicals down the drain.</li></ul>"
+    },
+    {
+      "type": "game",
+      "id": "spill_game",
+      "title": "Case: A Beaker Shatters",
+      "template": "case_sim",
+      "intro_html": "<p>A beaker of dilute hydrochloric acid slips and shatters on the bench. Liquid is spreading toward a colleague. You may ask for a hint, but hints cost confidence points.</p>",
+      "points": 50,
+      "pass_score": 35,
+      "mechanics": {
+        "score": { "id": "confidence", "start": 0, "streak_step": 2, "max_multiplier": 2 },
+        "lives": { "id": "lives", "start": 3 },
+        "hints": {
+          "id": "hint",
+          "hints": [
+            { "text": "For a chemical spill, the first priority is people, not cleanup.", "cost": 5 },
+            { "text": "Acids are neutralized with a mild base or a dedicated spill kit, not water alone.", "cost": 5 }
+          ]
+        }
+      },
+      "rules": [
+        { "when": "choice.taken", "then": [ { "do": "var.add", "var": "step", "value": 1 } ] }
+      ],
+      "start_node_id": "spill",
+      "nodes": [
+        {
+          "id": "spill",
+          "content_html": "<p>The acid is spreading. What do you do first?</p>",
+          "choices": [
+            {
+              "id": "warn",
+              "text_html": "Warn your colleague and move them away from the spill.",
+              "to": "contain",
+              "feedback_html": "<p>Correct. People come first — you prevent a chemical burn.</p>",
+              "on_choose": [ { "do": "score.correct", "points": 15 } ]
+            },
+            {
+              "id": "photo",
+              "text_html": "Take a photo for the incident report before doing anything.",
+              "to": "contain",
+              "feedback_html": "<p>Documentation matters, but not before safety. The delay let the acid reach the edge. You lost a life.</p>",
+              "on_choose": [ { "do": "lives.lose", "n": 1 }, { "do": "score.wrong" } ]
+            },
+            {
+              "id": "water",
+              "text_html": "Pour a bucket of water over it to dilute it immediately.",
+              "to": null,
+              "feedback_html": "<p>Dangerous: flooding an acid spill can splash and spread it, and washing chemicals into the floor drain is a violation. The situation escalated.</p>",
+              "on_choose": [ { "do": "lives.lose", "n": 3 }, { "do": "score.wrong" } ]
+            }
+          ]
+        },
+        {
+          "id": "contain",
+          "content_html": "<p>Your colleague is safe. The acid is still on the bench. Next step?</p>",
+          "choices": [
+            {
+              "id": "kit",
+              "text_html": "Use the acid spill kit (neutralizer) and wear gloves and goggles.",
+              "to": "report",
+              "feedback_html": "<p>Excellent. The spill kit neutralizes the acid safely while you stay protected.</p>",
+              "on_choose": [ { "do": "score.correct", "points": 20 } ]
+            },
+            {
+              "id": "paper",
+              "text_html": "Wipe it up quickly with paper towels and bare hands.",
+              "to": "report",
+              "feedback_html": "<p>Bare hands with acid risks burns, and paper towels don't neutralize it. You lost a life.</p>",
+              "on_choose": [ { "do": "lives.lose", "n": 1 }, { "do": "score.wrong" } ]
+            }
+          ]
+        },
+        {
+          "id": "report",
+          "content_html": "<p>The spill is neutralized and cleaned. The final summary is below. Choose 'Continue' to close the case.</p>",
+          "choices": [
+            { "id": "close", "text_html": "Close the case and see your confidence score.", "to": null }
+          ]
+        }
+      ],
+      "feedback": {
+        "correct_html": "<p>You handled the incident calmly and safely — people first, then proper neutralization.</p>",
+        "incorrect_html": "<p>Some critical safety steps were missed. Review the feedback and try again.</p>"
+      }
+    },
+    {
+      "type": "summary",
+      "id": "summary",
+      "title": "Summary",
+      "body_html": "<p>Chemical spill order: protect people, then contain and neutralize with the correct kit, then report. Never flood an acid spill or wash chemicals down the drain.</p>"
+    }
+  ]
+}

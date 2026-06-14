@@ -23,11 +23,16 @@ runtime köprüsü ve paketleme. Sonuç standartlara uygun bir SCORM paketi — 
 
 ## Özellikler
 
-- **26 ekran tipi** — başlık, içerik, çoktan seçmeli, doğru/yanlış, boşluk doldurma, sürükle-bırak,
+- **28 ekran tipi** — başlık, içerik, çoktan seçmeli, doğru/yanlış, boşluk doldurma, sürükle-bırak,
   hotspot, dallanan senaryo, akordeon, sekme, bilgi kartı, eşleştirme, sıralama, zaman çizelgesi,
   lottie, **rehberli yazılım simülasyonu**, video, özet, **karar senaryosu**, **terim yarışı**,
   **kaçış odası**, **etiketli diyagram**, **veri grafiği**, **görsel karşılaştırma**,
-  **sonuç dökümü**, **anket / yansıma**.
+  **sonuç dökümü**, **anket / yansıma**, **kompozisyonel oyun**, **adaptif pratik**.
+- **Kompozisyonel oyun motoru** — **`game`** ekranı mekanik primitifleri (skor/can/süre/ipucu) +
+  bildirimsel `when olay if koşul then aksiyon` kurallarını + dallanan düğümleri besteler;
+  **`adaptive_practice`** ekranı yeterliliği (Elo veya Bayesian Knowledge Tracing) tahmin edip zorluğu
+  öğrenciye kalibre eder. Opsiyonel **xAPI/cmi5** telemetri, **anti-slop kalite kapısı** (`lint_course`)
+  ve oyun erişilebilirliği (WCAG 2.2.1). Hepsi deterministik — sunucuda LLM yok.
 - **Slayt-sahne oynatıcı** — her ekrana ölçeklenen sabit 16:9 sahne, player bar (oynat/seekbar/
   altyazı/menü/replay) ve seslendirmeyle senkron **zamanlanmış timeline akışı**. Bölümlere göre
   gruplu menü. Ayarlanabilir sahne ölçüsü; tam responsive/mobil; inline SVG ikonlar (emoji yok).
