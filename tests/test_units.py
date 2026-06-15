@@ -945,3 +945,49 @@ def test_w6_clean_game_passes_lint():
         ])
     p = Project(id=new_project_id(), title="K", screens=[g])
     assert lint_course(p) == []
+
+
+# ---- W8: QTI 2.1 dışa aktarım ----
+def test_w8_qti_export_mcq_tf_fill():
+    from core.project import (MCQScreen, Choice, TrueFalseScreen, FillBlankScreen, Blank,
+                              ContentSlide)
+    from core.qti import export_qti_items, QTI_NS
+    from lxml import etree
+    p = Project(id=new_project_id(), title="K", screens=[
+        ContentSlide(id="c", title="x", body_html="<p>y</p>"),  # QTI'a girmez (atlanmalı)
+        MCQScreen(id="q1", title="Q", prompt_html="<p>2+2?</p>",
+                  options=[Choice(id="a", text_html="4", correct=True), Choice(id="b", text_html="5")]),
+        TrueFalseScreen(id="q2", title="TF", prompt_html="<p>?</p>", correct=False),
+        FillBlankScreen(id="q3", title="FB", prompt_html="<p>__?</p>",
+                        blanks=[Blank(id="b1", accepted=["Ankara", "ankara"])]),
+    ])
+    items = dict(export_qti_items(p))
+    # content_slide atlandı; 3 quiz dışa aktarıldı
+    assert set(items.keys()) == {"qti/q1.xml", "qti/q2.xml", "qti/q3.xml"}
+    ns = {"q": QTI_NS}
+    mcq = etree.fromstring(items["qti/q1.xml"].encode())
+    assert mcq.get("identifier") == "item-q1"
+    assert [v.text for v in mcq.findall(".//q:correctResponse/q:value", ns)] == ["a"]
+    assert mcq.find(".//q:choiceInteraction", ns) is not None
+    tf = etree.fromstring(items["qti/q2.xml"].encode())
+    assert [v.text for v in tf.findall(".//q:correctResponse/q:value", ns)] == ["false"]
+    fb = etree.fromstring(items["qti/q3.xml"].encode())
+    assert fb.find(".//q:textEntryInteraction", ns) is not None
+    assert [v.text for v in fb.findall(".//q:correctResponse/q:value", ns)] == ["Ankara"]
+
+
+@pytest.mark.asyncio
+async def test_w8_export_qti_tool():
+    async with Client(server.mcp) as c:
+        # önce projeyi spec ile kur
+        spec = {"title": "QTI", "screens": [
+            {"type": "mcq", "id": "q1", "title": "Soru", "prompt_html": "<p>?</p>",
+             "options": [{"id": "a", "text_html": "1", "correct": True}, {"id": "b", "text_html": "2"}]},
+            {"type": "title_slide", "id": "t", "title": "T"},
+        ]}
+        res = await c.call_tool("build_from_spec", {"spec": spec})
+        pid = res.data.project_id
+        out = await c.call_tool("export_qti", {"project_id": pid})
+    assert out.data["count"] == 1  # yalnız mcq
+    assert out.data["items"][0]["filename"] == "qti/q1.xml"
+    assert "imsqti_v2p1" in out.data["items"][0]["xml"]

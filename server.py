@@ -453,6 +453,26 @@ async def lint_course(project_id: str) -> dict:
 
 
 @mcp.tool
+async def export_qti(project_id: str) -> dict:
+    """W8 — quiz ekranlarını IMS QTI 2.1 assessmentItem XML'lerine dışa aktarır (endüstriyel interop:
+    içerik QTI-uyumlu LMS/madde bankası/değerlendirme platformlarına taşınabilir). Desteklenen: mcq,
+    true_false, fill_blank; diğer tipler atlanır. Deterministik XML (sunucuda LLM yok)."""
+    await SVC.ensure()
+    try:
+        from core.qti import export_qti_items
+        owner = await _owner()
+        p = await _load(project_id, owner)
+        items = export_qti_items(p)
+        return {
+            "project_id": project_id,
+            "count": len(items),
+            "items": [{"filename": fn, "xml": xml} for fn, xml in items],
+        }
+    except ToolError as e:
+        raise _wrap(e)
+
+
+@mcp.tool
 async def remove_screen(project_id: str, screen_id: str) -> OkOut:
     """Bir ekranı siler."""
     await SVC.ensure()
