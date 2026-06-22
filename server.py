@@ -15,6 +15,7 @@ import re
 from pathlib import Path
 
 import nh3
+from pydantic import TypeAdapter, ValidationError
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError as MCPToolError
 from fastmcp.server.dependencies import get_access_token, get_http_headers
@@ -349,6 +350,31 @@ async def _preview_url(p: Project) -> str:
 
 
 # --------------------------------------------------------------------------- #
+# Ağır parametreli tool'lar (build_from_spec/add_screen/update_screen) JSON nesnesi
+# (`dict`) alır ve içeride Pydantic'e doğrulatır. Neden: tipli `Screen`/`CourseSpec`
+# parametreleri, 28 ekran tipinin satır-içine açılmış birleşimi yüzünden ~120 KB'lık
+# araç şeması üretiyordu; bazı MCP istemcileri (deferred-tool yükleyici) bu boyuttaki
+# şemaları indeksleyemediği için bu araçlar listede görünüp ÇAĞRILAMIYORDU. Gevşek
+# `dict` imzası şemayı birkaç yüz bayta indirir; doğrulama ve hata mesajları aynen korunur.
+# --------------------------------------------------------------------------- #
+_SCREEN_ADAPTER: TypeAdapter[Screen] = TypeAdapter(Screen)
+
+
+def _parse_screen(data: dict) -> Screen:
+    try:
+        return _SCREEN_ADAPTER.validate_python(data)
+    except ValidationError as e:
+        raise ToolError("invalid_screen", f"Geçersiz ekran tanımı: {e}")
+
+
+def _parse_spec(data: dict) -> CourseSpec:
+    try:
+        return CourseSpec.model_validate(data)
+    except ValidationError as e:
+        raise ToolError("invalid_spec", f"Geçersiz kurs spec'i: {e}")
+
+
+# --------------------------------------------------------------------------- #
 # Tool'lar (CONTRACTS.md §3)
 # --------------------------------------------------------------------------- #
 @mcp.tool
@@ -382,10 +408,12 @@ async def create_project(
 
 
 @mcp.tool
-async def add_screen(project_id: str, screen: Screen) -> AddScreenOut:
-    """Projeye tipli bir ekran ekler."""
+async def add_screen(project_id: str, screen: dict) -> AddScreenOut:
+    """Projeye bir ekran ekler. `screen`: tipli ekran JSON nesnesi (`type` alanı zorunlu;
+    geçerli değerler için `list_screen_types`). Sunucu Pydantic ile doğrular."""
     await SVC.ensure()
     try:
+        screen = _parse_screen(screen)
         owner = await _owner()
         p = await _load(project_id, owner)
         if not screen.id:
@@ -398,10 +426,11 @@ async def add_screen(project_id: str, screen: Screen) -> AddScreenOut:
 
 
 @mcp.tool
-async def update_screen(project_id: str, screen_id: str, screen: Screen) -> OkOut:
-    """Var olan bir ekranı günceller."""
+async def update_screen(project_id: str, screen_id: str, screen: dict) -> OkOut:
+    """Var olan bir ekranı günceller. `screen`: tipli ekran JSON nesnesi (`type` zorunlu)."""
     await SVC.ensure()
     try:
+        screen = _parse_screen(screen)
         owner = await _owner()
         p = await _load(project_id, owner)
         idx = next((i for i, s in enumerate(p.screens) if s.id == screen_id), None)
@@ -783,10 +812,12 @@ async def validate_package(project_id: str) -> ValidateOut:
 
 
 @mcp.tool
-async def build_from_spec(spec: CourseSpec) -> BuildFromSpecOut:
-    """Tüm kursu tek JSON spec ile inşa eder (token-verimli, ÖNERİLİR). Fast-path §3.1."""
+async def build_from_spec(spec: dict) -> BuildFromSpecOut:
+    """Tüm kursu tek JSON spec ile inşa eder (token-verimli, ÖNERİLİR). Fast-path §3.1.
+    `spec`: CourseSpec JSON nesnesi (title, screens[…], theme, tracking, …). Sunucu doğrular."""
     await SVC.ensure()
     try:
+        spec = _parse_spec(spec)
         owner = await _owner()
         await enforce_project_quota(SVC.store, owner)
         from core.project import new_project_id
