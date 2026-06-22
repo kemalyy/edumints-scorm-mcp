@@ -27,7 +27,13 @@ runtime körpüsü və paketləmə. Nəticə standartlara uyğun SCORM paketidir
   hotspot, budaqlanan ssenari, akkordeon, tablar, kartlar, uyğunlaşdırma, sıralama, zaman xətti,
   lottie, **bələdçili proqram simulyasiyası**, video, xülasə, **qərar ssenarisi**, **term yarışı**,
   **qaçış otağı**, **etiketli diaqram**, **məlumat qrafiki**, **şəkil müqayisəsi**,
-  **nəticə təhlili**, **sorğu / düşüncə**.
+  **nəticə təhlili**, **sorğu / düşüncə**, **kompozisiyalı oyun**, **adaptiv təcrübə**.
+- **Kompozisiyalı oyun mühərriki** — **`game`** ekranı mexanika primitivlərini (xal/can/taymer/ipucu) +
+  bəyanedici `when hadisə if şərt then hərəkət` qaydalarını + budaqlanan node-ları birləşdirir;
+  **`adaptive_practice`** ekranı bacarığı (Elo və ya Bayesian Knowledge Tracing) qiymətləndirib
+  çətinliyi öyrənənə kalibrləyir. Opsional **xAPI/cmi5** telemetriya, **anti-slop keyfiyyət qapısı**
+  (`lint_course`) və oyun əlçatanlığı (WCAG 2.2.1). Hamısı deterministik — serverdə LLM yoxdur. Bax:
+  `docs/GAME-ECD.md`, `docs/GAME-ADAPTIVE.md`.
 - **Slayd-səhnə pleyeri** — istənilən ekrana miqyaslanan sabit 16:9 səhnə, pleyer paneli
   (oynat/axtar/altyazı/menyu/təkrar) və səsləndirmə ilə sinxron **zaman xətti üzrə görünmə**.
   Bölmələrə görə qruplaşdırılmış menyu. Tənzimlənən səhnə ölçüsü; tam responsiv/mobil; daxili SVG
@@ -122,4 +128,4 @@ Testləri `pytest` ilə işə salın.
 müvafiq sahiblərinin ticarət nişanlarıdır (yalnız nominativ istifadə).
 
 
-<!-- synced: 5bd4f67 -->
+<!-- synced: d398775 -->

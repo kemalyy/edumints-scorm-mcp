@@ -1,6 +1,6 @@
 # Ekran Tipleri (Screen Types)
 
-`edumints-scorm-mcp` içerisinde tanımlı 26 ekran tipi bulunmaktadır. Her ekran tipi `core/project.py` içerisindeki modellerden türetilmiştir.
+`edumints-scorm-mcp` içerisinde tanımlı 28 ekran tipi bulunmaktadır. Her ekran tipi `core/project.py` içerisindeki modellerden türetilmiştir.
 
 ## Ortak Alanlar (Base Fields)
 
@@ -363,6 +363,55 @@ mesajı belirir. Katılım/öz-değerlendirme — **skorlanmaz**, İleri'yi enge
 | `before_label` | `str` | Hayır | "Önce" etiketi. |
 | `after_label` | `str` | Hayır | "Sonra" etiketi. |
 | `prompt_html` / `caption` | `str` | Hayır | Talimat / altyazı. |
+
+## 27. Kompozisyonel Oyun (game)
+
+Sabit bir oyun TİPİ değil; mekanik primitiflerin (`score`/`lives`/`timer`/`hint`) + `when olay if
+koşul then aksiyon` kurallarının + dallanan içerik düğümlerinin kompozisyonu. Mantık tek-kaynak
+`components/engine/*.js` (vitest), pakette `core/engine_bundle.py` ile lazy inline edilir. İçsel
+bütünleşme (Habgood): mekanik öğrenme hedefini taşır. **Skorlanır** (oyun bitince `score` primitifi
+eşiğe göre geçer/kalır). Tasarım rehberi: `docs/GAME-ECD.md`, oyun erişilebilirliği: `docs/GAME-A11Y.md`.
+**SUNUCUDA LLM YOK** — zekâ spec + deterministik runtime'da.
+
+**Model:** `GameScreen`
+
+| Alan | Tip | Zorunlu mu? | Açıklama |
+| :--- | :--- | :---: | :--- |
+| `nodes` | `list[GameNode]` | Evet | Dallanan içerik düğümleri (en az 1). |
+| `template` | `"case_sim" \| "escape_room" \| "custom"` | Hayır | ECD/şablon referansı (Varsayılan: `custom`). |
+| `mechanics` | `GameMechanics` | Hayır | `score`/`lives`/`timer`/`hint` primitif yapılandırması. |
+| `rules` | `list[GameRule]` | Hayır | `when <olay> if <koşul> then <aksiyon>` kuralları. |
+| `start_node_id` | `str` | Hayır | Başlangıç düğümü (boşsa ilk düğüm). |
+| `pass_score` | `int` | Hayır | Geçme eşiği (boşsa skor > 0 geçer). |
+| `points` | `int` | Hayır | Kursa katkı (Varsayılan: 25). |
+| `seed` | `str` | Hayır | Üretilebilir oynanış için tohum (boşsa ekran id'sinden türetilir). |
+| `intro_html` | `str` | Hayır | Giriş metni. |
+| `feedback` | `Feedback` | Hayır | Doğru/yanlış geri bildirimi. |
+
+## 28. Adaptif Pratik (adaptive_practice)
+
+Öğe bankasından her cevaptan sonra yeterliliği güncelleyip (Elo veya BKT) bir sonraki öğeyi AKIŞ/ZPD
+hedefine (`target_success`) en yakın zorlukta seçer — ne bunaltır ne sıkar. Mantık tek-kaynak
+`components/engine/adaptive.js` (vitest). **Skorlanır** (doğru/cevaplanan oranı `pass_ratio`'ya göre).
+Ayrıntı: `docs/GAME-ADAPTIVE.md`. **SUNUCUDA LLM YOK** — seçim deterministik, seed'li tie-break.
+
+**Model:** `AdaptivePracticeScreen`
+
+| Alan | Tip | Zorunlu mu? | Açıklama |
+| :--- | :--- | :---: | :--- |
+| `items` | `list[AdaptiveItem]` | Evet | Öğe bankası (en az 3; MCQ biçimi + `difficulty`). |
+| `adaptive` | `AdaptiveSpec` | Evet | Tahminci yapılandırması (`strategy`: `elo` veya `bkt`). |
+| `target_success` | `float` | Hayır | Akış hedefi / arzu edilen zorluk (Varsayılan: 0.7). |
+| `max_items` | `int` | Hayır | En çok sunulacak öğe (0 → tümü birer kez). |
+| `mastery_stop` | `float` | Hayır | BKT: ustalık ≥ bu olunca erken bitir. |
+| `pass_ratio` | `float` | Hayır | Geçme oranı (Varsayılan: 0.6). |
+| `points` | `int` | Hayır | Kursa katkı (Varsayılan: 20). |
+| `seed` | `str` | Hayır | Tohum (boşsa ekran id'sinden türetilir). |
+| `prompt_html` | `str` | Hayır | Yönerge. |
+| `feedback` | `Feedback` | Hayır | Doğru/yanlış geri bildirimi. |
+
+**`AdaptiveItem`:** `id`, `prompt_html`, `options` (`list[Choice]`, en az 2), `difficulty`
+(logit ölçeği), ops. `skill` (BKT beceri), `explain_html`.
 
 ---
 

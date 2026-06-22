@@ -3,28 +3,14 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
-## [1.0.0] — 2026-06-11
-
-First stable release. 19 MCP tools, production-deployed.
-
-### Added — authoring surface
-- **26 screen types**, incl. games (`decision_scenario`, `escape_room`, `term_match_race`),
-  customized results (`results_breakdown`), participation (`poll`), and visuals
-  (`labeled_diagram`, `data_chart`, `image_compare`).
-- **G1 gamification HUD** — unified header showing levels (points→level badge), lives, and points
-  (`levels`, `lives_var`, `max_lives`); intrinsic-mastery oriented.
-- **Cross-device compatibility** — content overflow scrolls (no clipping), mobile/≤640px reflow
-  (drop the fixed-canvas scale → natural flow + readable fonts + vertical scroll), touch drag-and-drop
-  fallback, `touch-action` on controls. See `docs/DEVICE-COMPATIBILITY.md`.
-- **Topic-distinct themes** — `editorial`, `playground`, `boardroom-clinic` (plus existing presets);
-  themes exploit heading fonts, radii, patterns and `custom_css` so the interface differs by subject.
-- Curated example courses (`examples/games/`, `examples/visual/`, `examples/showcase/`,
-  `examples/themed/`); game-design guide (`docs/GAME-PATTERNS.md`); `docs/SCREEN_TYPES.md` for all 26.
-
-### Tooling
-- Real lint-gate pre-commit (ruff on all files) + weekly dependency report (deduped).
-
 ## [Unreleased]
+
+### Added — QTI 2.1 export (W8a)
+- **`export_qti` tool** (23rd MCP tool) + `core/qti.py`: quiz screens → IMS QTI 2.1 `assessmentItem`
+  XML. `mcq`/`true_false` → `choiceInteraction`, `fill_blank` → `textEntryInteraction`, with
+  `correctResponse` + standard `match_correct` response processing. Deterministic XML (lxml), so
+  content becomes portable to QTI-compatible systems. Unmappable types are silently skipped (no fake
+  conversion); no server-side LLM. Returns `{count, items:[{filename, xml}]}`. See `docs/QTI.md`.
 
 ## [1.1.0] — 2026-06-15
 
@@ -74,6 +60,27 @@ screen types untouched, no server-side LLM (intelligence is in the spec + determ
 ### Fixed
 - **Manifest (2004):** removed `imsss:controlMode flow/choice` from the single-SCO leaf `<item>`
   (SCORM Cloud parser flags it as only applicable to cluster nodes, [6022]).
+
+## [1.0.0] — 2026-06-11
+
+First stable release. 19 MCP tools, production-deployed.
+
+### Added — authoring surface
+- **26 screen types**, incl. games (`decision_scenario`, `escape_room`, `term_match_race`),
+  customized results (`results_breakdown`), participation (`poll`), and visuals
+  (`labeled_diagram`, `data_chart`, `image_compare`).
+- **G1 gamification HUD** — unified header showing levels (points→level badge), lives, and points
+  (`levels`, `lives_var`, `max_lives`); intrinsic-mastery oriented.
+- **Cross-device compatibility** — content overflow scrolls (no clipping), mobile/≤640px reflow
+  (drop the fixed-canvas scale → natural flow + readable fonts + vertical scroll), touch drag-and-drop
+  fallback, `touch-action` on controls. See `docs/DEVICE-COMPATIBILITY.md`.
+- **Topic-distinct themes** — `editorial`, `playground`, `boardroom-clinic` (plus existing presets);
+  themes exploit heading fonts, radii, patterns and `custom_css` so the interface differs by subject.
+- Curated example courses (`examples/games/`, `examples/visual/`, `examples/showcase/`,
+  `examples/themed/`); game-design guide (`docs/GAME-PATTERNS.md`); `docs/SCREEN_TYPES.md` for all 26.
+
+### Tooling
+- Real lint-gate pre-commit (ruff on all files) + weekly dependency report (deduped).
 
 ### Added — initial release
 - Initial public release of the edumints SCORM MCP server.

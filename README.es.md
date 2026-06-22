@@ -29,7 +29,13 @@ un paquete SCORM conforme a los estándares, sin dependencia de proveedor.
   ordenar, línea de tiempo, lottie, **simulación de software guiada**, vídeo, resumen,
   **escenario de decisión**, **carrera de términos**, **sala de escape**, **diagrama etiquetado**,
   **gráfico de datos**, **comparación de imágenes**, **desglose de resultados**,
-  **encuesta / reflexión**.
+  **encuesta / reflexión**, **juego componible**, **práctica adaptativa**.
+- **Motor de juego componible** — la pantalla **`game`** compone primitivos de mecánica
+  (puntos/vidas/temporizador/pistas) + reglas declarativas `when evento if condición then acción` +
+  nodos ramificados; la pantalla **`adaptive_practice`** estima la competencia (Elo o Bayesian Knowledge
+  Tracing) para calibrar la dificultad al alumno. Telemetría **xAPI/cmi5** opcional, una **puerta de
+  calidad anti-slop** (`lint_course`) y accesibilidad del juego (WCAG 2.2.1). Todo determinista — sin
+  LLM en el servidor. Véase `docs/GAME-ECD.md`, `docs/GAME-ADAPTIVE.md`.
 - **Reproductor de escenario tipo diapositiva** — escenario fijo 16:9 que se adapta a cualquier
   pantalla, una barra de reproducción (play/buscar/subtítulos/menú/repetir) y **revelado por línea de
   tiempo** sincronizado con la narración. Menú de índice agrupado por secciones. Tamaño de escenario
@@ -125,4 +131,4 @@ Desarrollado por **edumints.com**. SCORM es una marca de ADL; otros nombres de p
 marcas de sus respectivos propietarios (uso nominativo únicamente).
 
 
-<!-- synced: 5bd4f67 -->
+<!-- synced: d398775 -->

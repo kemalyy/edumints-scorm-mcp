@@ -36,7 +36,7 @@ auth/                # ⛔ SENSITIVE: SSRF guard, OAuth, API-key, sanitization
 themes/  tools/  tests/  docs/
 ```
 
-Screen types (19): title_slide, content_slide, mcq, true_false, fill_blank, drag_drop, hotspot, branching, video, summary, accordion, tabs, flashcards, matching, sorting, timeline, lottie, simulation.
+Screen types (28): title_slide, content_slide, mcq, true_false, fill_blank, drag_drop, hotspot, branching, video, summary, accordion, tabs, flashcards, matching, sorting, timeline, lottie, simulation, decision_scenario, term_match_race, escape_room, labeled_diagram, data_chart, results_breakdown, poll, image_compare, game, adaptive_practice.
 
 ---
 

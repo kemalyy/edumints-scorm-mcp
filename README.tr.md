@@ -126,4 +126,4 @@ Testler: `pytest`.
 ilgili sahiplerinin ticari markalarıdır (yalnız tanımlayıcı/nominative kullanım).
 
 
-<!-- synced: 5bd4f67 -->
+<!-- synced: d398775 -->
