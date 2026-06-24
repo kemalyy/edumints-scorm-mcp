@@ -5,6 +5,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-06-24
+
+Richer media authoring (content_slide blocks, per-item images, inline assets), screen reorder, and
+QTI 2.1 export. **24 MCP tools.** All additive — existing specs unchanged, no server-side LLM.
+
 ### Added — richer media authoring + screen reorder (W9)
 - **`content_slide` multi-block (`blocks[]`)** — optional ordered list of `{html}` / `{asset_id, caption?}`
   blocks → interleave `paragraph → image → paragraph → image` in one screen (no more 3-consecutive-slide
