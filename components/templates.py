@@ -88,7 +88,7 @@ BASE_CSS = r"""
 html{font-size:var(--fs-base);scroll-behavior:smooth}
 body{font-family:var(--font-body);font-weight:var(--w-body);line-height:var(--lh-normal);
   color:var(--c-text);background:var(--c-bg);-webkit-font-smoothing:antialiased;
-  -moz-osx-font-smoothing:grayscale;overflow:hidden;height:100vh}
+  -moz-osx-font-smoothing:grayscale;overflow:hidden;height:100vh;height:100dvh}
 body[data-bg="gradient"]{background:
   radial-gradient(ellipse 1400px 700px at 75% -5%, color-mix(in srgb,var(--c-primary) 8%,transparent),transparent),
   radial-gradient(ellipse 1000px 600px at -5% 105%, color-mix(in srgb,var(--c-secondary) 6%,transparent),transparent),
@@ -101,7 +101,7 @@ body[data-bg="dots"]{background-image:radial-gradient(color-mix(in srgb,var(--c-
   background-size:24px 24px}
 body[data-bg="grid"]{background-image:linear-gradient(color-mix(in srgb,var(--c-border) 50%,transparent) 1px,transparent 1px),
   linear-gradient(90deg,color-mix(in srgb,var(--c-border) 50%,transparent) 1px,transparent 1px);background-size:36px 36px}
-.app{height:100vh;display:flex;flex-direction:column;max-width:1200px;margin:0 auto;overflow:hidden}
+.app{height:100vh;height:100dvh;display:flex;flex-direction:column;max-width:1200px;margin:0 auto;overflow:hidden}
 
 /* ===== FOUNDATION: a11y + primitifler ===== */
 .skip-link{position:absolute;left:var(--space-4);top:-60px;z-index:100;background:var(--c-primary);
@@ -631,6 +631,14 @@ body[data-layout="stage"] .stage-frame .screen{position:absolute;inset:0;overflo
   padding:clamp(8px,1.5vw,20px)}
 body[data-layout="flow"] .stage-scaler,body[data-layout="flow"] .stage-frame{
   width:auto;height:auto;transform:none !important}
+/* Faz 17 — JS-tetikli reflow: sabit-tuval ölçeği okunabilirlik eşiğinin (k<0.85) altına
+   düşünce fitStage data-fit="flow" set eder → dar/kısa ekran ve LMS iframe'lerde içerik
+   küçülmek yerine doğal akışla (≤640px reflow ile aynı) yerleşir, dikey kaydırılır. */
+body[data-layout="stage"][data-fit="flow"] .stage{align-items:stretch;justify-content:flex-start;overflow-y:auto}
+body[data-layout="stage"][data-fit="flow"] .stage-scaler{width:100%!important;height:auto!important;margin:0}
+body[data-layout="stage"][data-fit="flow"] .stage-frame{width:100%!important;height:auto!important;transform:none!important}
+body[data-layout="stage"][data-fit="flow"] .stage-frame .screen{position:relative;inset:auto;min-height:100%;overflow:visible}
+body[data-layout="stage"][data-fit="flow"] .screen-inner{height:auto;min-height:100%;overflow:visible}
 /* altyazı */
 .cc-bar{position:absolute;left:5%;right:5%;bottom:12px;z-index:6;
   background:rgba(0,0,0,.85);
@@ -1667,21 +1675,28 @@ function fitStage(){
   var sc=document.getElementById("stageScaler"), fr=document.getElementById("stageFrame"),
       st=document.getElementById("stage");
   if(!fr||!st||!sc) return;
-  /* Faz 16 — mobil/dar: ölçekleme yok, CSS reflow devralır; inline stilleri temizle */
-  if(window.matchMedia && window.matchMedia("(max-width:640px)").matches){
+  var W=(COURSE&&COURSE.stage_width)||960, H=(COURSE&&COURSE.stage_height)||540;
+  var k=Math.min(st.clientWidth/W, st.clientHeight/H);
+  if(!isFinite(k)||k<=0) k=1;
+  /* Faz 16/17 — mobil breakpoint VEYA ölçek okunabilirlik eşiğinin altına düşerse
+     (dar/kısa ekran, LMS iframe) sabit-tuvali BIRAK → CSS reflow devralır; inline temizle. */
+  var mobileMQ=window.matchMedia && window.matchMedia("(max-width:640px)").matches;
+  if(mobileMQ || k<0.85){
+    document.body.dataset.fit="flow";
     fr.style.transform=""; fr.style.width=""; fr.style.height="";
     sc.style.width=""; sc.style.height=""; return;
   }
-  var W=(COURSE&&COURSE.stage_width)||960, H=(COURSE&&COURSE.stage_height)||540;
+  document.body.dataset.fit="stage";
   /* frame sabit boyut — scale ile ölçeklenecek */
   fr.style.width=W+"px"; fr.style.height=H+"px";
-  var k=Math.min(st.clientWidth/W, st.clientHeight/H);
-  if(!isFinite(k)||k<=0) k=1;
   fr.style.transform="scale("+k+")";
   var scaledW=W*k, scaledH=H*k;
   sc.style.width=scaledW+"px"; sc.style.height=scaledH+"px";
 }
 window.addEventListener("resize",fitStage);
+/* Faz 17 — döndürme + mobil tarayıcı çubuğu (visualViewport) değişiminde yeniden ölçekle */
+window.addEventListener("orientationchange",function(){ setTimeout(fitStage,150); });
+if(window.visualViewport){ window.visualViewport.addEventListener("resize",fitStage); }
 
 function distributeCues(n,duration){
   if(n<=0) return [];

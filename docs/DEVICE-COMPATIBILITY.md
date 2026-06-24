@@ -12,9 +12,10 @@ Sistem, iki temel görüntüleme modu arasında otomatik geçiş yapar:
 *   **Ayarlanabilirlik:** Proje bazlı `stage_width` ve `stage_height` değerleri değiştirilebilir.
 
 ### Mobil ve Dar Ekranlar (Reflow Modu)
-*   **Duyarlı Geçiş:** Ekran genişliği **640px veya daha az** olduğunda, sabit tuval ölçeklemesi devre dışı bırakılır.
-*   **Doğal Akış (Reflow):** İçerik, mobil cihazın genişliğine tam oturacak şekilde doğal bir akışla yerleşir.
+*   **Duyarlı Geçiş:** Sabit tuval ölçeklemesi iki durumda devre dışı bırakılır: (a) ekran genişliği **640px veya daha az** olduğunda, **veya** (b) tuvalin sığması için gereken ölçek okunabilirlik eşiğinin (**~0.85**) altına düştüğünde — örneğin tablet dikey, dar/kısa pencereler ve LMS iframe'leri. Böylece içerik küçülüp okunmaz hâle gelmez.
+*   **Doğal Akış (Reflow):** İçerik, cihazın/iframe'in genişliğine tam oturacak şekilde doğal bir akışla yerleşir.
 *   **Dikey Kaydırma:** Metin okunabilirliğini korumak için içerik dikey olarak kaydırılabilir hale gelir.
+*   **Dinamik Görünüm Yüksekliği:** Yerleşim `100dvh` (dynamic viewport height) kullanır; mobil tarayıcıların adres/araç çubuğu açılıp kapandığında bile alttaki oynatıcı çubuğu (İleri/Geri) görünür kalır, çubuğun arkasında kaybolmaz.
 
 ## 2. İçerik Taşması (Content Overflow)
 
