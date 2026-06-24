@@ -82,8 +82,17 @@ These were claimed as gaps but verified to already work:
 
 ## Out of scope (by design)
 
-- **Auto-TTS from `narration_text`.** `narration_text` is caption (CC) text only; speech is generated
-  via the explicit `synthesize_speech` tool. No server-side LLM/auto-synthesis runs during build —
-  this is the project's "no server-side LLM, deterministic build" principle, not a gap.
+- **Server-side Canva `design_id` → asset.** Not feasible: Canva is a **client-side MCP connector** in
+  Claude, not a server API — the scorm server cannot reach the user's Canva connector. The correct (and
+  shipped) design is the **client-side pipeline**: Claude orchestrates both connectors — Canva MCP
+  (`generate-design` → `export-design` → signed URL) then scorm `add_asset` (which downloads + embeds the
+  bytes, so the source URL's TTL is irrelevant post-build). Documented in the skill's `references/media.md`.
 - **`<iframe>` / live Canva embeds in `*_html`.** Stripped by nh3 on purpose (security + self-contained
   packaging). Use a packaged image/PDF export instead of a live embed.
+
+## Shipped since (Unreleased)
+
+- **Opt-in auto-TTS** — `build_from_spec` `auto_tts` (default `false`) generates Piper narration for
+  screens with `narration_text`; deterministic, no server-side LLM; silently skipped without Piper.
+  (Previously listed here as out-of-scope; now available as explicit opt-in.)
+- **`content_slide` `blocks[].width`** — sized/centered inline image blocks.
