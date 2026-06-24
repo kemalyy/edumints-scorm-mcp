@@ -46,9 +46,13 @@ Tüm ekran tipleri aşağıdaki alanlara sahiptir:
 
 | Alan | Tip | Zorunlu mu? | Açıklama |
 | :--- | :--- | :---: | :--- |
-| `body_html` | `str` | Evet | Ana içerik metni (HTML). |
+| `body_html` | `str` | Hayır* | Ana içerik metni (HTML). `blocks` verilirse zorunlu değil. |
 | `media_asset_id` | `str` | Hayır | Görsel/Medya asset ID'si. |
 | `layout` | `str` | Hayır | `text`, `text_media`, `media_text`, `full_media`. |
+| `blocks` | `list[ContentBlock]` | Hayır | **Çoklu blok:** sırayla render edilir (paragraf→görsel→paragraf akışı). Verilirse `body_html`/`media_asset_id` yerine geçer. |
+
+**`ContentBlock`:** `html` (metin bloğu) **veya** `asset_id` (+ ops. `caption`) — her blok biri.
+*Inline görsel:* herhangi bir `*_html` alanına `{{asset:<id>}}` yazarak paketlenmiş bir asset'i metin akışına gömebilirsin; `data:` URI'li `<img>` de desteklenir.
 
 **Örnek:**
 ```json
@@ -166,6 +170,8 @@ Tüm ekran tipleri aşağıdaki alanlara sahiptir:
 | :--- | :--- | :---: | :--- |
 | `items` | `list[AccordionItem]` | Evet | Başlık ve içerikten oluşan öğeler. |
 
+**`AccordionItem`:** `title`, `body_html`, ops. `image_asset_id` (panel başına görsel).
+
 ## 12. Sekmeler (tabs)
 
 **Model:** `TabsScreen`
@@ -174,6 +180,8 @@ Tüm ekran tipleri aşağıdaki alanlara sahiptir:
 | :--- | :--- | :---: | :--- |
 | `tabs` | `list[TabItem]` | Evet | Etiket ve içerikten oluşan sekmeler. |
 
+**`TabItem`:** `label`, `body_html`, ops. `image_asset_id` (sekme başına görsel).
+
 ## 13. Flashcards (flashcards)
 
 **Model:** `FlashcardsScreen`
@@ -181,6 +189,8 @@ Tüm ekran tipleri aşağıdaki alanlara sahiptir:
 | Alan | Tip | Zorunlu mu? | Açıklama |
 | :--- | :--- | :---: | :--- |
 | `cards` | `list[Flashcard]` | Evet | Ön ve arka yüzden oluşan kartlar. |
+
+**`Flashcard`:** `front_html`, `back_html`, ops. `front_asset_id` / `back_asset_id` (yüz başına görsel).
 
 ## 14. Eşleştirme (matching)
 
@@ -205,6 +215,8 @@ Tüm ekran tipleri aşağıdaki alanlara sahiptir:
 | Alan | Tip | Zorunlu mu? | Açıklama |
 | :--- | :--- | :---: | :--- |
 | `events` | `list[TimelineEvent]` | Evet | Tarih, başlık ve içerikten oluşan olaylar. |
+
+**`TimelineEvent`:** `date`, `title`, ops. `body_html`, ops. `image_asset_id` (olay başına görsel).
 
 ## 17. Lottie Animasyonu (lottie)
 

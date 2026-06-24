@@ -294,11 +294,20 @@ class TitleSlide(ScreenBase):
     body_html: str | None = None
 
 
+class ContentBlock(BaseModel):
+    """P1 — content_slide içi sıralı blok: ya metin (`html`) ya görsel (`asset_id` + ops. `caption`).
+    `blocks` verildiğinde ekran bunları sırayla render eder (paragraf→görsel→paragraf akışı)."""
+    html: str | None = None
+    asset_id: str | None = None
+    caption: str | None = None
+
+
 class ContentSlide(ScreenBase):
     type: Literal[ScreenType.content_slide] = ScreenType.content_slide
-    body_html: str
+    body_html: str = ""
     media_asset_id: str | None = None
     layout: Literal["text", "text_media", "media_text", "full_media"] = "text"
+    blocks: list[ContentBlock] | None = None  # P1 — verilirse body_html/media_asset_id yerine sırayla render edilir
 
 
 class MCQScreen(ScreenBase):
@@ -372,6 +381,7 @@ class SummaryScreen(ScreenBase):
 class AccordionItem(BaseModel):
     title: str
     body_html: str
+    image_asset_id: str | None = None  # P3 — panel başına ops. görsel
 
 
 class AccordionScreen(ScreenBase):
@@ -383,6 +393,7 @@ class AccordionScreen(ScreenBase):
 class TabItem(BaseModel):
     label: str
     body_html: str
+    image_asset_id: str | None = None  # P3 — sekme başına ops. görsel
 
 
 class TabsScreen(ScreenBase):
@@ -394,6 +405,8 @@ class TabsScreen(ScreenBase):
 class Flashcard(BaseModel):
     front_html: str
     back_html: str
+    front_asset_id: str | None = None  # P4 — ön yüz ops. görsel
+    back_asset_id: str | None = None   # P4 — arka yüz ops. görsel
 
 
 class FlashcardsScreen(ScreenBase):
@@ -434,6 +447,7 @@ class TimelineEvent(BaseModel):
     date: str
     title: str
     body_html: str | None = None
+    image_asset_id: str | None = None  # P4 — olay başına ops. görsel
 
 
 class TimelineScreen(ScreenBase):

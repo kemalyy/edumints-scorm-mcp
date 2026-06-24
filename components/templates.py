@@ -238,6 +238,14 @@ body[data-bg="grid"]{background-image:linear-gradient(color-mix(in srgb,var(--c-
 .full-media{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden;
   margin:var(--space-3) 0}
 .full-media .media{max-height:100%;width:auto;max-width:100%;height:auto;object-fit:contain}
+/* P1/P3/P4 — akış içi (item/blok) görseller: doğal akar, max-width'e sığar, makul tavan */
+.item-media{display:block;max-width:100%;width:auto;height:auto;max-height:340px;object-fit:contain;
+  border-radius:var(--r-md);box-shadow:var(--e1);margin:var(--space-3) 0}
+.content-blocks{flex:1;min-height:0}
+.content-blocks figure.block-media{margin:0}
+.content-blocks figcaption{font-size:13px;color:var(--c-muted);text-align:center;margin-top:var(--space-2)}
+.acc-body .item-media,.tl-content .item-media,.tab-panel .item-media{max-height:240px}
+.fc-face .item-media{max-height:130px;margin:0 auto var(--space-2)}
 
 /* title slide */
 .title-slide{text-align:center;padding:var(--space-5) 0;flex:1;display:flex;flex-direction:column;

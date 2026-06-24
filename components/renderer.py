@@ -47,16 +47,27 @@ _ALLOWED_ATTRS = {
 }
 
 
+# P6 — {{asset:<id>}} → paketlenmiş asset'e bağlanan inline <img> (runtime hydrate eder).
+# nh3.clean SONRASI uygulanır: token düz metin olarak sanitize'dan geçer, ardından
+# sunucu-üretimi güvenli <img> ile değiştirilir (id _attr ile kaçışlanır).
+_ASSET_TOKEN = re.compile(r"\{\{\s*asset:\s*([\w.\-]+)\s*\}\}")
+
+
 def sanitize(html: str | None) -> str:
     if not html:
         return ""
-    return nh3.clean(
+    out = nh3.clean(
         html,
         tags=_ALLOWED_TAGS,
         attributes=_ALLOWED_ATTRS,
-        url_schemes={"http", "https", "mailto"},
+        url_schemes={"http", "https", "mailto", "data"},  # P5 — inline base64 <img src="data:..."> izni
         link_rel="noopener noreferrer",
     )
+    if "asset:" in out and "{{" in out:
+        out = _ASSET_TOKEN.sub(
+            lambda m: f'<img class="item-media" data-asset="{_attr(m.group(1))}" alt="">', out
+        )
+    return out
 
 
 @lru_cache(maxsize=1)
@@ -513,9 +524,20 @@ def _r_title(s) -> str:
 
 
 def _r_content(s) -> str:
+    head = f'<h2 class="screen-title">{_text(s.title)}</h2>'
+    # P1 — blocks verilmişse paragraf→görsel→paragraf akışını sırayla render et
+    blocks = getattr(s, "blocks", None)
+    if blocks:
+        parts = []
+        for b in blocks:
+            if b.html:
+                parts.append(f'<div class="rich">{sanitize(b.html)}</div>')
+            if b.asset_id:
+                cap = f'<figcaption>{_text(b.caption)}</figcaption>' if b.caption else ""
+                parts.append(f'<figure class="block-media">{_media(b.asset_id, "item-media")}{cap}</figure>')
+        return f'{head}<div class="content-blocks ui-stack">{"".join(parts)}</div>'
     media = _media(s.media_asset_id)
     rich = f'<div class="rich">{sanitize(s.body_html)}</div>'
-    head = f'<h2 class="screen-title">{_text(s.title)}</h2>'
     if s.layout in ("text_media", "media_text") and media:
         order = "media-first" if s.layout == "media_text" else "text-first"
         return (f'{head}<div class="split {order}"><div class="split-text">{rich}</div>'
@@ -645,7 +667,7 @@ def _r_accordion(s) -> str:
     # native <details> → JS'siz, klavye-erişilebilir
     items = "".join(
         f'<details class="acc-item ui-card"><summary class="acc-head">{_text(it.title)}</summary>'
-        f'<div class="acc-body rich">{sanitize(it.body_html)}</div></details>'
+        f'<div class="acc-body rich">{_media(getattr(it, "image_asset_id", None), "item-media")}{sanitize(it.body_html)}</div></details>'
         for it in s.items
     )
     return f'{_content_head(s)}<div class="accordion ui-stack">{items}</div>'
@@ -659,7 +681,7 @@ def _r_tabs(s) -> str:
     )
     panels = "".join(
         f'<div class="tab-panel rich" role="tabpanel" data-panel="{i}"{"" if i == 0 else " hidden"}>'
-        f'{sanitize(t.body_html)}</div>'
+        f'{_media(getattr(t, "image_asset_id", None), "item-media")}{sanitize(t.body_html)}</div>'
         for i, t in enumerate(s.tabs)
     )
     return (
@@ -671,8 +693,8 @@ def _r_tabs(s) -> str:
 def _r_flashcards(s) -> str:
     cards = "".join(
         f'<button class="flashcard" type="button" data-card aria-label="Kartı çevir">'
-        f'<span class="fc-inner"><span class="fc-face fc-front rich">{sanitize(c.front_html)}</span>'
-        f'<span class="fc-face fc-back rich">{sanitize(c.back_html)}</span></span></button>'
+        f'<span class="fc-inner"><span class="fc-face fc-front rich">{_media(getattr(c, "front_asset_id", None), "item-media")}{sanitize(c.front_html)}</span>'
+        f'<span class="fc-face fc-back rich">{_media(getattr(c, "back_asset_id", None), "item-media")}{sanitize(c.back_html)}</span></span></button>'
         for c in s.cards
     )
     return f'{_content_head(s)}<div class="flashcards ui-grid">{cards}</div>'
@@ -713,6 +735,7 @@ def _r_timeline(s) -> str:
         f'<li class="tl-event"><span class="tl-marker"></span>'
         f'<div class="tl-content ui-card"><span class="tl-date ui-chip">{_text(e.date)}</span>'
         f'<h3 class="tl-title">{_text(e.title)}</h3>'
+        + _media(getattr(e, "image_asset_id", None), "item-media")
         + (f'<div class="rich">{sanitize(e.body_html)}</div>' if e.body_html else "")
         + "</div></li>"
         for e in s.events

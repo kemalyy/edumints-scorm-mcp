@@ -5,6 +5,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — richer media authoring + screen reorder (W9)
+- **`content_slide` multi-block (`blocks[]`)** — optional ordered list of `{html}` / `{asset_id, caption?}`
+  blocks → interleave `paragraph → image → paragraph → image` in one screen (no more 3-consecutive-slide
+  workaround). Falls back to `body_html`/`media_asset_id` when `blocks` is absent; `body_html` is now optional.
+- **Per-item images** — optional `image_asset_id` on `accordion` and `tabs` items, on `timeline`
+  events; `front_asset_id`/`back_asset_id` on `flashcards`. All optional/backward-compatible.
+- **`reorder_screens` tool** (24th MCP tool) — reorder a project's screens to an explicit id order
+  (validates the set matches all existing screens). `add_screen` still appends.
+- **Inline images in `*_html`** — sanitizer now allows `data:` URIs on `<img>` (inline base64
+  icons), and `{{asset:<id>}}` tokens in any `*_html` interpolate to the packaged asset (self-contained,
+  unlike external `<img src>`). Validator extended to check per-item / block asset references.
+
 ### Added — QTI 2.1 export (W8a)
 - **`export_qti` tool** (23rd MCP tool) + `core/qti.py`: quiz screens → IMS QTI 2.1 `assessmentItem`
   XML. `mcq`/`true_false` → `choiceInteraction`, `fill_blank` → `textEntryInteraction`, with

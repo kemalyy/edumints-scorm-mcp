@@ -7,6 +7,10 @@ existing `body_html` and `*_asset_id` fields stay; new fields are optional.
 
 ## Priorities
 
+> **Status:** ✅ **P1–P6 all shipped (W9, Unreleased)** — `content_slide` `blocks[]`; `reorder_screens`
+> tool; per-item images on accordion/tabs/flashcards/timeline; `data:` URI `<img>`; `{{asset:id}}`
+> interpolation. See CHANGELOG `[Unreleased]` and `docs/SCREEN_TYPES.md`. Kept here for design rationale.
+
 ### P1 — `content_slide` multi-block (`blocks[]`)
 - **Gap (verified):** `ContentSlide` has a single `body_html` + one optional `media_asset_id` and a
   4-value `layout` (`text` / `text_media` / `media_text` / `full_media`). There is no way to

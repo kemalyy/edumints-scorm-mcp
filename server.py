@@ -519,6 +519,27 @@ async def remove_screen(project_id: str, screen_id: str) -> OkOut:
 
 
 @mcp.tool
+async def reorder_screens(project_id: str, screen_ids_in_order: list[str]) -> OkOut:
+    """Ekranları verilen id sırasına göre yeniden dizer. `screen_ids_in_order`, projedeki TÜM ekran
+    id'lerini bire bir (eksiksiz, tekrarsız) içermelidir; aksi halde `validation_error` döner.
+    add_screen sona ekler — sıralamayı değiştirmek/araya almak için bunu kullan."""
+    await SVC.ensure()
+    try:
+        owner = await _owner()
+        p = await _load(project_id, owner)
+        current = [s.id for s in p.screens]
+        if sorted(screen_ids_in_order) != sorted(current):
+            raise ToolError("validation_error",
+                            "screen_ids_in_order projedeki tüm ekran id'lerini bire bir içermeli")
+        by_id = {s.id: s for s in p.screens}
+        p.screens = [by_id[sid] for sid in screen_ids_in_order]
+        await SVC.store.update_project(p)
+        return OkOut()
+    except ToolError as e:
+        raise _wrap(e)
+
+
+@mcp.tool
 async def set_theme(project_id: str, theme_tokens: ThemeTokens) -> OkOut:
     """Tema token'larını uygular (kısmi override derin merge edilir)."""
     await SVC.ensure()

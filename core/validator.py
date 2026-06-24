@@ -43,6 +43,24 @@ def validate_project(project: Project) -> list[ValidationError]:
             if ref and ref not in asset_ids:
                 errors.append(ValidationError(code="validation_error",
                               message=f"Bilinmeyen asset referansı: {ref}", path=f"{path}.{field}"))
+
+        # P1/P3/P4 — per-item asset referansları (içerik blokları + item/card/event görselleri)
+        def _aref(ref, sub):
+            if ref and ref not in asset_ids:
+                errors.append(ValidationError(code="validation_error",
+                              message=f"Bilinmeyen asset referansı: {ref}", path=f"{path}.{sub}"))
+        for b in getattr(s, "blocks", None) or []:
+            _aref(getattr(b, "asset_id", None), "blocks.asset_id")
+        for it in getattr(s, "items", None) or []:
+            _aref(getattr(it, "image_asset_id", None), "items.image_asset_id")
+        for t in getattr(s, "tabs", None) or []:
+            _aref(getattr(t, "image_asset_id", None), "tabs.image_asset_id")
+        for c in getattr(s, "cards", None) or []:
+            _aref(getattr(c, "front_asset_id", None), "cards.front_asset_id")
+            _aref(getattr(c, "back_asset_id", None), "cards.back_asset_id")
+        for e in getattr(s, "events", None) or []:
+            _aref(getattr(e, "image_asset_id", None), "events.image_asset_id")
+
         # video: asset ya da url
         if isinstance(s, VideoScreen) and not s.video_asset_id and not s.video_url:
             errors.append(ValidationError(code="validation_error",
