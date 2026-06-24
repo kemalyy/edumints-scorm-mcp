@@ -140,6 +140,26 @@ async def test_p2_reorder_screens():
             await c.call_tool("reorder_screens", {"project_id": pid, "screen_ids_in_order": ids[:2]})
 
 
+def test_block_width_renders_inline_style():
+    p = Project(id=new_project_id(), title="W", assets=[_asset("g1")],
+                screens=[ContentSlide(id="s1", title="T", blocks=[
+                    ContentBlock(asset_id="g1", caption="c", width="60%")])])
+    h = _render(p)
+    assert "width:60%" in h and 'data-asset="g1"' in h
+
+
+@pytest.mark.asyncio
+async def test_auto_tts_graceful_when_piper_absent():
+    """auto_tts:true Piper yoksa build'i KIRMAMALI (sessiz atlama); auto_tts:false → narration set edilmez."""
+    spec = {"title": "TTS", "auto_tts": True,
+            "screens": [{"type": "content_slide", "title": "T", "body_html": "<p>x</p>",
+                         "narration_text": "Merhaba dünya"}]}
+    async with Client(server.mcp) as c:
+        r = await c.call_tool("build_from_spec", {"spec": spec})
+        v = await c.call_tool("validate_package", {"project_id": r.data.project_id})
+        assert v.data.ok, v.data.errors   # Piper olsun olmasın build geçerli kalır
+
+
 @pytest.mark.asyncio
 async def test_e2e_build_from_spec_with_new_media_fields():
     """build_from_spec dict girdisi yeni alanları (blocks + per-item görsel + data-URI asset) kabul

@@ -5,6 +5,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+- **`content_slide` `blocks[]` per-block `width`** (e.g. `"60%"`) — image blocks can be sized + centered
+  (`margin-inline:auto`); omitted → full width.
+- **`build_from_spec` `auto_tts`** (opt-in, default `false`) + `tts_voice` — auto-generates Piper
+  narration for screens that have `narration_text` and no `narration_asset_id`, setting
+  `narration_asset_id`. Silently skipped when Piper is unavailable (build never breaks).
+
 ## [1.2.0] — 2026-06-24
 
 Richer media authoring (content_slide blocks, per-item images, inline assets), screen reorder, and

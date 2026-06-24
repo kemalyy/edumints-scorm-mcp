@@ -300,6 +300,7 @@ class ContentBlock(BaseModel):
     html: str | None = None
     asset_id: str | None = None
     caption: str | None = None
+    width: str | None = None  # görsel blok genişliği (ör. "60%"); boşsa tam genişlik
 
 
 class ContentSlide(ScreenBase):
@@ -832,6 +833,8 @@ class CourseSpec(BaseModel):
     stage_width: int = 960   # Faz 9.1 — ayarlanabilir tuval ölçüsü (px)
     stage_height: int = 540
     xapi: XapiConfig | None = None  # W5 — xAPI/cmi5 telemetri (kurs düzeyinde; varsayılan kapalı)
+    auto_tts: bool = False  # opt-in: narration_text dolu ekranlar için otomatik Piper TTS (Piper yoksa atlanır)
+    tts_voice: str | None = None  # auto_tts ses modeli (boşsa varsayılan Türkçe)
     screens: list[Screen]
     assets: list[AssetInput] = Field(default_factory=list)
 

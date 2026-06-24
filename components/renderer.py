@@ -534,7 +534,9 @@ def _r_content(s) -> str:
                 parts.append(f'<div class="rich">{sanitize(b.html)}</div>')
             if b.asset_id:
                 cap = f'<figcaption>{_text(b.caption)}</figcaption>' if b.caption else ""
-                parts.append(f'<figure class="block-media">{_media(b.asset_id, "item-media")}{cap}</figure>')
+                w = getattr(b, "width", None)
+                style = f' style="width:{_attr(w)};margin-inline:auto"' if w else ""
+                parts.append(f'<figure class="block-media"{style}>{_media(b.asset_id, "item-media")}{cap}</figure>')
         return f'{head}<div class="content-blocks ui-stack">{"".join(parts)}</div>'
     media = _media(s.media_asset_id)
     rich = f'<div class="rich">{sanitize(s.body_html)}</div>'

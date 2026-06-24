@@ -883,6 +883,29 @@ async def build_from_spec(spec: dict) -> BuildFromSpecOut:
             )
             await SVC.store.put_asset(p.id, data, ref)
             p.assets.append(ref)
+
+        # W9 — opt-in otomatik narration TTS: narration_text dolu + narration_asset_id boş ekranlar.
+        # Piper yoksa SESSİZCE atlanır (build kırılmaz; narration_text CC olarak kalır).
+        if spec.auto_tts:
+            from core import tts, media
+            if tts.piper_available(spec.tts_voice):
+                for s in p.screens:
+                    text = getattr(s, "narration_text", None)
+                    if not text or getattr(s, "narration_asset_id", None):
+                        continue
+                    wav = await tts.synthesize(text, voice=spec.tts_voice)
+                    mp3 = await media.normalize_audio(wav, ext="wav")
+                    await enforce_size_quota(SVC.store, owner, len(mp3))
+                    rel = _safe_filename(f"narration_{s.id}.mp3", existing)
+                    existing.add(rel)
+                    nref = AssetRef(
+                        id=new_asset_id(), filename=os.path.basename(rel), mime="audio/mpeg",
+                        size_bytes=len(mp3), sha256=hashlib.sha256(mp3).hexdigest(), rel_path=rel,
+                    )
+                    await SVC.store.put_asset(p.id, mp3, nref)
+                    p.assets.append(nref)
+                    s.narration_asset_id = nref.id
+
         await SVC.store.create_project(p)
 
         errs = validate_project(p)
