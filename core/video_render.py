@@ -63,7 +63,14 @@ async def render_composition(html: str, meta: dict, assets: dict[str, bytes],
             proc.kill()
             raise ToolError("video_timeout", f"Render {timeout}s sınırını aştı")
         if proc.returncode != 0 or not os.path.exists(out):
-            raise ToolError("video_error",
-                            f"HyperFrames hata: {err.decode('utf-8', 'ignore')[-300:]}")
+            msg = err.decode("utf-8", "ignore")
+            low = msg.lower()
+            if "chromium" in low or ("browser" in low and ("could not find" in low or "install" in low)):
+                raise ToolError(
+                    "render_unavailable",
+                    "Video render motoru (Chromium) bu sunucuda kurulu değil. Alternatifler: "
+                    "(1) make_video_from_image_audio ile PNG+TTS→MP4, (2) svg_to_asset/add_asset ile "
+                    "statik görsel, (3) tools/local_media.py ile yerelde render edip add_asset.")
+            raise ToolError("video_error", f"HyperFrames hata: {msg[-300:]}")
         with open(out, "rb") as f:
             return f.read()

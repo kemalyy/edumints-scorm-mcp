@@ -602,6 +602,43 @@ async def add_asset(project_id: str, source: str, filename: str) -> AssetRef:
         raise _wrap(e)
 
 
+@mcp.tool
+async def svg_to_asset(
+    project_id: str, svg_content: str, filename: str = "diagram.svg",
+    rasterize: bool = False, width: int = 960, height: int = 540,
+) -> AssetRef:
+    """Claude-üretimi SVG diyagramını SCORM asset'ine çevirir (base64 gerekmez — ham `svg_content` ver).
+    Dönen `id`'yi `media_asset_id`/`image_asset_id`/blocks `asset_id` vb.'de kullan; ekran `<img>` ile
+    yükler (responsive). ÖNEMLİ: SVG'yi `body_html`'e inline gömme — sanitizer `<svg>`'yi siler.
+    `rasterize=true` → PNG (azami LMS uyumu; cairosvg gerekir). Aksi halde SVG (hafif, vektörel; modern
+    LMS'lerde `<img>` ile zaten render olur). SUNUCUDA LLM YOK."""
+    await SVC.ensure()
+    try:
+        owner = await _owner()
+        p = await _load(project_id, owner)
+        if "<svg" not in svg_content.lower():
+            raise ToolError("invalid_svg", "Geçerli bir <svg …> içeriği gerekli")
+        if rasterize:
+            try:
+                import cairosvg
+            except ImportError:
+                raise ToolError(
+                    "rasterize_unavailable",
+                    "SVG→PNG için cairosvg bu sunucuda kurulu değil. rasterize=false ile SVG olarak "
+                    "ekle — SVG, ekranlarda `<img>` ile zaten render olur.")
+            data = cairosvg.svg2png(bytestring=svg_content.encode("utf-8"),
+                                    output_width=width, output_height=height)
+            mime = "image/png"
+            fn = (filename[:-4] if filename.lower().endswith(".svg") else filename) + ".png"
+        else:
+            data = svg_content.encode("utf-8")
+            mime = "image/svg+xml"
+            fn = filename if filename.lower().endswith(".svg") else filename + ".svg"
+        return await _add_processed_asset(p, owner, data, mime, fn)
+    except ToolError as e:
+        raise _wrap(e)
+
+
 async def _add_processed_asset(p, owner, data: bytes, mime: str, filename: str):
     """ffmpeg çıktısını yeni asset olarak ekler (medya tool'ları için ortak)."""
     await enforce_size_quota(SVC.store, owner, len(data))

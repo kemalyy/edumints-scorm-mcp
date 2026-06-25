@@ -140,6 +140,29 @@ async def test_p2_reorder_screens():
             await c.call_tool("reorder_screens", {"project_id": pid, "screen_ids_in_order": ids[:2]})
 
 
+def test_inline_svg_stripped_but_img_kept():
+    # inline <svg> body_html'den temizlenir (LMS uyumu); <img> korunur → asset yolu doğru çözüm
+    out = sanitize('<p>ok</p><svg viewBox="0 0 10 10"><rect/></svg><img src="https://x/a.svg">')
+    assert "ok" in out and "<svg" not in out and "<img" in out
+
+
+@pytest.mark.asyncio
+async def test_svg_to_asset_and_content_slide():
+    svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 50"><rect width="100" height="50"/></svg>'
+    async with Client(server.mcp) as c:
+        proj = await c.call_tool("create_project", {"title": "SVG"})
+        pid = proj.data.project_id
+        a = await c.call_tool("svg_to_asset", {"project_id": pid, "svg_content": svg, "filename": "d.svg"})
+        assert a.data.mime == "image/svg+xml" and a.data.filename.endswith(".svg")
+        await c.call_tool("add_screen", {"project_id": pid, "screen": {
+            "type": "content_slide", "title": "D", "layout": "text_media",
+            "media_asset_id": a.data.id, "body_html": "<p>x</p>"}})
+        v = await c.call_tool("validate_package", {"project_id": pid})
+        assert v.data.ok, v.data.errors
+        with pytest.raises(Exception):
+            await c.call_tool("svg_to_asset", {"project_id": pid, "svg_content": "düz metin, svg değil"})
+
+
 def test_block_width_renders_inline_style():
     p = Project(id=new_project_id(), title="W", assets=[_asset("g1")],
                 screens=[ContentSlide(id="s1", title="T", blocks=[

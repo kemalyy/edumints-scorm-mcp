@@ -6,11 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Added
+- **`svg_to_asset` tool** (25th tool) — turn a Claude-generated SVG string into a packaged asset without
+  base64 (raw `svg_content`); validates `<svg>`, returns an `AssetRef` (`id`) to use in
+  `media_asset_id` / `image_asset_id` / block `asset_id`. Optional `rasterize=true` → PNG (needs
+  `cairosvg`; clear `rasterize_unavailable` error otherwise). Fixes the "inline `<svg>` in `body_html`
+  gets sanitized away" pitfall — use the asset pipeline (rendered as `<img src=…svg>`).
 - **`content_slide` `blocks[]` per-block `width`** (e.g. `"60%"`) — image blocks can be sized + centered
   (`margin-inline:auto`); omitted → full width.
 - **`build_from_spec` `auto_tts`** (opt-in, default `false`) + `tts_voice` — auto-generates Piper
   narration for screens that have `narration_text` and no `narration_asset_id`, setting
   `narration_asset_id`. Silently skipped when Piper is unavailable (build never breaks).
+
+### Changed
+- `render_motion_video`: when the render subprocess fails because Chromium is missing, return a clear
+  `render_unavailable` error with workarounds (PNG+TTS video, static SVG/PNG asset, or local render)
+  instead of a raw HyperFrames stderr dump.
 
 ## [1.2.0] — 2026-06-24
 
