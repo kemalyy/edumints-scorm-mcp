@@ -5,6 +5,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.3.0] — 2026-06-26
+
+SVG diagram pipeline + block sizing + opt-in narration. **25 MCP tools.** All additive — existing
+specs unchanged, no server-side LLM.
+
 ### Added
 - **`svg_to_asset` tool** (25th tool) — turn a Claude-generated SVG string into a packaged asset without
   base64 (raw `svg_content`); validates `<svg>`, returns an `AssetRef` (`id`) to use in
