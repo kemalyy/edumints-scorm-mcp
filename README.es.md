@@ -1,5 +1,10 @@
 # edumints SCORM MCP
 
+[![License: MIT](https://img.shields.io/github/license/kemalyy/edumints-scorm-mcp)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/kemalyy/edumints-scorm-mcp)](https://github.com/kemalyy/edumints-scorm-mcp/releases)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
+[![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-6E56CF)](https://modelcontextprotocol.io)
+
 > **Un servidor MCP que ensambla cursos de e-learning interactivos y compatibles con SCORM.**
 > Tú (o un cliente de IA como Claude) eres el **autor**; este servidor es el **ensamblador**.
 > Describe un curso como una especificación estructurada — el servidor valida, renderiza y empaqueta
@@ -21,6 +26,8 @@ temas premium, renderizado HTML accesible, el puente del runtime SCORM y el empa
 un paquete SCORM conforme a los estándares, sin dependencia de proveedor.
 
 **Autor = el cliente MCP · Ensamblador = este servidor.**
+
+![Una pantalla de quiz renderizada por el reproductor de diapositivas integrado](docs/assets/screenshot-player.png)
 
 ## Características
 

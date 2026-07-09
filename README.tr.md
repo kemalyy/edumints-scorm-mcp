@@ -1,5 +1,10 @@
 # edumints SCORM MCP
 
+[![License: MIT](https://img.shields.io/github/license/kemalyy/edumints-scorm-mcp)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/kemalyy/edumints-scorm-mcp)](https://github.com/kemalyy/edumints-scorm-mcp/releases)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
+[![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-6E56CF)](https://modelcontextprotocol.io)
+
 > **Etkileşimli, SCORM-uyumlu e-öğrenme kursları üreten bir MCP sunucusu.**
 > Sen (ya da Claude gibi bir yapay zekâ istemcisi) **yazarsın**; bu sunucu **derleyicidir**.
 > Kursu yapılandırılmış bir spec olarak tarif edersin — sunucu doğrular, render eder ve
@@ -20,6 +25,8 @@ tarif eder** (hedefler, ekranlar, quizler, dallanma, medya) — [Model Context P
 runtime köprüsü ve paketleme. Sonuç standartlara uygun bir SCORM paketi — sağlayıcı kilidi yok.
 
 **Yazar = MCP istemcisi · Derleyici = bu sunucu.**
+
+![Yerleşik slayt-sahne player'ında render edilen bir quiz ekranı](docs/assets/screenshot-player.png)
 
 ## Özellikler
 
@@ -82,6 +89,42 @@ aşağıdaki araçları çağırır; indirilebilir bir SCORM zip alırsın.
 
 > **Authoring skill** ile birlikte çalışır (bir yapay zekâ istemcisine bu sunucuyla kaliteli kurs
 > üretmeyi öğreten Claude Agent Skill): https://github.com/kemalyy/edumints-scorm-skill
+
+## Örnek
+
+Bir kurs tek bir `build_from_spec` çağrısıyla üretilir (bu `examples/small.json`, kısaltılmış):
+
+```json
+{
+  "title": "SCORM'a Giriş",
+  "scorm_version": "1.2",
+  "language": "tr",
+  "tracking": { "completion_rule": "viewed_all_and_passed", "passing_score": 50 },
+  "screens": [
+    { "type": "title_slide", "id": "t1", "title": "SCORM'a Giriş", "subtitle": "5 dakikada temel kavramlar" },
+    { "type": "content_slide", "id": "c1", "title": "SCORM Nedir?", "body_html": "<p><strong>SCORM</strong>, e-öğrenme içeriğinin LMS ile konuşmasını sağlar.</p>" },
+    { "type": "mcq", "id": "q1", "title": "Mini Quiz", "prompt_html": "<p>SCORM ne işe yarar?</p>",
+      "options": [
+        { "id": "a", "text_html": "İçerik–LMS iletişimi", "correct": true },
+        { "id": "b", "text_html": "Video düzenleme" }
+      ], "points": 10 },
+    { "type": "summary", "id": "s1", "title": "Tebrikler", "body_html": "<p>Temel kavramları öğrendiniz.</p>" }
+  ]
+}
+```
+
+```
+build_from_spec(spec) → { project_id, screens: 4, warnings: [] }
+build_package(project_id) → indirilebilir SCORM 1.2 zip
+                              ├─ imsmanifest.xml
+                              ├─ index.html          (kendi kendine yeten player + runtime)
+                              └─ assets/
+```
+
+Zip, herhangi bir SCORM 1.2/2004 LMS'e (Moodle, SCORM Cloud, Rustici Engine, …) çalışma-zamanı
+sunucu bağımlılığı olmadan içe aktarılabilir. Tam çalışan spec [`examples/small.json`](examples/small.json)
+dosyasında; daha fazla gerçek-dünya spec (oyunlar, dallanma, temalı kurslar) [`examples/`](examples/)
+altında.
 
 ## Başlıca araçlar (MCP)
 

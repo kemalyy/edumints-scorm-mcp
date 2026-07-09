@@ -1,5 +1,10 @@
 # edumints SCORM MCP
 
+[![License: MIT](https://img.shields.io/github/license/kemalyy/edumints-scorm-mcp)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/kemalyy/edumints-scorm-mcp)](https://github.com/kemalyy/edumints-scorm-mcp/releases)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
+[![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-6E56CF)](https://modelcontextprotocol.io)
+
 > **Интерактивті, SCORM-үйлесімді электрондық оқыту курстарын құрастыратын MCP сервері.**
 > Сіз (немесе Claude сияқты ЖИ-клиент) — **автор**; бұл сервер — **құрастырушы**.
 > Курсты құрылымдалған спецификация ретінде сипаттаңыз — сервер тексеріп, рендерлеп, кез келген
@@ -20,6 +25,8 @@
 көпірі және бумалау. Нәтиже — стандарттарға сай SCORM бумасы, провайдерге тәуелділіксіз.
 
 **Автор = MCP клиенті · Құрастырушы = бұл сервер.**
+
+![Кірістірілген слайд-сахна ойнатқышы render еткен викторина экраны](docs/assets/screenshot-player.png)
 
 ## Мүмкіндіктер
 

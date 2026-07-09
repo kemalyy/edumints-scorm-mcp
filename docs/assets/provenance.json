@@ -1,0 +1,7 @@
+[
+  {
+    "asset": "screenshot-player.png",
+    "source": "own",
+    "note": "Screenshot of the built-in slide-stage player, captured locally with Playwright against HTML rendered by this repo's own preview() tool from examples/small.json. No third-party or AI-generated imagery."
+  }
+]

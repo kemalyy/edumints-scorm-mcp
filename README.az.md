@@ -1,5 +1,10 @@
 # edumints SCORM MCP
 
+[![License: MIT](https://img.shields.io/github/license/kemalyy/edumints-scorm-mcp)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/kemalyy/edumints-scorm-mcp)](https://github.com/kemalyy/edumints-scorm-mcp/releases)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
+[![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-6E56CF)](https://modelcontextprotocol.io)
+
 > **İnteraktiv, SCORM-uyğun e-təhsil kursları yığan bir MCP server.**
 > Sən (və ya Claude kimi bir süni intellekt müştərisi) **müəllifsən**; bu server isə **yığıcıdır**.
 > Kursu strukturlaşdırılmış spesifikasiya kimi təsvir et — server doğrulayır, render edir və istənilən
@@ -20,6 +25,8 @@ vasitəsilə — server isə çətin hissəni görür: doğrulama, premium tema,
 runtime körpüsü və paketləmə. Nəticə standartlara uyğun SCORM paketidir — provayder asılılığı yoxdur.
 
 **Müəllif = MCP müştərisi · Yığıcı = bu server.**
+
+![Daxili slayd-səhnə pleyeri tərəfindən render edilən bir quiz ekranı](docs/assets/screenshot-player.png)
 
 ## İmkanlar
 

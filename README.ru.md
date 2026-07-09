@@ -1,5 +1,10 @@
 # edumints SCORM MCP
 
+[![License: MIT](https://img.shields.io/github/license/kemalyy/edumints-scorm-mcp)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/kemalyy/edumints-scorm-mcp)](https://github.com/kemalyy/edumints-scorm-mcp/releases)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
+[![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-6E56CF)](https://modelcontextprotocol.io)
+
 > **MCP-сервер, который собирает интерактивные SCORM-совместимые курсы электронного обучения.**
 > Вы (или ИИ-клиент, например Claude) — **автор**; этот сервер — **сборщик**.
 > Опишите курс как структурированную спецификацию — сервер проверит, отрисует и упакует
@@ -20,6 +25,8 @@
 SCORM-runtime и упаковку. Результат — пакет, соответствующий стандартам SCORM, без привязки к вендору.
 
 **Автор = MCP-клиент · Сборщик = этот сервер.**
+
+![Экран викторины, отрисованный встроенным плеером слайдов](docs/assets/screenshot-player.png)
 
 ## Возможности
 

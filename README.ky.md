@@ -1,5 +1,10 @@
 # edumints SCORM MCP
 
+[![License: MIT](https://img.shields.io/github/license/kemalyy/edumints-scorm-mcp)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/kemalyy/edumints-scorm-mcp)](https://github.com/kemalyy/edumints-scorm-mcp/releases)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
+[![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-6E56CF)](https://modelcontextprotocol.io)
+
 > **Интерактивдүү, SCORM-шайкеш онлайн окуу курстарын чогултуучу MCP сервери.**
 > Сиз (же Claude сыяктуу ЖИ-кардар) — **автор**; бул сервер — **чогултуучу**.
 > Курсту структураланган спецификация катары сүрөттөңүз — сервер текшерет, рендерлейт жана каалаган
@@ -21,6 +26,8 @@ runtime көпүрөсү жана таңгактоо. Жыйынтыгы — с�
 карандысыз.
 
 **Автор = MCP кардары · Чогултуучу = бул сервер.**
+
+![Ичине курулган слайд-сахна ойноткучу тарабынан рендер кылынган викторина экраны](docs/assets/screenshot-player.png)
 
 ## Мүмкүнчүлүктөр
 

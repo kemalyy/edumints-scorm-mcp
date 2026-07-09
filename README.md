@@ -1,5 +1,10 @@
 # edumints SCORM MCP
 
+[![License: MIT](https://img.shields.io/github/license/kemalyy/edumints-scorm-mcp)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/kemalyy/edumints-scorm-mcp)](https://github.com/kemalyy/edumints-scorm-mcp/releases)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
+[![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-6E56CF)](https://modelcontextprotocol.io)
+
 > **An MCP server that assembles interactive, SCORM-compliant e-learning courses.**
 > You (or an AI client like Claude) are the **author**; this server is the **assembler**.
 > Describe a course as a structured spec — the server validates, renders, and packages a
@@ -20,6 +25,8 @@ and the server does the hard part: validation, premium theming, accessible HTML 
 runtime bridge, and packaging. The result is a standards-compliant SCORM package — no vendor lock-in.
 
 **Author = the MCP client · Assembler = this server.**
+
+![A quiz screen rendered by the built-in slide-stage player](docs/assets/screenshot-player.png)
 
 ## Features
 
@@ -82,6 +89,43 @@ calls the tools below; you get a downloadable SCORM zip.
 
 > Pairs with the **authoring skill** (a Claude Agent Skill that teaches an AI client how to author
 > high-quality courses with this server): https://github.com/kemalyy/edumints-scorm-skill
+
+## Example
+
+A full course is one `build_from_spec` call with a JSON spec (this is `examples/small.en.json`,
+trimmed for brevity):
+
+```json
+{
+  "title": "Introduction to SCORM",
+  "scorm_version": "1.2",
+  "language": "en",
+  "tracking": { "completion_rule": "viewed_all_and_passed", "passing_score": 50 },
+  "screens": [
+    { "type": "title_slide", "id": "t1", "title": "Introduction to SCORM", "subtitle": "Basic concepts in 5 minutes" },
+    { "type": "content_slide", "id": "c1", "title": "What is SCORM?", "body_html": "<p><strong>SCORM</strong> is a standard that lets e-learning content talk to an LMS.</p>" },
+    { "type": "mcq", "id": "q1", "title": "Mini Quiz", "prompt_html": "<p>What is the purpose of SCORM?</p>",
+      "options": [
+        { "id": "a", "text_html": "Content–LMS communication", "correct": true },
+        { "id": "b", "text_html": "Video editing" }
+      ], "points": 10 },
+    { "type": "summary", "id": "s1", "title": "Congratulations", "body_html": "<p>You have learned the basics.</p>" }
+  ]
+}
+```
+
+```
+build_from_spec(spec) → { project_id, screens: 4, warnings: [] }
+build_package(project_id) → downloadable SCORM 1.2 zip
+                              ├─ imsmanifest.xml
+                              ├─ index.html          (self-contained player + runtime)
+                              └─ assets/
+```
+
+The zip imports into any SCORM 1.2/2004 LMS (Moodle, SCORM Cloud, Rustici Engine, …) — no server
+dependency at runtime. The full runnable spec (with quiz feedback, more screens) is at
+[`examples/small.en.json`](examples/small.en.json); more real-world specs (games, branching, themed
+courses) live under [`examples/`](examples/).
 
 ## Key tools (MCP)
 
