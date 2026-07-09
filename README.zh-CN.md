@@ -1,5 +1,10 @@
 # edumints SCORM MCP
 
+[![License: MIT](https://img.shields.io/github/license/kemalyy/edumints-scorm-mcp)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/kemalyy/edumints-scorm-mcp)](https://github.com/kemalyy/edumints-scorm-mcp/releases)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
+[![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-6E56CF)](https://modelcontextprotocol.io)
+
 > **一个用于组装交互式、符合 SCORM 标准的在线学习课程的 MCP 服务器。**
 > 你（或像 Claude 这样的 AI 客户端）是**作者**；本服务器是**组装器**。
 > 用结构化的规范描述课程——服务器负责校验、渲染并打包成可在任意 LMS（Moodle、SCORM Cloud……）
@@ -20,6 +25,8 @@
 无供应商锁定。
 
 **作者 = MCP 客户端 · 组装器 = 本服务器。**
+
+![由内置幻灯片播放器渲染的测验界面](docs/assets/screenshot-player.png)
 
 ## 功能
 
