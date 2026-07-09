@@ -66,6 +66,11 @@ docker run -p 8000:8000 -v "$PWD/data:/data" edumints-scorm-mcp
 The image includes everything for the optional features (ffmpeg, Node + HyperFrames for video,
 Piper + a Turkish voice for TTS).
 
+> **Apple Silicon + Docker Desktop:** if `docker build`/`run` crashes with `Illegal instruction`
+> (SIGILL), that's an upstream native-ARM64 issue in the `cryptography` package's Rust bindings
+> ([pyca/cryptography#14733](https://github.com/pyca/cryptography/issues/14733)), not this repo.
+> Workaround: `docker build --platform linux/amd64 -t edumints-scorm-mcp .` (runs under emulation).
+
 ### Local (Python)
 ```bash
 python -m venv .venv && source .venv/bin/activate
