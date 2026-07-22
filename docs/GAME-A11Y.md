@@ -38,3 +38,6 @@ sağlanmalı (mevcut drag_drop ekran tipindeki dokunma fallback'i + select taban
 - [ ] reduced-motion'da mekanik bozulmadan çalışıyor mu?
 - [ ] Durum/sonuç renk-yalnız değil mi (metin/ikon de)?
 - [ ] İpuçları metin olarak ekran-okuyucuya açık mı?
+
+`lint_course` artık görsel-taşıyan tüm ekran tiplerinde eksik alt-text'i `missing_alt_text` WARN
+koduyla bildiriyor (P0, 2026-07-22).

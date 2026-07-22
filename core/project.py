@@ -307,6 +307,7 @@ class ContentSlide(ScreenBase):
     type: Literal[ScreenType.content_slide] = ScreenType.content_slide
     body_html: str = ""
     media_asset_id: str | None = None
+    media_alt: str | None = None  # W9 — media_asset_id için alt text (WCAG)
     layout: Literal["text", "text_media", "media_text", "full_media"] = "text"
     blocks: list[ContentBlock] | None = None  # P1 — verilirse body_html/media_asset_id yerine sırayla render edilir
 
@@ -350,6 +351,7 @@ class HotspotScreen(ScreenBase):
     type: Literal[ScreenType.hotspot] = ScreenType.hotspot
     prompt_html: str
     image_asset_id: str
+    image_alt: str | None = None  # W9 — WCAG alt text
     regions: list[HotspotRegion] = Field(min_length=1)
     feedback: Feedback = Field(default_factory=Feedback)
     points: int = 10
@@ -383,6 +385,7 @@ class AccordionItem(BaseModel):
     title: str
     body_html: str
     image_asset_id: str | None = None  # P3 — panel başına ops. görsel
+    image_alt: str | None = None  # W9 — WCAG alt text
 
 
 class AccordionScreen(ScreenBase):
@@ -395,6 +398,7 @@ class TabItem(BaseModel):
     label: str
     body_html: str
     image_asset_id: str | None = None  # P3 — sekme başına ops. görsel
+    image_alt: str | None = None  # W9 — WCAG alt text
 
 
 class TabsScreen(ScreenBase):
@@ -408,6 +412,8 @@ class Flashcard(BaseModel):
     back_html: str
     front_asset_id: str | None = None  # P4 — ön yüz ops. görsel
     back_asset_id: str | None = None   # P4 — arka yüz ops. görsel
+    front_alt: str | None = None  # W9 — ön yüz WCAG alt text
+    back_alt: str | None = None   # W9 — arka yüz WCAG alt text
 
 
 class FlashcardsScreen(ScreenBase):
@@ -449,6 +455,7 @@ class TimelineEvent(BaseModel):
     title: str
     body_html: str | None = None
     image_asset_id: str | None = None  # P4 — olay başına ops. görsel
+    image_alt: str | None = None  # W9 — WCAG alt text
 
 
 class TimelineScreen(ScreenBase):
@@ -473,6 +480,7 @@ class SimStep(BaseModel):
     geçilir). Verilmezse TIKLAMA adımıdır (correct=True bölgeye tıklanınca geçilir). Faz 8.1 (Wooclap deseni).
     """
     image_asset_id: str
+    image_alt: str | None = None  # W9 — WCAG alt text
     instruction_html: str
     regions: list[HotspotRegion] = Field(default_factory=list)  # tıklama adımı için hedef(ler)
     input_accepted: list[str] | None = None  # verilirse YAZMA adımı: kabul edilen cevaplar
@@ -508,6 +516,7 @@ class ScenarioNode(BaseModel):
     id: str
     prompt_html: str
     image_asset_id: str | None = None
+    image_alt: str | None = None  # W9 — WCAG alt text
     choices: list[ScenarioChoice] = Field(min_length=2)
 
 
@@ -579,6 +588,7 @@ class LabeledDiagramScreen(ScreenBase):
     type: Literal[ScreenType.labeled_diagram] = ScreenType.labeled_diagram
     prompt_html: str | None = None
     image_asset_id: str
+    image_alt: str | None = None  # W9 — WCAG alt text
     labels: list[DiagramLabel] = Field(min_length=2)
     points: int = 15
     feedback: Feedback = Field(default_factory=Feedback)
