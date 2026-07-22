@@ -934,8 +934,12 @@ def test_w6_antislop_errors_block_validate_project():
 def test_w6_clean_game_passes_lint():
     from core.project import GameScreen
     from core.antislop import lint_course
-    # ulaşılabilir + gerçek (farklı) seçimler + skor aksiyonlu + ceza seçiminde gerekçe
+    # ulaşılabilir + gerçek (farklı) seçimler + skor aksiyonlu + ceza seçiminde gerekçe + gerçek feedback
+    # (feedback şema varsayılanında bırakılırsa W9 P1 B3 kuralı ("default_feedback") tetiklenir —
+    # burada gerçekçi bir feedback veriyoruz çünkü bu test "temiz" bir kursu temsil etmeli).
     g = GameScreen(id="g", title="Temiz", mechanics={"score": {"id": "sc"}, "lives": {"id": "lv", "start": 3}},
+        feedback={"correct_html": "Kazandın — kararların skor mekaniğine gerçekten bağlıydı.",
+                  "incorrect_html": "Canların bitti — hangi seçimlerin can kaybettirdiğini tekrar incele."},
         nodes=[
             {"id": "n1", "content_html": "<p>x</p>", "choices": [
                 {"id": "a", "text_html": "Doğru", "to": "n2", "on_choose": [{"do": "score.correct", "points": 10}]},
@@ -1179,3 +1183,82 @@ def test_w9_audit_log_emits_on_project_create(caplog):
     with caplog.at_level(logging.INFO, logger="scorm_mcp.audit"):
         asyncio.run(_run())
     assert any("event=project_create" in r.message for r in caplog.records)
+
+
+# ---- W9 P1: içerik yapısı mekanik kurallar (A1/A2/A3/B3) ----
+def test_w9_antislop_a1_consecutive_content_slides():
+    from core.antislop import lint_course
+    # 3 ardışık content_slide (araya etkileşim girmeden) → WARN
+    screens = [
+        {"type": "content_slide", "id": "c1", "title": "Birinci fikir", "body_html": "<p>x</p>"},
+        {"type": "content_slide", "id": "c2", "title": "İkinci fikir", "body_html": "<p>y</p>"},
+        {"type": "content_slide", "id": "c3", "title": "Üçüncü fikir", "body_html": "<p>z</p>"},
+    ]
+    p = Project(id=new_project_id(), title="K", screens=screens)
+    codes = {i.code for i in lint_course(p)}
+    assert "consecutive_content_slides" in codes
+
+    # 2 ardışık (izinli) → WARN yok
+    p2 = Project(id=new_project_id(), title="K2", screens=screens[:2])
+    codes2 = {i.code for i in lint_course(p2)}
+    assert "consecutive_content_slides" not in codes2
+
+
+def test_w9_antislop_a2_too_many_list_items():
+    from core.antislop import lint_course
+    # 5 <li> → WARN (eşik: >4)
+    s = {"type": "content_slide", "id": "c1", "title": "Liste",
+         "body_html": "<ul>" + "<li>x</li>" * 5 + "</ul>"}
+    p = Project(id=new_project_id(), title="K", screens=[s])
+    codes = {i.code for i in lint_course(p)}
+    assert "too_many_list_items" in codes
+
+    # 4 <li> → WARN yok
+    s2 = {"type": "content_slide", "id": "c2", "title": "Liste",
+          "body_html": "<ul>" + "<li>x</li>" * 4 + "</ul>"}
+    p2 = Project(id=new_project_id(), title="K2", screens=[s2])
+    codes2 = {i.code for i in lint_course(p2)}
+    assert "too_many_list_items" not in codes2
+
+
+def test_w9_antislop_a3_generic_title():
+    from core.antislop import lint_course
+    for bad_title in ["Modül 1: Giriş", "Bölüm 2: Genel Bakış", "Konu 3", "Ünite: Temeller"]:
+        s = {"type": "content_slide", "id": "c1", "title": bad_title, "body_html": "<p>x</p>"}
+        p = Project(id=new_project_id(), title="K", screens=[s])
+        codes = {i.code for i in lint_course(p)}
+        assert "generic_title" in codes, f"beklenen WARN yok: {bad_title!r}"
+
+    # Somut başlık → WARN yok
+    s2 = {"type": "content_slide", "id": "c2", "title": "Neden 8 saniyede karar veriyoruz?",
+          "body_html": "<p>x</p>"}
+    p2 = Project(id=new_project_id(), title="K2", screens=[s2])
+    codes2 = {i.code for i in lint_course(p2)}
+    assert "generic_title" not in codes2
+
+    # Yanlış-pozitif kontrolü: prefix kelimeyle başlıyor ama anlamlı ek içerik taşıyor → WARN yok
+    s3 = {"type": "content_slide", "id": "c3", "title": "Bölüm bazlı erişim kontrolü nasıl çalışır?",
+          "body_html": "<p>x</p>"}
+    p3 = Project(id=new_project_id(), title="K3", screens=[s3])
+    codes3 = {i.code for i in lint_course(p3)}
+    assert "generic_title" not in codes3
+    assert "generic_title" not in codes2
+
+
+def test_w9_antislop_b3_default_feedback():
+    from core.antislop import lint_course
+    # feedback hiç verilmemiş → şema varsayılanı ("Doğru!"/"Tekrar deneyin.") → WARN
+    s = {"type": "mcq", "id": "q1", "title": "Soru", "prompt_html": "<p>?</p>",
+         "options": [{"id": "a", "text_html": "A", "correct": True}, {"id": "b", "text_html": "B"}]}
+    p = Project(id=new_project_id(), title="K", screens=[s])
+    codes = {i.code for i in lint_course(p)}
+    assert "default_feedback" in codes
+
+    # Gerçek feedback verilmiş → WARN yok
+    s2 = {"type": "mcq", "id": "q2", "title": "Soru", "prompt_html": "<p>?</p>",
+          "options": [{"id": "a", "text_html": "A", "correct": True}, {"id": "b", "text_html": "B"}],
+          "feedback": {"correct_html": "Doğru — çünkü alan adı asıl kanıttır.",
+                       "incorrect_html": "Tıklamadan önce alan adını kontrol et."}}
+    p2 = Project(id=new_project_id(), title="K2", screens=[s2])
+    codes2 = {i.code for i in lint_course(p2)}
+    assert "default_feedback" not in codes2
