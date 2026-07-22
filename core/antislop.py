@@ -19,6 +19,7 @@ Mevcut geçerli kurslar bozulmaz: ERROR'lar yalnız NET yapısal bug'lardır; pe
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 
 from .project import (
@@ -30,6 +31,7 @@ from .project import (
     HotspotScreen,
     LabeledDiagramScreen,
     Project,
+    ScreenType,
     SimulationScreen,
     TabsScreen,
     TimelineScreen,
@@ -57,6 +59,10 @@ def lint_course(project: Project) -> list[LintIssue]:
         elif isinstance(s, AdaptivePracticeScreen):
             issues += _lint_adaptive(s, path)
         issues += _lint_missing_alt(s, path)
+        issues += _lint_generic_title(s, path)
+        issues += _lint_list_items(s, path)
+        issues += _lint_default_feedback(s, path)
+    issues += _lint_consecutive_content_slides(project)
     return issues
 
 
@@ -216,4 +222,82 @@ def _lint_missing_alt(s, path: str) -> list[LintIssue]:
         # kullanıyor; bu blok yoksa lint'in gözden kaçırdığı bir alt-text boşluğu oluşuyordu.
         for i, b in enumerate(getattr(s, "blocks", None) or []):
             check(b.asset_id, b.caption, f"{path}.blocks[{i}]")
+    return out
+
+
+# --- içerik yapısı: A1/A2/A3, B3 (W9 P1) ------------------------------------
+# Kalıp: (prefix kelime) + ops. sayı + ops. ':' + ops. jenerik betimleyici, başka hiçbir şey yok.
+# "Modül 1: Giriş" / "Bölüm 2: Genel Bakış" / "Konu 3" / "Ünite: Temeller" hepsini karşılar; içinde
+# bu kelimelerden biri geçen ama ANLAMLI ek içerik taşıyan başlıklarla eşleşmez (ör. "Neden 8
+# saniyede karar veriyoruz?" hiçbiriyle başlamadığı için hiç eşleşmez).
+_GENERIC_TITLE_RE = re.compile(
+    r"^\s*(modül|bölüm|konu|ünite)\s*\d*\s*:?\s*(giriş|genel bakış|özet|temeller)?\s*$",
+    re.IGNORECASE,
+)
+
+
+def _is_generic_title(title: str) -> bool:
+    t = (title or "").strip()
+    if not t:
+        return False
+    return bool(_GENERIC_TITLE_RE.match(t))
+
+
+def _lint_generic_title(s, path: str) -> list[LintIssue]:
+    title = getattr(s, "title", None)
+    if title and _is_generic_title(title):
+        return [LintIssue("warn", "generic_title",
+                          f"Jenerik başlık ('{title}') — başlık ekranın tek çıkarımını taşımalı "
+                          "(mümkünse soru/iddia), 'Modül N: Giriş' gibi içeriksiz etiket değil",
+                          f"{path}.title")]
+    return []
+
+
+def _lint_list_items(s, path: str) -> list[LintIssue]:
+    body = getattr(s, "body_html", None)
+    if not body:
+        return []
+    count = len(re.findall(r"<li[\s>]", body, re.IGNORECASE))
+    if count > 4:
+        return [LintIssue("warn", "too_many_list_items",
+                          f"Ekranda {count} <li> var (>4) — bir ekran bir fikir taşımalı; "
+                          "listeyi bölmeyi ya da accordion/flashcards'a çevirmeyi düşün",
+                          f"{path}.body_html")]
+    return []
+
+
+def _lint_default_feedback(s, path: str) -> list[LintIssue]:
+    fb = getattr(s, "feedback", None)
+    if fb is None:
+        return []
+    if fb.correct_html == "Doğru!" and fb.incorrect_html == "Tekrar deneyin.":
+        return [LintIssue("warn", "default_feedback",
+                          "Feedback şema varsayılanında bırakılmış ('Doğru!'/'Tekrar deneyin.') — "
+                          "her feedback nedeni açıklamalı ve doğru modele bağlanmalı",
+                          f"{path}.feedback")]
+    return []
+
+
+def _lint_consecutive_content_slides(project: Project) -> list[LintIssue]:
+    out: list[LintIssue] = []
+    run_start = None
+    run_len = 0
+    for i, s in enumerate(project.screens):
+        if s.type == ScreenType.content_slide:
+            if run_start is None:
+                run_start = i
+            run_len += 1
+        else:
+            if run_len > 2:
+                out.append(LintIssue("warn", "consecutive_content_slides",
+                                     f"{run_len} ardışık content_slide (screens[{run_start}]..[{i - 1}]) "
+                                     "— araya bir etkileşim ekranı (mcq/hotspot/accordion/vb.) sok",
+                                     f"screens[{run_start}]..[{i - 1}]"))
+            run_start = None
+            run_len = 0
+    if run_len > 2:  # kurs content_slide zinciriyle bitiyorsa
+        out.append(LintIssue("warn", "consecutive_content_slides",
+                             f"{run_len} ardışık content_slide (screens[{run_start}]..sonuncu) "
+                             "— araya bir etkileşim ekranı sok",
+                             f"screens[{run_start}]..end"))
     return out
