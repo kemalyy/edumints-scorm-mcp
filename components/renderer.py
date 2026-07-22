@@ -506,10 +506,10 @@ def _render_screen(s, idx: int) -> str:
     )
 
 
-def _media(asset_id: str | None, cls: str = "media") -> str:
+def _media(asset_id: str | None, cls: str = "media", alt: str = "") -> str:
     if not asset_id:
         return ""
-    return f'<img class="{cls}" data-asset="{_attr(asset_id)}" alt="">'
+    return f'<img class="{cls}" data-asset="{_attr(asset_id)}" alt="{_attr(alt)}">'
 
 
 def _r_title(s) -> str:
@@ -536,9 +536,9 @@ def _r_content(s) -> str:
                 cap = f'<figcaption>{_text(b.caption)}</figcaption>' if b.caption else ""
                 w = getattr(b, "width", None)
                 style = f' style="width:{_attr(w)};margin-inline:auto"' if w else ""
-                parts.append(f'<figure class="block-media"{style}>{_media(b.asset_id, "item-media")}{cap}</figure>')
+                parts.append(f'<figure class="block-media"{style}>{_media(b.asset_id, "item-media", b.caption or "")}{cap}</figure>')
         return f'{head}<div class="content-blocks ui-stack">{"".join(parts)}</div>'
-    media = _media(s.media_asset_id)
+    media = _media(s.media_asset_id, alt=s.media_alt or "")
     rich = f'<div class="rich">{sanitize(s.body_html)}</div>'
     if s.layout in ("text_media", "media_text") and media:
         order = "media-first" if s.layout == "media_text" else "text-first"
@@ -603,7 +603,7 @@ def _r_hotspot(s) -> str:
         f' title="{_attr(rg.label_html or "")}"></button>'
         for rg in s.regions
     )
-    img = f'<img class="hotspot-img" data-asset="{_attr(s.image_asset_id)}" alt="">'
+    img = f'<img class="hotspot-img" data-asset="{_attr(s.image_asset_id)}" alt="{_attr(s.image_alt or "")}">'
     return _quiz_shell(s, f'<div class="hotspot"><div class="hotspot-stage">{img}{regions}</div></div>')
 
 
@@ -669,7 +669,7 @@ def _r_accordion(s) -> str:
     # native <details> → JS'siz, klavye-erişilebilir
     items = "".join(
         f'<details class="acc-item ui-card"><summary class="acc-head">{_text(it.title)}</summary>'
-        f'<div class="acc-body rich">{_media(getattr(it, "image_asset_id", None), "item-media")}{sanitize(it.body_html)}</div></details>'
+        f'<div class="acc-body rich">{_media(getattr(it, "image_asset_id", None), "item-media", getattr(it, "image_alt", None) or "")}{sanitize(it.body_html)}</div></details>'
         for it in s.items
     )
     return f'{_content_head(s)}<div class="accordion ui-stack">{items}</div>'
@@ -683,7 +683,7 @@ def _r_tabs(s) -> str:
     )
     panels = "".join(
         f'<div class="tab-panel rich" role="tabpanel" data-panel="{i}"{"" if i == 0 else " hidden"}>'
-        f'{_media(getattr(t, "image_asset_id", None), "item-media")}{sanitize(t.body_html)}</div>'
+        f'{_media(getattr(t, "image_asset_id", None), "item-media", getattr(t, "image_alt", None) or "")}{sanitize(t.body_html)}</div>'
         for i, t in enumerate(s.tabs)
     )
     return (
@@ -695,8 +695,8 @@ def _r_tabs(s) -> str:
 def _r_flashcards(s) -> str:
     cards = "".join(
         f'<button class="flashcard" type="button" data-card aria-label="Kartı çevir">'
-        f'<span class="fc-inner"><span class="fc-face fc-front rich">{_media(getattr(c, "front_asset_id", None), "item-media")}{sanitize(c.front_html)}</span>'
-        f'<span class="fc-face fc-back rich">{_media(getattr(c, "back_asset_id", None), "item-media")}{sanitize(c.back_html)}</span></span></button>'
+        f'<span class="fc-inner"><span class="fc-face fc-front rich">{_media(getattr(c, "front_asset_id", None), "item-media", getattr(c, "front_alt", None) or "")}{sanitize(c.front_html)}</span>'
+        f'<span class="fc-face fc-back rich">{_media(getattr(c, "back_asset_id", None), "item-media", getattr(c, "back_alt", None) or "")}{sanitize(c.back_html)}</span></span></button>'
         for c in s.cards
     )
     return f'{_content_head(s)}<div class="flashcards ui-grid">{cards}</div>'
@@ -737,7 +737,7 @@ def _r_timeline(s) -> str:
         f'<li class="tl-event"><span class="tl-marker"></span>'
         f'<div class="tl-content ui-card"><span class="tl-date ui-chip">{_text(e.date)}</span>'
         f'<h3 class="tl-title">{_text(e.title)}</h3>'
-        + _media(getattr(e, "image_asset_id", None), "item-media")
+        + _media(getattr(e, "image_asset_id", None), "item-media", getattr(e, "image_alt", None) or "")
         + (f'<div class="rich">{sanitize(e.body_html)}</div>' if e.body_html else "")
         + "</div></li>"
         for e in s.events
@@ -756,7 +756,7 @@ def _r_lottie(s) -> str:
 def _r_simulation(s) -> str:
     steps = ""
     for i, st in enumerate(s.steps):
-        img = f'<img class="hotspot-img" data-asset="{_attr(st.image_asset_id)}" alt="">'
+        img = f'<img class="hotspot-img" data-asset="{_attr(st.image_asset_id)}" alt="{_attr(st.image_alt or "")}">'
         if st.input_accepted is not None:  # YAZMA adımı
             acc = _attr(json.dumps(st.input_accepted, ensure_ascii=False))
             label = _attr(st.input_label or "Cevabını yaz")
@@ -789,7 +789,7 @@ def _r_decision_scenario(s) -> str:
     start = s.start_node_id or s.nodes[0].id
     nodes_html = ""
     for node in s.nodes:
-        img = (f'<img class="scen-img" data-asset="{_attr(node.image_asset_id)}" alt="">'
+        img = (f'<img class="scen-img" data-asset="{_attr(node.image_asset_id)}" alt="{_attr(node.image_alt or "")}">'
                if node.image_asset_id else "")
         rows = ""
         for c in node.choices:
@@ -883,7 +883,7 @@ def _r_labeled_diagram(s) -> str:
         f'<option value="">— etiket seç —</option>{opts}</select></div>'
         for i, lb in enumerate(s.labels)
     )
-    img = f'<img class="hotspot-img" data-asset="{_attr(s.image_asset_id)}" alt="">'
+    img = f'<img class="hotspot-img" data-asset="{_attr(s.image_asset_id)}" alt="{_attr(s.image_alt or "")}">'
     inner = (
         f'<div class="labeled-diagram"><div class="ld-stage hotspot-stage">{img}{pins}</div>'
         f'<div class="ld-rows ui-stack">{rows}</div></div>'
@@ -1010,8 +1010,8 @@ def _r_image_compare(s) -> str:
         head += f'<div class="rich prompt">{sanitize(s.prompt_html)}</div>'
     return (
         f'{head}<figure class="img-compare-wrap"><div class="img-compare" data-compare>'
-        f'<img class="ic-img ic-img-before" data-asset="{_attr(s.before_asset_id)}" alt="">{bl}'
-        f'<div class="ic-after-wrap"><img class="ic-img ic-img-after" data-asset="{_attr(s.after_asset_id)}" alt="">{al}</div>'
+        f'<img class="ic-img ic-img-before" data-asset="{_attr(s.before_asset_id)}" alt="{_attr(s.before_label or "Önce")}">{bl}'
+        f'<div class="ic-after-wrap"><img class="ic-img ic-img-after" data-asset="{_attr(s.after_asset_id)}" alt="{_attr(s.after_label or "Sonra")}">{al}</div>'
         f'<input class="ic-range" type="range" min="0" max="100" value="50" aria-label="Önce/sonra karşılaştır">'
         f'<div class="ic-divider"></div></div>{cap}</figure>'
     )
@@ -1024,7 +1024,7 @@ def _r_game(s) -> str:
     start = s.start_node_id or s.nodes[0].id
     nodes_html = ""
     for node in s.nodes:
-        img = (f'<img class="game-img" data-asset="{_attr(node.image_asset_id)}" alt="">'
+        img = (f'<img class="game-img" data-asset="{_attr(node.image_asset_id)}" alt="{_attr(node.image_alt or "")}">'
                if node.image_asset_id else "")
         rows = ""
         for c in node.choices:

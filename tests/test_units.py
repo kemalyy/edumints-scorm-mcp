@@ -991,3 +991,191 @@ async def test_w8_export_qti_tool():
     assert out.data["count"] == 1  # yalnız mcq
     assert out.data["items"][0]["filename"] == "qti/q1.xml"
     assert "imsqti_v2p1" in out.data["items"][0]["xml"]
+
+
+def test_w9_alt_text_fields_optional_and_backward_compatible():
+    """Yeni alt-text alanları opsiyonel — eski (alt'sız) spec'ler değişmeden validate olmalı."""
+    from core.project import HotspotScreen, LabeledDiagramScreen, TimelineEvent, AccordionItem
+
+    # Eski stil (alt YOK) — kırılmamalı
+    h = HotspotScreen(id="h", title="T", prompt_html="<p>x</p>", image_asset_id="a1",
+                       regions=[{"id": "r1", "shape": "rect", "coords": [0, 0, 10, 10], "correct": True}])
+    assert h.image_alt is None
+
+    # Yeni stil (alt VAR) — kabul edilmeli
+    h2 = HotspotScreen(id="h2", title="T", prompt_html="<p>x</p>", image_asset_id="a1", image_alt="Kontrol paneli ekran görüntüsü",
+                        regions=[{"id": "r1", "shape": "rect", "coords": [0, 0, 10, 10], "correct": True}])
+    assert h2.image_alt == "Kontrol paneli ekran görüntüsü"
+
+    ld = LabeledDiagramScreen(id="ld", title="T", image_asset_id="a1", image_alt="Kalp anatomisi diyagramı",
+                               labels=[{"id": "l1", "x": 10, "y": 10, "text": "Sol karıncık"},
+                                       {"id": "l2", "x": 20, "y": 20, "text": "Sağ karıncık"}])
+    assert ld.image_alt == "Kalp anatomisi diyagramı"
+
+    ev = TimelineEvent(date="2020", title="Olay", image_asset_id="a1", image_alt="Fotoğraf")
+    assert ev.image_alt == "Fotoğraf"
+
+    it = AccordionItem(title="Panel", body_html="<p>x</p>", image_asset_id="a1", image_alt="Şema")
+    assert it.image_alt == "Şema"
+
+
+def test_w9_renderer_emits_real_alt_text():
+    """Alt-text alanı doluysa <img alt="..."> gerçek metni taşımalı, alt="" değil."""
+    from components.renderer import render_html
+    from core.project import Project, HotspotScreen, LabeledDiagramScreen
+
+    h = HotspotScreen(id="h", title="T", prompt_html="<p>x</p>", image_asset_id="a1",
+                       image_alt="Kontrol paneli ekran görüntüsü",
+                       regions=[{"id": "r1", "shape": "rect", "coords": [0, 0, 10, 10], "correct": True}])
+    p = Project(id=new_project_id(), title="K", screens=[h])
+    html = render_html(p, mode="package", runtime_js="")
+    assert 'alt="Kontrol paneli ekran görüntüsü"' in html
+
+    ld = LabeledDiagramScreen(id="ld", title="T", image_asset_id="a1", image_alt="Kalp anatomisi",
+                               labels=[{"id": "l1", "x": 10, "y": 10, "text": "Sol"},
+                                       {"id": "l2", "x": 20, "y": 20, "text": "Sağ"}])
+    p2 = Project(id=new_project_id(), title="K2", screens=[ld])
+    html2 = render_html(p2, mode="package", runtime_js="")
+    assert 'alt="Kalp anatomisi"' in html2
+
+    # alt verilmezse boş string'e düşer (kırılmaz), ama hardcoded değil — alan tabanlı
+    h3 = HotspotScreen(id="h3", title="T", prompt_html="<p>x</p>", image_asset_id="a1",
+                        regions=[{"id": "r1", "shape": "rect", "coords": [0, 0, 10, 10], "correct": True}])
+    p3 = Project(id=new_project_id(), title="K3", screens=[h3])
+    html3 = render_html(p3, mode="package", runtime_js="")
+    assert 'alt=""' in html3
+
+
+def test_w9_antislop_warns_on_missing_alt_text():
+    from core.project import HotspotScreen, LabeledDiagramScreen
+    from core.antislop import lint_course
+
+    # alt YOK → WARN beklenir
+    h = HotspotScreen(id="h", title="T", prompt_html="<p>x</p>", image_asset_id="a1",
+                       regions=[{"id": "r1", "shape": "rect", "coords": [0, 0, 10, 10], "correct": True}])
+    p = Project(id=new_project_id(), title="K", screens=[h])
+    codes = {i.code for i in lint_course(p)}
+    assert "missing_alt_text" in codes
+
+    # alt VAR → WARN yok
+    h2 = HotspotScreen(id="h2", title="T", prompt_html="<p>x</p>", image_asset_id="a1",
+                        image_alt="Kontrol paneli", regions=[{"id": "r1", "shape": "rect", "coords": [0, 0, 10, 10], "correct": True}])
+    p2 = Project(id=new_project_id(), title="K2", screens=[h2])
+    codes2 = {i.code for i in lint_course(p2)}
+    assert "missing_alt_text" not in codes2
+
+    # görsel yok → hiç kural tetiklenmez (LabeledDiagram image_asset_id ZORUNLU, o yüzden hotspot ile sınırlı kalır)
+    ld = LabeledDiagramScreen(id="ld", title="T", image_asset_id="a1",
+                               labels=[{"id": "l1", "x": 10, "y": 10, "text": "Sol"},
+                                       {"id": "l2", "x": 20, "y": 20, "text": "Sağ"}])
+    p3 = Project(id=new_project_id(), title="K3", screens=[ld])
+    codes3 = {i.code for i in lint_course(p3)}
+    assert "missing_alt_text" in codes3  # image_asset_id zorunlu ama image_alt opsiyonel — alt eksikse yine WARN
+
+
+def test_w9_antislop_warns_on_missing_alt_text_flashcards():
+    from core.project import Flashcard, FlashcardsScreen
+    from core.antislop import lint_course
+
+    # front_asset_id VAR ama front_alt YOK → WARN beklenir
+    card = Flashcard(front_html="<p>ön</p>", back_html="<p>arka</p>", front_asset_id="a1")
+    fc = FlashcardsScreen(id="fc", title="T", cards=[card])
+    p = Project(id=new_project_id(), title="K", screens=[fc])
+    codes = {i.code for i in lint_course(p)}
+    assert "missing_alt_text" in codes
+
+    # front_asset_id VE front_alt İKİSİ DE VAR → o alan için WARN yok
+    card2 = Flashcard(front_html="<p>ön</p>", back_html="<p>arka</p>",
+                       front_asset_id="a1", front_alt="Ön yüz görseli")
+    fc2 = FlashcardsScreen(id="fc2", title="T", cards=[card2])
+    p2 = Project(id=new_project_id(), title="K2", screens=[fc2])
+    codes2 = {i.code for i in lint_course(p2)}
+    assert "missing_alt_text" not in codes2
+
+    # back_asset_id VAR ama back_alt YOK → arka yüz için de WARN beklenir
+    card3 = Flashcard(front_html="<p>ön</p>", back_html="<p>arka</p>", back_asset_id="a1")
+    fc3 = FlashcardsScreen(id="fc3", title="T", cards=[card3])
+    p3 = Project(id=new_project_id(), title="K3", screens=[fc3])
+    issues3 = lint_course(p3)
+    assert any(i.code == "missing_alt_text" and "back_asset_id" in i.path for i in issues3)
+
+    # back_asset_id VE back_alt İKİSİ DE VAR → arka yüz için WARN yok
+    card4 = Flashcard(front_html="<p>ön</p>", back_html="<p>arka</p>",
+                       back_asset_id="a1", back_alt="Arka yüz görseli")
+    fc4 = FlashcardsScreen(id="fc4", title="T", cards=[card4])
+    p4 = Project(id=new_project_id(), title="K4", screens=[fc4])
+    issues4 = lint_course(p4)
+    assert not any(i.code == "missing_alt_text" and "back_asset_id" in i.path for i in issues4)
+
+
+def test_w9_antislop_warns_on_missing_alt_text_content_blocks():
+    """Final-review fix — ContentSlide.blocks görselleri de lint kapsamına girmeli
+    (renderer b.caption'ı alt-text olarak kullanıyor; blocks önceden gözden kaçıyordu)."""
+    from core.project import ContentSlide
+    from core.antislop import lint_course
+
+    # blocks içinde asset_id VAR ama caption YOK → WARN beklenir, path blocks[0] içermeli
+    cs = ContentSlide(id="cs", title="T", blocks=[{"asset_id": "a1"}])
+    p = Project(id=new_project_id(), title="K", screens=[cs])
+    issues = lint_course(p)
+    matches = [i for i in issues if i.code == "missing_alt_text" and "blocks[0]" in i.path]
+    assert len(matches) == 1
+
+    # blocks içinde asset_id VE caption İKİSİ DE VAR → WARN yok
+    cs2 = ContentSlide(id="cs2", title="T", blocks=[{"asset_id": "a1", "caption": "Bir görsel"}])
+    p2 = Project(id=new_project_id(), title="K2", screens=[cs2])
+    codes2 = {i.code for i in lint_course(p2)}
+    assert "missing_alt_text" not in codes2
+
+
+# ---- W9 P0: rate limiting (token bucket) ----
+def test_w9_rate_limiter_token_bucket():
+    from auth.ratelimit import RateLimiter
+
+    rl = RateLimiter(capacity=3, refill_per_sec=0.0)  # refill=0 → tükendiğinde geri gelmez (test kolaylığı)
+    assert rl.allow("user-a") is True
+    assert rl.allow("user-a") is True
+    assert rl.allow("user-a") is True
+    assert rl.allow("user-a") is False  # 4. istek: kapasite doldu
+    # farklı principal ayrı bucket kullanır
+    assert rl.allow("user-b") is True
+
+
+def test_w9_rate_limiter_refills_over_time():
+    from auth.ratelimit import RateLimiter
+    import time as _time
+
+    rl = RateLimiter(capacity=1, refill_per_sec=1000.0)  # çok hızlı refill
+    assert rl.allow("user-c") is True
+    assert rl.allow("user-c") is False
+    _time.sleep(0.01)  # 1000/sn refill ile 10ms'de ~10 token dolar
+    assert rl.allow("user-c") is True
+
+
+@pytest.mark.asyncio
+async def test_w9_rate_limit_blocks_excessive_tool_calls(monkeypatch):
+    import server as _server
+
+    monkeypatch.setattr(_server, "_RATE_LIMITER", _server.RateLimiter(capacity=2, refill_per_sec=0.0))
+    async with Client(_server.mcp) as c:
+        r1 = await c.call_tool("create_project", {"title": "A"})
+        r2 = await c.call_tool("create_project", {"title": "B"})
+        assert r1 and r2
+        with pytest.raises(Exception, match="rate_limited"):
+            await c.call_tool("create_project", {"title": "C"})
+
+
+# ---- W9 P0: audit logging ----
+def test_w9_audit_log_emits_on_project_create(caplog):
+    import logging
+    import server
+    from fastmcp import Client
+    import asyncio
+
+    async def _run():
+        async with Client(server.mcp) as c:
+            await c.call_tool("create_project", {"title": "Audit Test"})
+
+    with caplog.at_level(logging.INFO, logger="scorm_mcp.audit"):
+        asyncio.run(_run())
+    assert any("event=project_create" in r.message for r in caplog.records)

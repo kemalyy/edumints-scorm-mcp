@@ -12,6 +12,11 @@ os.environ.setdefault("PUBLIC_BASE_URL", "https://mcp.test/scorm")
 os.environ.setdefault("BUILD_SYNC_TIMEOUT_SEC", "20")
 # Sonsuz TTL-cleaner arka-plan task'ini testte başlatma (CI'da pytest teardown hang'ini önler).
 os.environ.setdefault("SCORM_NO_TTL_CLEANER", "1")
+# W9 P0 rate limiter: test ortamında tüm tool çağrıları tek anonim principal'a (key_local)
+# yazılır — paket büyüdükçe 60/dk global bucket'ı tüketip alakasız testleri kırmasın diye
+# limiti pratikte devre dışı bırak (ölçüm: mevcut paket ~45 çağrı, %75 doluluk). Rate-limit
+# testleri kendi RateLimiter örneğini monkeypatch'lediğinden bundan etkilenmez.
+os.environ.setdefault("RATE_LIMIT_PER_MIN", "100000")
 # Testler AĞSIZ olmalı: XSD şema fetch'i (imsglobal) CI'da yavaş/asılı kalabilir. SCORM_SCHEMA_DIR'i
 # şemasız bir dizine işaret ettir → _ensure_populated None → conformance testi graceful skip eder.
 # (XSD doğrulamasını gerçek koşmak için bu env'i unset edip ağa izin ver.)

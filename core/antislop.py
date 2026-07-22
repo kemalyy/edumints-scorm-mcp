@@ -22,9 +22,17 @@ import json
 from dataclasses import dataclass
 
 from .project import (
+    AccordionScreen,
     AdaptivePracticeScreen,
+    DecisionScenarioScreen,
+    FlashcardsScreen,
     GameScreen,
+    HotspotScreen,
+    LabeledDiagramScreen,
     Project,
+    SimulationScreen,
+    TabsScreen,
+    TimelineScreen,
 )
 
 _SCORE_DOS = {"score.correct", "score.wrong", "score.add"}
@@ -40,7 +48,7 @@ class LintIssue:
 
 
 def lint_course(project: Project) -> list[LintIssue]:
-    """Kurstaki tüm game/adaptive_practice ekranlarını denetle. ERROR + WARN karışık döner."""
+    """Kurstaki tüm ekranları denetle. ERROR + WARN karışık döner."""
     issues: list[LintIssue] = []
     for i, s in enumerate(project.screens):
         path = f"screens[{i}]"
@@ -48,6 +56,7 @@ def lint_course(project: Project) -> list[LintIssue]:
             issues += _lint_game(s, path)
         elif isinstance(s, AdaptivePracticeScreen):
             issues += _lint_adaptive(s, path)
+        issues += _lint_missing_alt(s, path)
     return issues
 
 
@@ -157,4 +166,54 @@ def _lint_adaptive(s: AdaptivePracticeScreen, path: str) -> list[LintIssue]:
             out.append(LintIssue("warn", "item_without_explanation",
                                  f"Adaptif öğe '{it.id}' açıklama (explain_html) içermiyor — doğru/yanlış neden, gösterilmeli",
                                  f"{path}.items[{it.id}]"))
+    return out
+
+
+# --- erişilebilirlik: eksik alt-text (W9 P0) ------------------------------
+def _lint_missing_alt(s, path: str) -> list[LintIssue]:
+    """Görsel taşıyan alanlarda alt-text eksikse WARN (yapıyı bozmaz, danışsal)."""
+    out: list[LintIssue] = []
+
+    def check(asset_id, alt, sub_path):
+        if asset_id and not (alt or "").strip():
+            out.append(LintIssue("warn", "missing_alt_text",
+                                 f"Görsel var ama alt-text yok ({sub_path}) — ekran okuyucu kullanıcılar "
+                                 "için görselin içeriğini kısaca anlatan bir alt metni ekle",
+                                 sub_path))
+
+    if isinstance(s, HotspotScreen):
+        check(s.image_asset_id, s.image_alt, f"{path}.image_asset_id")
+    elif isinstance(s, LabeledDiagramScreen):
+        check(s.image_asset_id, s.image_alt, f"{path}.image_asset_id")
+    elif isinstance(s, SimulationScreen):
+        for i, st in enumerate(s.steps):
+            check(st.image_asset_id, st.image_alt, f"{path}.steps[{i}]")
+    elif isinstance(s, DecisionScenarioScreen):
+        for n in s.nodes:
+            check(n.image_asset_id, n.image_alt, f"{path}.nodes[{n.id}]")
+    elif isinstance(s, GameScreen):
+        for n in s.nodes:
+            check(n.image_asset_id, n.image_alt, f"{path}.nodes[{n.id}]")
+    elif isinstance(s, AccordionScreen):
+        for i, it in enumerate(s.items):
+            check(it.image_asset_id, it.image_alt, f"{path}.items[{i}]")
+    elif isinstance(s, TabsScreen):
+        for i, t in enumerate(s.tabs):
+            check(t.image_asset_id, t.image_alt, f"{path}.tabs[{i}]")
+    elif isinstance(s, TimelineScreen):
+        for i, e in enumerate(s.events):
+            check(e.image_asset_id, e.image_alt, f"{path}.events[{i}]")
+    elif isinstance(s, FlashcardsScreen):
+        for i, c in enumerate(s.cards):
+            check(c.front_asset_id, c.front_alt, f"{path}.cards[{i}].front_asset_id")
+            check(c.back_asset_id, c.back_alt, f"{path}.cards[{i}].back_asset_id")
+    else:
+        media_asset_id = getattr(s, "media_asset_id", None)
+        if media_asset_id:
+            check(media_asset_id, getattr(s, "media_alt", None), f"{path}.media_asset_id")
+        # W9 review fix — ContentSlide.blocks görselleri de kapsanmalı: renderer
+        # (components/renderer.py) block görselleri için b.caption'ı alt-text olarak
+        # kullanıyor; bu blok yoksa lint'in gözden kaçırdığı bir alt-text boşluğu oluşuyordu.
+        for i, b in enumerate(getattr(s, "blocks", None) or []):
+            check(b.asset_id, b.caption, f"{path}.blocks[{i}]")
     return out

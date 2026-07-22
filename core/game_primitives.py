@@ -205,6 +205,7 @@ class GameNode(BaseModel):
     id: str
     content_html: str
     image_asset_id: str | None = None
+    image_alt: str | None = None  # W9 — WCAG alt text
     choices: list[GameChoice] = Field(default_factory=list)
 
 

@@ -6,6 +6,9 @@ on:
   schedule:
     - cron: "0 6 * * 1"   # her Pazartesi 06:00 UTC (off-peak dakika)
   workflow_dispatch:
+  push:
+    branches: [master]
+  pull_request:
 
 permissions:
   contents: read
@@ -13,6 +16,7 @@ permissions:
 
 jobs:
   report:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
@@ -55,3 +59,57 @@ jobs:
             gh issue create --repo "${{ github.repository }}" --title "$title" \
               --label "deps-report" --body "$body"
           fi
+
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: pip-audit (bilinen CVE taraması — gate)
+        run: |
+          pip install -q pip-audit
+          # NOT: kurulum başarısızlığını asla yutma (final review fix — eskiden
+          # `|| true` vardı: kurulum kırılırsa iş neredeyse boş bir ortama karşı
+          # `pip-audit --strict` çalıştırıp yine de yeşil geçiyordu — hiçbir şey
+          # denetlenmemiş olsa bile). Editable kurulum (-e) desteklenmiyorsa sade
+          # kuruluma düş; o da patlarsa adım gerçek hata mesajıyla KIRILSIN.
+          pip install -q -e . 2>/dev/null || pip install -q .
+          # scorm-mcp kendisi PyPI'da yayınlı değil; --strict bunu "audit edilemedi"
+          # diye fatal hata sayıp her çalıştırmada kırılır (gerçek CVE olsun olmasın).
+          #
+          # --skip-editable BUNU ÇÖZMÜYOR — lokal doğrulandı (pip-audit 2.10.1,
+          # editable kurulu scorm-mcp ile): `pip-audit --strict --skip-editable`
+          # şu çıktıyı verip exit=1 ile kırılıyor:
+          #   ERROR:pip_audit._cli:scorm-mcp: distribution marked as editable
+          # Neden: pip_audit/_cli.py içinde her `spec.is_skipped()` bağımlılık için
+          # (yani --skip-editable'ın atladığı paketler dahil) `args.strict` doğruysa
+          # doğrudan `_fatal(...)` çağrılıyor. Yani --skip-editable paketi "atlıyor"
+          # ama --strict o atlamayı da fatal sayıyor; ikisi birlikte editable yerel
+          # paketi kurtarmıyor. Bu yüzden yerel paketi audit'ten önce kaldırıp
+          # yalnız 3.-parti bağımlılıkları taratıyoruz (bu da lokalde doğrulandı:
+          # aynı CVE listesi, exit=1 sadece bulunan zafiyetlerden geliyor).
+          pip uninstall -y scorm-mcp 2>/dev/null || true
+          # Final review fix (2026-07-22) — aşağıdaki 10 ID, w9-p0-security-a11y
+          # dalının birleşme anında pip-audit --strict ile lokalde bulunan, gerçek
+          # ve bilinen 3.-parti CVE'leridir (cryptography, mcp, pydantic-settings,
+          # python-multipart, setuptools, starlette). Düzeltmeleri bu dalın kapsamı
+          # dışında bırakıldı (gerçek uyumluluk riski taşıyan ayrı, daha büyük bir
+          # takip işi). Sessizce sonsuza kadar yok sayılmıyorlar — takip planı:
+          # docs/superpowers/plans/2026-07-22-institutional-production-readiness.md
+          # Bu liste NEDEN var: gate'i şimdi anlamlı biçimde yeşil tutmak, ama yeni
+          # bir CVE çıktığı an (bu listede olmayan) gate yine doğru şekilde kırmızıya
+          # dönsün — yani gerçek bir regresyon kapısı, kalıcı kırmızı gürültü değil.
+          pip-audit --strict \
+            --ignore-vuln GHSA-537c-gmf6-5ccf \
+            --ignore-vuln CVE-2026-59950 \
+            --ignore-vuln GHSA-4xgf-cpjx-pc3j \
+            --ignore-vuln PYSEC-2026-3040 \
+            --ignore-vuln PYSEC-2022-43012 \
+            --ignore-vuln PYSEC-2025-49 \
+            --ignore-vuln PYSEC-2026-1918 \
+            --ignore-vuln PYSEC-2026-3447 \
+            --ignore-vuln PYSEC-2026-248 \
+            --ignore-vuln PYSEC-2026-249

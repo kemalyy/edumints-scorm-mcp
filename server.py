@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import logging
 import os
 import re
 from pathlib import Path
@@ -90,9 +91,15 @@ class Settings:
         self.logto_alg = os.environ.get("LOGTO_ALG", "ES384")  # Logto EC imzası; RS256 uyuşmaz→401
         # OAuth yalnız issuer+jwks+audience'ın üçü de verildiyse etkin (yoksa sadece API-key).
         self.oauth_enabled = bool(self.logto_issuer and self.logto_jwks and self.mcp_audience)
+        # W9 P0 — per-principal rate limit (dakika başına istek), basit in-process token bucket.
+        self.rate_limit_per_min = int(os.environ.get("RATE_LIMIT_PER_MIN", "60"))
 
 
 SETTINGS = Settings()
+
+logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
+logger = logging.getLogger("scorm_mcp.audit")
+
 THEMES_DIR = Path(__file__).resolve().parent / "themes"
 
 
@@ -152,6 +159,10 @@ def _build_auth():
 
 mcp = FastMCP(name="scorm-mcp", auth=_build_auth())
 
+from auth.ratelimit import RateLimiter  # noqa: E402
+
+_RATE_LIMITER = RateLimiter(capacity=SETTINGS.rate_limit_per_min, refill_per_sec=SETTINGS.rate_limit_per_min / 60.0)
+
 
 # --------------------------------------------------------------------------- #
 # Yardımcılar
@@ -160,7 +171,7 @@ def _wrap(err: ToolError) -> MCPToolError:
     return MCPToolError(f"{err.code}: {err.message}")
 
 
-async def _owner() -> ApiKey:
+async def _owner_resolve() -> ApiKey:
     """Auth context'inden owner'ı çözer (dual-auth: OAuth VEYA API-key; CONTRACTS.md §3).
 
     owner_key_id, kotanın ve proje sahipliğinin anahtarıdır:
@@ -205,6 +216,16 @@ async def _owner() -> ApiKey:
             max_projects=SETTINGS.max_projects_per_key, max_total_mb=SETTINGS.max_project_mb,
         )
     return await verify_key(SVC.store, raw)
+
+
+async def _owner() -> ApiKey:
+    """_owner_resolve() + per-principal rate limit (W9 P0). Tüm tool call-site'ları
+    `await _owner()` çağırdığından limit tek noktadan uygulanır."""
+    owner = await _owner_resolve()
+    if not _RATE_LIMITER.allow(owner.id):
+        raise ToolError("rate_limited", "İstek sınırı aşıldı (dakikada "
+                        f"{SETTINGS.rate_limit_per_min} istek). Birazdan tekrar dene.")
+    return owner
 
 
 _JWT_VERIFIER = None
@@ -402,6 +423,7 @@ async def create_project(
             owner_key_id=owner.id,
         )
         await SVC.store.create_project(p)
+        logger.info("event=project_create owner=%s project_id=%s title=%r", owner.id, p.id, title)
         return CreateProjectOut(project_id=p.id)
     except ToolError as e:
         raise _wrap(e)
@@ -841,7 +863,9 @@ async def build_package(project_id: str) -> BuildOut:
         job = await SVC.packager.submit(p)
         timeout = float(os.environ.get("BUILD_SYNC_TIMEOUT_SEC", "4"))
         job = await SVC.packager.wait(job.id, timeout=timeout)
-        return await _job_to_out(job, p)
+        out = await _job_to_out(job, p)
+        logger.info("event=package_build owner=%s project_id=%s status=%s", owner.id, project_id, out.status)
+        return out
     except ToolError as e:
         raise _wrap(e)
 
@@ -944,6 +968,7 @@ async def build_from_spec(spec: dict) -> BuildFromSpecOut:
                     s.narration_asset_id = nref.id
 
         await SVC.store.create_project(p)
+        logger.info("event=project_create owner=%s project_id=%s title=%r source=build_from_spec", owner.id, p.id, spec.title)
 
         errs = validate_project(p)
         if errs:
@@ -1127,6 +1152,7 @@ async def create_key(request: Request) -> JSONResponse:
         preview=raw[:10] + "…" + raw[-4:],  # maskeli gösterim; ham key saklanmaz
     )
     await SVC.store.upsert_key(key, raw_key=raw)
+    logger.info("event=key_create owner=%s key_id=%s", owner.id, key.id)
     return JSONResponse({"api_key": raw, "key_id": key.id, "principal": owner.id})
 
 
@@ -1163,6 +1189,7 @@ async def keys_delete(request: Request) -> JSONResponse:
     if k is None or (k.owner_principal or k.id) != owner.id:
         return JSONResponse({"error": "not_found"}, status_code=404)
     await SVC.store.delete_key(kid)
+    logger.info("event=key_delete owner=%s key_id=%s", owner.id, kid)
     return JSONResponse({"ok": True})
 
 
