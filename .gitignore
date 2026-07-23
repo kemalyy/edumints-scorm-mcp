@@ -13,3 +13,4 @@ packages/
 
 node_modules/
 coverage/
+tests/a11y/fixtures/

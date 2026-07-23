@@ -6,10 +6,13 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
-    "coverage": "vitest run --coverage"
+    "coverage": "vitest run --coverage",
+    "a11y-audit": "node tests/a11y/audit.mjs"
   },
   "devDependencies": {
     "vitest": "^2.1.9",
-    "@vitest/coverage-v8": "^2.1.9"
+    "@vitest/coverage-v8": "^2.1.9",
+    "@axe-core/playwright": "^4.10.0",
+    "playwright": "^1.48.0"
   }
 }
