@@ -17,8 +17,8 @@ os.environ.setdefault("SCORM_NO_TTL_CLEANER", "1")
 os.environ.setdefault("SCORM_SCHEMA_DIR", os.path.join(_TMP, "no_schemas"))
 os.environ.setdefault("RATE_LIMIT_PER_MIN", "100000")
 
-import server
-from fastmcp import Client
+import server  # noqa: E402
+from fastmcp import Client  # noqa: E402
 
 EXAMPLES_DIR = Path(__file__).resolve().parent.parent.parent / "examples" / "games"
 OUT_DIR = Path(__file__).resolve().parent / "fixtures"
