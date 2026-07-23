@@ -54,3 +54,35 @@ jobs:
         run: npm ci
       - name: Run engine tests (vitest)
         run: npm test
+
+  a11y-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true  # non-blocking (kullanıcı kararı, 2026-07-22) — rapor eder, PR'ı kırmaz
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install package
+        run: pip install -q -e .
+      - name: Generate a11y fixtures
+        run: |
+          python tests/a11y/generate_fixtures.py &
+          GEN_PID=$!
+          sleep 30
+          kill "$GEN_PID" 2>/dev/null || true
+          wait "$GEN_PID" 2>/dev/null || true
+          count=$(ls tests/a11y/fixtures/*.html 2>/dev/null | wc -l)
+          echo "fixture count: $count"
+          if [ "$count" -eq 0 ]; then echo "::warning::a11y fixture üretimi başarısız, denetim boş geçecek"; fi
+        shell: bash
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install JS dev deps
+        run: npm ci
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run a11y audit (non-blocking)
+        run: npm run a11y-audit
