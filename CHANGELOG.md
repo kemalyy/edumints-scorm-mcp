@@ -5,6 +5,54 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.4.0] — 2026-07-23
+
+Institutional-readiness hardening (W9 P0+P1): accessibility alt-text, rate limiting, audit logging,
+dependency scanning, mechanized anti-slop rules, SCORM Cloud CI conformance gate, WCAG game a11y
+audit tooling. All additive — existing specs unchanged, no server-side LLM. Still 25 MCP tools.
+
+### Added — accessibility (alt text)
+- Opsiyonel `*_alt` fields on 10 screen/item classes carrying images (`HotspotScreen.image_alt`,
+  `LabeledDiagramScreen.image_alt`, `SimStep.image_alt`, `ScenarioNode.image_alt`,
+  `GameNode.image_alt`, `ContentSlide.media_alt`, `AccordionItem.image_alt`, `TabItem.image_alt`,
+  `Flashcard.front_alt`/`back_alt`, `TimelineEvent.image_alt`) — renderer now emits the real value
+  instead of a hardcoded empty `alt=""`.
+- `lint_course` gained a `missing_alt_text` WARN — flags any image-bearing field left without alt
+  text, across every screen type that carries one (including `ContentSlide.blocks[]`).
+
+### Added — security
+- Per-principal rate limiting (`RATE_LIMIT_PER_MIN`, default 60/min) — an in-process token bucket
+  wraps the internal owner-resolution path used by 23 of 25 MCP tools; the previously-unused
+  `rate_limited` error code now actually fires.
+- Basic structured audit logging (`scorm_mcp.audit` logger) for project creation, package builds,
+  and API-key create/delete.
+- CI: Dependabot (pip + github-actions) + a real `pip-audit --strict` gate on every push/PR
+  (previously only a non-blocking weekly report).
+
+### Added — anti-slop mechanization
+- Four more anti-slop rules from `references/anti-slop.md` are now mechanically enforced (WARN) via
+  `lint_course` instead of relying on the authoring model to self-count: `consecutive_content_slides`
+  (A1, >2 in a row), `too_many_list_items` (A2, >4 `<li>` per screen), `generic_title` (A3, e.g.
+  "Modül 1: Giriş"), `default_feedback` (B3, schema-default `"Doğru!"`/`"Tekrar deneyin."` left
+  unedited).
+
+### Added — conformance & a11y tooling
+- `tools/scorm_cloud.py` + `tools/scorm_cloud_ci_check.py` + a private-repo CI workflow
+  (`scorm-cloud-conformance.yml`): every push to master imports 4 real package combinations
+  (small/rich × SCORM 1.2/2004) into SCORM Cloud and verifies 0 parser warnings + a launchable
+  registration — a genuine, repeating conformance gate (previously a one-time manual check).
+  `docs/CONFORMANCE.md` now also lists Moodle/Canvas/Blackboard/TalentLMS/Docebo as an honest,
+  unfilled manual checklist (no access to automate these).
+- `tests/a11y/generate_fixtures.py` + `tests/a11y/audit.mjs` (`npm run a11y-audit`) — renders the 8
+  `examples/games/*.json` courses and runs `@axe-core/playwright` against them, reporting WCAG
+  violations. Non-blocking for this first pass (baseline: 8 fixtures, 8 moderate `heading-order`
+  violations) — a new public-repo CI job (`a11y-audit`) runs this on every push/PR.
+
+### Known gaps carried forward (see `docs/superpowers/plans/2026-07-22-institutional-production-readiness.md`)
+- 10 known third-party dependency CVEs (cryptography, mcp, pydantic-settings, python-multipart,
+  setuptools, starlette) — pinned via `--ignore-vuln` with a dated tracking note, not yet fixed.
+- No organization/multi-tenant model, no backup/DR automation, no billing — still open P1/P2 items.
+
 ## [1.3.0] — 2026-06-26
 
 SVG diagram pipeline + block sizing + opt-in narration. **25 MCP tools.** All additive — existing
