@@ -127,6 +127,14 @@ class Motion(BaseModel):
     reduce_motion_respect: bool = True
 
 
+class CustomFont(BaseModel):
+    """Paketlenmiş bir .woff2 asset'inden @font-face üretmek için (W10 marka katmanı)."""
+    family: str
+    asset_id: str
+    weight: int = 400
+    style: Literal["normal", "italic"] = "normal"
+
+
 class ThemeTokens(BaseModel):
     name: str = "default"
     typography: Typography = Field(default_factory=Typography)
@@ -136,6 +144,8 @@ class ThemeTokens(BaseModel):
     elevation: Elevation = Field(default_factory=Elevation)
     motion: Motion = Field(default_factory=Motion)
     logo_asset_id: str | None = None
+    logo_alt: str | None = None
+    custom_fonts: list[CustomFont] = Field(default_factory=list)
     background_pattern: Literal["none", "dots", "grid", "gradient"] = "none"
     custom_css: str | None = None
 

@@ -1,0 +1,40 @@
+{
+  "name": "style-premium",
+  "typography": {
+    "font_heading": "Georgia, 'Times New Roman', serif",
+    "font_body": "'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+    "font_mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace",
+    "base_size_px": 16,
+    "scale_ratio": 1.25,
+    "weight_heading": 700,
+    "weight_body": 400,
+    "weight_strong": 600,
+    "line_height_tight": 1.15,
+    "line_height_normal": 1.65,
+    "letter_spacing_heading": "-0.01em"
+  },
+  "color": {
+    "primary": "#c4a75a",
+    "primary_hover": "#b3934a",
+    "primary_contrast": "#1e1b3a",
+    "secondary": "#8b7ec8",
+    "accent": "#c4a75a",
+    "bg": "#0f172a",
+    "surface": "#1e1b3a",
+    "surface_alt": "#241f47",
+    "border": "#332c5c",
+    "text": "#f8fafc",
+    "text_muted": "#cbd5e1",
+    "text_on_dark": "#f8fafc",
+    "success": "#4ade80",
+    "success_bg": "#14532d",
+    "error": "#f87171",
+    "error_bg": "#450a0a",
+    "warning": "#facc15",
+    "info": "#38bdf8",
+    "focus_ring": "#c4a75a"
+  },
+  "radii": { "none": "0", "sm": "4px", "md": "8px", "lg": "12px", "pill": "999px" },
+  "background_pattern": "none",
+  "custom_css": ".screen-title{font-family:var(--font-heading);font-weight:var(--w-heading);letter-spacing:var(--ls-heading)} .btn-primary{background:linear-gradient(135deg,var(--c-accent),color-mix(in srgb,var(--c-accent) 70%,#fff));color:var(--c-bg);font-weight:var(--w-strong)} .btn-primary:hover{background:linear-gradient(135deg,color-mix(in srgb,var(--c-accent) 85%,#fff),var(--c-accent))} .screen-inner{border:1px solid color-mix(in srgb,var(--c-border) 60%,transparent)}"
+}

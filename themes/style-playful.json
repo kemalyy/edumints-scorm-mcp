@@ -1,0 +1,25 @@
+{
+  "extends": "playground",
+  "name": "style-playful",
+  "color": {
+    "primary": "#4f46e5",
+    "primary_hover": "#4338ca",
+    "primary_contrast": "#ffffff",
+    "secondary": "#7c3aed",
+    "accent": "#0d9488",
+    "bg": "#fafafa",
+    "surface": "#ffffff",
+    "surface_alt": "#f4f4f5",
+    "border": "#e4e4e7",
+    "text": "#18181b",
+    "text_muted": "#71717a",
+    "text_on_dark": "#fafafa",
+    "success": "#16a34a",
+    "success_bg": "#dcfce7",
+    "error": "#dc2626",
+    "error_bg": "#fee2e2",
+    "warning": "#d97706",
+    "info": "#0284c7",
+    "focus_ring": "#4f46e5"
+  }
+}

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import logging
 import os
 import re
@@ -282,13 +283,21 @@ async def _load(project_id: str, owner: ApiKey) -> Project:
     return p
 
 
-def _load_theme(theme: str | ThemeTokens) -> ThemeTokens:
+def _load_theme(theme: str | ThemeTokens, _seen: frozenset[str] = frozenset()) -> ThemeTokens:
     if isinstance(theme, ThemeTokens):
         return theme
+    if theme in _seen:
+        raise ToolError("invalid_theme", f"Döngüsel tema mirası tespit edildi: {theme}")
     path = THEMES_DIR / f"{theme}.json"
-    if path.exists():
-        return ThemeTokens.model_validate_json(path.read_text(encoding="utf-8"))
-    return ThemeTokens(name="default")
+    if not path.exists():
+        return ThemeTokens(name="default")
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    parent_name = raw.pop("extends", None)
+    child = ThemeTokens.model_validate(raw)
+    if parent_name is None:
+        return child
+    parent = _load_theme(parent_name, _seen | {theme})
+    return _deep_merge_theme(parent, child)
 
 
 def _deep_merge_theme(base: ThemeTokens, override: ThemeTokens) -> ThemeTokens:
@@ -1073,6 +1082,12 @@ _THEME_DESC: dict[str, str] = {
     "editorial": "Serif + düz çift-çizgi kart + drop-cap — beşeri/akademik.",
     "playground": "Yuvarlak + canlı + zıplayan butonlar — çocuk/oyun.",
     "boardroom-clinic": "Rafine, güven, sıkı radii — kurumsal/sağlık.",
+    "style-minimal": "Rafine minimal — yumuşak gölge, mavi vurgu; marka rengiyle serbestçe yeniden "
+                      "boyanabilir yapısal stil.",
+    "style-playful": "Oyunsu/enerjik — kalın kenarlık, 3D buton basma efekti, noktalı doku; marka "
+                      "rengiyle serbestçe yeniden boyanabilir yapısal stil.",
+    "style-premium": "Premium/editoryal — koyu zemin, serif başlık, ince çizgiler; marka rengiyle "
+                      "serbestçe yeniden boyanabilir yapısal stil.",
 }
 
 

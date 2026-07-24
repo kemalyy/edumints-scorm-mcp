@@ -1,5 +1,6 @@
 """tests/test_units.py — birim testler (manifest, SSRF, sanitizasyon, fast-path, kota)."""
 
+import json
 import pytest
 from fastmcp import Client
 
@@ -1262,3 +1263,226 @@ def test_w9_antislop_b3_default_feedback():
     p2 = Project(id=new_project_id(), title="K2", screens=[s2])
     codes2 = {i.code for i in lint_course(p2)}
     assert "default_feedback" not in codes2
+
+
+def test_w10_theme_logo_alt_and_custom_fonts_fields():
+    from core.project import ThemeTokens, CustomFont
+
+    t = ThemeTokens()
+    assert t.logo_alt is None
+    assert t.custom_fonts == []
+
+    t2 = ThemeTokens(
+        logo_asset_id="logo1", logo_alt="Acme Corp logo",
+        custom_fonts=[CustomFont(family="Acme Sans", asset_id="font1", weight=700)],
+    )
+    assert t2.logo_alt == "Acme Corp logo"
+    assert t2.custom_fonts[0].family == "Acme Sans"
+    assert t2.custom_fonts[0].asset_id == "font1"
+    assert t2.custom_fonts[0].weight == 700
+    assert t2.custom_fonts[0].style == "normal"
+
+
+def test_w10_chrome_logo_absent_keeps_brand_dot():
+
+    p = Project(id=new_project_id(), title="K",
+                screens=[ContentSlide(id="c1", title="T", body_html="<p>x</p>")])
+    html = render_html(p, mode="preview", runtime_js="/*rt*/")
+    assert '<span class="brand-dot"></span>' in html
+    # NOT: BASE_CSS her zaman ".chrome-logo{...}" kuralını içerir (statik CSS, davranış
+    # değişikliği yok) — burada asıl markup'ta <img class="chrome-logo"> ELEMANI olmadığını
+    # doğruluyoruz, ham "chrome-logo" alt-dizesini değil.
+    assert 'class="chrome-logo"' not in html
+
+
+def test_w10_chrome_logo_present_renders_img():
+    from core.project import ThemeTokens
+
+    theme = ThemeTokens(logo_asset_id="corp_logo", logo_alt="Acme Corp logo")
+    p = Project(id=new_project_id(), title="K", theme=theme,
+                screens=[ContentSlide(id="c1", title="T", body_html="<p>x</p>")])
+    html = render_html(p, mode="preview", runtime_js="/*rt*/")
+    assert '<span class="brand-dot"></span>' not in html
+    assert 'class="chrome-logo"' in html
+    assert 'data-asset="corp_logo"' in html
+    assert 'alt="Acme Corp logo"' in html
+
+
+def test_w10_chrome_logo_alt_falls_back_to_theme_name():
+    from core.project import ThemeTokens
+
+    theme = ThemeTokens(name="acme", logo_asset_id="corp_logo")  # logo_alt verilmedi
+    p = Project(id=new_project_id(), title="K", theme=theme,
+                screens=[ContentSlide(id="c1", title="T", body_html="<p>x</p>")])
+    html = render_html(p, mode="preview", runtime_js="/*rt*/")
+    assert 'alt="acme"' in html
+
+
+def test_w10_font_faces_empty_when_no_custom_fonts():
+    p = Project(id=new_project_id(), title="K",
+                screens=[ContentSlide(id="c1", title="T", body_html="<p>x</p>")])
+    html = render_html(p, mode="preview", runtime_js="/*rt*/")
+    assert "@font-face" not in html
+
+
+def test_w10_font_faces_rendered_for_custom_fonts():
+    from core.project import ThemeTokens, CustomFont, AssetRef
+
+    theme = ThemeTokens(custom_fonts=[CustomFont(family="Acme Sans", asset_id="font1", weight=700,
+                                                   style="italic")])
+    p = Project(id=new_project_id(), title="K", theme=theme,
+                assets=[AssetRef(id="font1", filename="acme.woff2", mime="font/woff2",
+                                  size_bytes=20, sha256="0" * 64, rel_path="assets/acme.woff2")],
+                screens=[ContentSlide(id="c1", title="T", body_html="<p>x</p>")])
+    html = render_html(p, mode="preview", runtime_js="/*rt*/",
+                        asset_data={"font1": ("font/woff2", b"\x00\x01fake-woff2-bytes")})
+    assert "@font-face" in html
+    assert 'font-family:"Acme Sans"' in html
+    assert "font-weight:700" in html
+    assert "font-style:italic" in html
+    assert "data:font/woff2;base64," in html  # asset_map preview'da data-URI'ye çözülmüş olmalı
+
+
+def test_w10_font_faces_skips_unresolved_asset():
+    """asset_map'te bulunmayan bir asset_id sessizce atlanır (paket bozulmaz)."""
+    from core.project import ThemeTokens, CustomFont
+
+    theme = ThemeTokens(custom_fonts=[CustomFont(family="Ghost", asset_id="missing_asset")])
+    p = Project(id=new_project_id(), title="K", theme=theme,
+                screens=[ContentSlide(id="c1", title="T", body_html="<p>x</p>")])
+    html = render_html(p, mode="preview", runtime_js="/*rt*/")
+    assert "@font-face" not in html
+
+
+def test_w10_lint_warns_on_theme_logo_missing_alt():
+    from core.antislop import lint_course
+    from core.project import ThemeTokens
+
+    theme = ThemeTokens(logo_asset_id="corp_logo")  # logo_alt YOK
+    p = Project(id=new_project_id(), title="K", theme=theme,
+                screens=[ContentSlide(id="c1", title="T", body_html="<p>x</p>")])
+    issues = lint_course(p)
+    matches = [i for i in issues if i.code == "missing_alt_text" and i.path == "theme.logo_asset_id"]
+    assert len(matches) == 1
+
+    theme2 = ThemeTokens(logo_asset_id="corp_logo", logo_alt="Acme Corp logo")
+    p2 = Project(id=new_project_id(), title="K2", theme=theme2,
+                 screens=[ContentSlide(id="c1", title="T", body_html="<p>x</p>")])
+    issues2 = lint_course(p2)
+    assert not any(i.path == "theme.logo_asset_id" for i in issues2)
+
+    # logo_asset_id yoksa hiç tetiklenmez
+    p3 = Project(id=new_project_id(), title="K3",
+                 screens=[ContentSlide(id="c1", title="T", body_html="<p>x</p>")])
+    issues3 = lint_course(p3)
+    assert not any(i.path == "theme.logo_asset_id" for i in issues3)
+
+
+def test_w10_load_theme_extends_merges_parent(tmp_path, monkeypatch):
+    import server as srv
+
+    (tmp_path / "base.json").write_text(json.dumps({
+        "name": "base",
+        "typography": {"font_heading": "Arial", "font_body": "Arial", "font_mono": "monospace",
+                        "base_size_px": 16, "scale_ratio": 1.25, "weight_heading": 700,
+                        "weight_body": 400, "weight_strong": 600, "line_height_tight": 1.15,
+                        "line_height_normal": 1.6, "letter_spacing_heading": "0"},
+        "color": {"primary": "#111111", "primary_hover": "#000000", "primary_contrast": "#ffffff",
+                   "secondary": "#222222", "accent": "#333333", "bg": "#ffffff", "surface": "#ffffff",
+                   "surface_alt": "#eeeeee", "border": "#dddddd", "text": "#000000",
+                   "text_muted": "#666666", "text_on_dark": "#ffffff", "success": "#00ff00",
+                   "success_bg": "#eaffea", "error": "#ff0000", "error_bg": "#ffeaea",
+                   "warning": "#ffaa00", "info": "#0000ff", "focus_ring": "#111111"},
+        "background_pattern": "dots",
+        "custom_css": ".btn{color:var(--c-primary)}",
+    }), encoding="utf-8")
+    (tmp_path / "child.json").write_text(json.dumps({
+        "extends": "base", "name": "child",
+        "color": {"primary": "#004dcf"},
+    }), encoding="utf-8")
+
+    monkeypatch.setattr(srv, "THEMES_DIR", tmp_path)
+    resolved = srv._load_theme("child")
+
+    assert resolved.name == "child"                       # child'ın kendi alanı kazanır
+    assert resolved.color.primary == "#004dcf"             # child override'ı uygulanmış
+    assert resolved.color.secondary == "#222222"           # base'ten miras (child override etmedi)
+    assert resolved.background_pattern == "dots"           # base'ten miras
+    assert resolved.custom_css == ".btn{color:var(--c-primary)}"  # base'ten miras, KOPYALANMADI
+
+
+def test_w10_load_theme_extends_detects_cycle(tmp_path, monkeypatch):
+    import server as srv
+
+    (tmp_path / "a.json").write_text(json.dumps({"extends": "b", "name": "a"}), encoding="utf-8")
+    (tmp_path / "b.json").write_text(json.dumps({"extends": "a", "name": "b"}), encoding="utf-8")
+
+    monkeypatch.setattr(srv, "THEMES_DIR", tmp_path)
+    with pytest.raises(ToolError):
+        srv._load_theme("a")
+
+
+def test_w10_load_theme_without_extends_unaffected(tmp_path, monkeypatch):
+    """extends anahtarı YOKSA davranış eskisiyle birebir aynı — mevcut 12 tema bundan etkilenmez."""
+    import server as srv
+
+    (tmp_path / "plain.json").write_text(json.dumps({
+        "name": "plain",
+        "typography": {"font_heading": "Arial", "font_body": "Arial", "font_mono": "monospace",
+                        "base_size_px": 16, "scale_ratio": 1.25, "weight_heading": 700,
+                        "weight_body": 400, "weight_strong": 600, "line_height_tight": 1.15,
+                        "line_height_normal": 1.6, "letter_spacing_heading": "0"},
+        "color": {"primary": "#111111", "primary_hover": "#000000", "primary_contrast": "#ffffff",
+                   "secondary": "#222222", "accent": "#333333", "bg": "#ffffff", "surface": "#ffffff",
+                   "surface_alt": "#eeeeee", "border": "#dddddd", "text": "#000000",
+                   "text_muted": "#666666", "text_on_dark": "#ffffff", "success": "#00ff00",
+                   "success_bg": "#eaffea", "error": "#ff0000", "error_bg": "#ffeaea",
+                   "warning": "#ffaa00", "info": "#0000ff", "focus_ring": "#111111"},
+        "background_pattern": "none",
+    }), encoding="utf-8")
+
+    monkeypatch.setattr(srv, "THEMES_DIR", tmp_path)
+    resolved = srv._load_theme("plain")
+    assert resolved.name == "plain"
+    assert resolved.color.primary == "#111111"
+
+
+@pytest.mark.asyncio
+async def test_w10_style_brand_composition_end_to_end():
+    """style-playful (extends: playground) + marka rengi/logo/font set_theme ile deep-merge edilince,
+    playful'ın MİRAS ALINMIŞ yapısal custom_css'i (3D buton efekti) KORUNUR, marka rengi/logo/font
+    ÜZERİNE yazılır."""
+    async with Client(server.mcp) as c:
+        res = await c.call_tool("build_from_spec", {"spec": {
+            "title": "Marka Testi", "scorm_version": "1.2", "theme": "style-playful",
+            "assets": [
+                {"id": "corp_logo", "filename": "logo.svg",
+                 "source": "data:image/svg+xml;base64,"
+                           "PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMCIgaGVpZ2h0PSIxMCI+PC9zdmc+"},
+                {"id": "corp_font", "filename": "font.woff2",
+                 "source": "data:font/woff2;base64,AAECAw=="},
+            ],
+            "screens": [{"type": "content_slide", "id": "c1", "title": "T", "body_html": "<p>x</p>"}],
+        }})
+        pid = res.data.project_id if hasattr(res.data, "project_id") else res.data["project_id"]
+
+        await c.call_tool("set_theme", {"project_id": pid, "theme_tokens": {
+            "color": {"primary": "#004dcf"},
+            "logo_asset_id": "corp_logo", "logo_alt": "Acme Corp logo",
+            "custom_fonts": [{"family": "Acme Sans", "asset_id": "corp_font", "weight": 700}],
+        }})
+
+        prev = await c.call_tool("preview", {"project_id": pid})
+        html = prev.data.inline_html if hasattr(prev.data, "inline_html") else prev.data["inline_html"]
+
+        # playful'ın MİRAS ALINMIŞ yapısal kişiliği korunmuş (3D buton efekti, playground'dan extends)
+        assert "box-shadow:0 4px 0 -1px color-mix(in srgb,var(--c-primary) 60%,#000)" in html
+        # marka rengi override edilmiş
+        assert "--c-primary:#004dcf" in html
+        # logo render edilmiş (dot YOK)
+        assert 'class="chrome-logo"' in html
+        assert '<span class="brand-dot"></span>' not in html
+        assert 'alt="Acme Corp logo"' in html
+        # custom font @font-face üretilmiş
+        assert "@font-face" in html
+        assert 'font-family:"Acme Sans"' in html
