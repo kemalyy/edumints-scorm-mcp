@@ -9,7 +9,7 @@ BASE_CSS / ENGINE_JS / FALLBACK_RUNTIME_SHIM düz string'dir (format edilmez).
 # HTML iskeleti (str.format şablonu)
 # --------------------------------------------------------------------------- #
 SHELL = """<!DOCTYPE html>
-<html lang="{lang}">
+<html lang="{lang}" dir="{dir}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -20,14 +20,14 @@ SHELL = """<!DOCTYPE html>
 {custom_css}</style>
 </head>
 <body data-bg="{bg_pattern}" data-layout="{layout_mode}">
-<a class="skip-link" href="#stage">İçeriğe geç</a>
+<a class="skip-link" href="#stage">{t[skip_to_content]}</a>
 <div class="app">
   <header class="app-header">
     <div class="brand">{brand_mark}<span class="brand-title">{header_title}</span></div>
-    <div class="progress" role="progressbar" aria-label="İlerleme" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="progress-bar"></div></div>
+    <div class="progress" role="progressbar" aria-label="{t[progress]}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="progress-bar"></div></div>
     <span class="timer-hud" id="timerHud" aria-live="polite" hidden></span>
     <span class="level-hud" id="levelHud" aria-live="polite" hidden></span>
-    <span class="lives-hud" id="livesHud" aria-label="Can" hidden></span>
+    <span class="lives-hud" id="livesHud" aria-label="{t[hud_lives]}" hidden></span>
     <span class="points-hud" id="pointsHud" aria-live="polite" hidden></span>
     <div class="status-pill" aria-live="polite"></div>
   </header>
@@ -40,28 +40,28 @@ SHELL = """<!DOCTYPE html>
     <div class="cc-bar" id="ccBar" aria-live="polite" hidden></div>
   </main>
   <footer class="app-footer player">
-    <button class="btn btn-ghost pl-icon" id="btnPrev" type="button" aria-label="Önceki"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
-    <button class="pl-btn" id="btnPlay" type="button" aria-label="Oynat / Duraklat"><span class="ic-a"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg></span><span class="ic-b"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="14" y="4" width="4" height="16" rx="1"/><rect x="6" y="4" width="4" height="16" rx="1"/></svg></span></button>
-    <button class="pl-btn" id="btnReplay" type="button" aria-label="Baştan oynat"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg></button>
-    <input class="seekbar" id="seekbar" type="range" min="0" max="1000" value="0" step="1" aria-label="İlerleme çubuğu" disabled>
+    <button class="btn btn-ghost pl-icon" id="btnPrev" type="button" aria-label="{t[nav_prev]}"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
+    <button class="pl-btn" id="btnPlay" type="button" aria-label="{t[player_play_pause]}"><span class="ic-a"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg></span><span class="ic-b"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="14" y="4" width="4" height="16" rx="1"/><rect x="6" y="4" width="4" height="16" rx="1"/></svg></span></button>
+    <button class="pl-btn" id="btnReplay" type="button" aria-label="{t[player_replay]}"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg></button>
+    <input class="seekbar" id="seekbar" type="range" min="0" max="1000" value="0" step="1" aria-label="{t[player_seek]}" disabled>
     <span class="pl-time" id="plTime">0:00 / 0:00</span>
-    <button class="pl-btn" id="btnMute" type="button" aria-label="Sesi aç / kapat"><span class="ic-a"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg></span><span class="ic-b"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="22" x2="16" y1="9" y2="15"/><line x1="16" x2="22" y1="9" y2="15"/></svg></span></button>
-    <button class="pl-btn" id="btnCc" type="button" aria-pressed="false" aria-label="Altyazı"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="14" x="3" y="5" rx="2" ry="2"/><path d="M7 15h4M15 15h2M7 11h2M13 11h4"/></svg></button>
-    <button class="pl-btn" id="btnMenu" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Bölüm menüsü"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></svg></button>
+    <button class="pl-btn" id="btnMute" type="button" aria-label="{t[player_mute]}"><span class="ic-a"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg></span><span class="ic-b"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="22" x2="16" y1="9" y2="15"/><line x1="16" x2="22" y1="9" y2="15"/></svg></span></button>
+    <button class="pl-btn" id="btnCc" type="button" aria-pressed="false" aria-label="{t[player_captions]}"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="14" x="3" y="5" rx="2" ry="2"/><path d="M7 15h4M15 15h2M7 11h2M13 11h4"/></svg></button>
+    <button class="pl-btn" id="btnMenu" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="{t[player_menu]}"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></svg></button>
     <div class="dots" id="dots"></div>
-    <button class="btn btn-primary pl-icon" id="btnNext" type="button" aria-label="Sonraki"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
+    <button class="btn btn-primary pl-icon" id="btnNext" type="button" aria-label="{t[nav_next]}"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
   </footer>
-  <nav class="slide-menu" id="slideMenu" aria-label="Slayt menüsü"><div class="slide-menu-header"><h3>İçerik</h3><button class="slide-menu-close" id="menuClose" type="button" aria-label="Menüyü kapat"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div><ul id="slideMenuList"></ul></nav>
+  <nav class="slide-menu" id="slideMenu" aria-label="{t[menu_label]}"><div class="slide-menu-header"><h3>{t[menu_heading]}</h3><button class="slide-menu-close" id="menuClose" type="button" aria-label="{t[menu_close]}"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div><ul id="slideMenuList"></ul></nav>
   <div class="menu-overlay" id="menuOverlay"></div>
 </div>
 <div class="review-fab" id="reviewFab" hidden>
-  <button class="review-btn" id="reviewBtn" type="button" aria-haspopup="dialog"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Geri bildirim</button>
-  <div class="review-panel" id="reviewPanel" role="dialog" aria-label="Geri bildirim" hidden>
-    <div class="review-head">Bu ekran için yorum bırak</div>
-    <textarea id="reviewText" rows="3" placeholder="Ne değişmeli?"></textarea>
+  <button class="review-btn" id="reviewBtn" type="button" aria-haspopup="dialog"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> {t[review_open]}</button>
+  <div class="review-panel" id="reviewPanel" role="dialog" aria-label="{t[review_open]}" hidden>
+    <div class="review-head">{t[review_title]}</div>
+    <textarea id="reviewText" rows="3" placeholder="{t[review_placeholder]}"></textarea>
     <div class="review-actions">
-      <button class="btn btn-ghost" id="reviewCancel" type="button">İptal</button>
-      <button class="btn btn-primary" id="reviewSend" type="button">Gönder</button>
+      <button class="btn btn-ghost" id="reviewCancel" type="button">{t[review_cancel]}</button>
+      <button class="btn btn-primary" id="reviewSend" type="button">{t[review_send]}</button>
     </div>
     <div class="review-status" id="reviewStatus" aria-live="polite"></div>
   </div>
@@ -73,6 +73,7 @@ window.__COURSE__ = {course_json};
 window.__ASSETS__ = {asset_json};
 window.__SCORM_2004__ = {scorm_2004};
 window.__PREVIEW__ = {preview};
+window.__I18N__ = {i18n_json};
 </script>
 <script>
 {engine_js}
@@ -86,6 +87,16 @@ window.__PREVIEW__ = {preview};
 # --------------------------------------------------------------------------- #
 BASE_CSS = r"""
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+/* I2 — RTL: yerleşim logical property'lerle (inset-inline-*, margin-inline-*) aynalanır.
+   transform:translateX() aynalanamaz, bu yüzden yön işareti bir değişkenle taşınır.
+   NOT: hotspot/diyagram pin koordinatları ve önce/sonra karşılaştırma sürgüsü KASITLI olarak
+   fiziksel kalır — bunlar metin akışı değil, uzamsal veridir; aynalamak görseli bozar. */
+:root{--dir-x:1}
+html[dir="rtl"]{--dir-x:-1}
+/* Yönlü ikonlar: ileri/geri chevron'ları ve yeniden-oynat oku RTL'de ters yöne bakmalı.
+   Diğer ikonlar (ses, altyazı, menü, geri bildirim) yönsüzdür — aynalanmaz. */
+html[dir="rtl"] #btnPrev .ic,html[dir="rtl"] #btnNext .ic,
+html[dir="rtl"] #btnReplay .ic{transform:scaleX(-1)}
 html{font-size:var(--fs-base);scroll-behavior:smooth}
 body{font-family:var(--font-body);font-weight:var(--w-body);line-height:var(--lh-normal);
   color:var(--c-text);background:var(--c-bg);-webkit-font-smoothing:antialiased;
@@ -105,7 +116,7 @@ body[data-bg="grid"]{background-image:linear-gradient(color-mix(in srgb,var(--c-
 .app{height:100vh;height:100dvh;display:flex;flex-direction:column;max-width:1200px;margin:0 auto;overflow:hidden}
 
 /* ===== FOUNDATION: a11y + primitifler ===== */
-.skip-link{position:absolute;left:var(--space-4);top:-60px;z-index:100;background:var(--c-primary);
+.skip-link{position:absolute;inset-inline-start:var(--space-4);top:-60px;z-index:100;background:var(--c-primary);
   color:var(--c-primary-contrast);padding:var(--space-3) var(--space-4);border-radius:var(--r-md);
   font-weight:var(--w-strong);transition:top var(--d-fast) var(--ease)}
 .skip-link:focus{top:var(--space-4)}
@@ -151,7 +162,10 @@ body[data-bg="grid"]{background-image:linear-gradient(color-mix(in srgb,var(--c-
   background:linear-gradient(90deg,var(--c-primary),color-mix(in srgb,var(--c-primary) 70%,var(--c-accent)));
   transition:width .6s cubic-bezier(.22,1,.36,1);
   box-shadow:0 0 6px color-mix(in srgb,var(--c-primary) 20%,transparent)}
-.status-pill{font-size:12px;color:var(--c-muted);min-width:60px;text-align:right;
+/* I2 — sayısal çiftler ("1 / 2", "0:05 / 1:30") RTL'de ters okunur: nötr "/" ayracı yön alır ve
+   "1 / 2" ekranda "2 / 1" olur. Bunlar metin değil ÖLÇÜ; kendi yön adacığında LTR kalmalı. */
+.status-pill,.pl-time{direction:ltr;unicode-bidi:isolate}
+.status-pill{font-size:12px;color:var(--c-muted);min-width:60px;text-align:end;
   font-variant-numeric:tabular-nums;font-weight:500}
 .timer-hud{font-family:var(--font-mono);font-weight:var(--w-strong);font-size:13px;color:var(--c-primary);
   background:color-mix(in srgb,var(--c-primary) 6%,var(--c-surface));
@@ -194,7 +208,7 @@ body[data-bg="grid"]{background-image:linear-gradient(color-mix(in srgb,var(--c-
 .screen[data-type="video"] .screen-inner > .video-wrap{flex:1;min-height:0}
 .screen[data-type="video"] .split{display:flex;gap:clamp(12px,2vw,24px);align-items:stretch;flex:1;min-height:0}
 .screen[data-type="video"] .split .split-text{flex:0 0 auto;max-width:38%;display:flex;flex-direction:column;
-  justify-content:center;overflow-y:auto;overflow-x:hidden;padding-right:var(--space-3);min-height:0}
+  justify-content:center;overflow-y:auto;overflow-x:hidden;padding-inline-end:var(--space-3);min-height:0}
 .screen[data-type="video"] .split .split-media{flex:1;min-height:0;min-width:0;display:flex;align-items:center;
   justify-content:center;overflow:hidden}
 .screen[data-type="video"] .video-wrap{width:100%;height:100%;display:flex;flex-direction:column;
@@ -217,14 +231,14 @@ body[data-bg="grid"]{background-image:linear-gradient(color-mix(in srgb,var(--c-
 .rich h3{font-size:var(--fs-h3)} .rich h4{font-size:var(--fs-h4)}
 .rich strong{font-weight:var(--w-strong)}
 .rich a{color:var(--c-primary);text-underline-offset:3px}
-.rich ul,.rich ol{padding-left:1.4em} .rich li+li{margin-top:var(--space-2)}
+.rich ul,.rich ol{padding-inline-start:1.4em} .rich li+li{margin-top:var(--space-2)}
 .rich img{max-width:100%;height:auto;border-radius:var(--r-md);box-shadow:var(--e1)}
 .rich blockquote{border-left:3px solid var(--c-primary);padding:var(--space-2) var(--space-4);
   background:var(--c-surface-alt);border-radius:0 var(--r-md) var(--r-md) 0;color:var(--c-muted)}
 .rich code{font-family:var(--font-mono);background:var(--c-surface-alt);padding:.15em .4em;
   border-radius:var(--r-sm);font-size:.9em}
 .rich table{width:100%;border-collapse:collapse} .rich th,.rich td{border:1px solid var(--c-border);
-  padding:var(--space-3);text-align:left} .rich thead th{background:var(--c-surface-alt)}
+  padding:var(--space-3);text-align:start} .rich thead th{background:var(--c-surface-alt)}
 .prompt{font-size:calc(var(--fs-base) * 1.05);margin-bottom:var(--space-4)}
 
 /* media layouts — all media must fit within the card without scroll */
@@ -295,7 +309,7 @@ body[data-bg="grid"]{background-image:linear-gradient(color-mix(in srgb,var(--c-
 /* options (mcq / tf) */
 .options{display:flex;flex-direction:column;gap:var(--space-3)}
 .options.tf{flex-direction:row}
-.opt{display:flex;align-items:center;gap:var(--space-3);text-align:left;cursor:pointer;
+.opt{display:flex;align-items:center;gap:var(--space-3);text-align:start;cursor:pointer;
   background:var(--c-bg);
   border:1.5px solid var(--c-border);border-radius:var(--r-md);
   padding:var(--space-4);font-size:15px;color:var(--c-text);flex:1;
@@ -368,12 +382,12 @@ body[data-bg="grid"]{background-image:linear-gradient(color-mix(in srgb,var(--c-
 
 /* branching */
 .branches{display:flex;flex-direction:column;gap:var(--space-3)}
-.branch-choice{text-align:left;cursor:pointer;background:var(--c-bg);border:1.5px solid var(--c-border);
+.branch-choice{text-align:start;cursor:pointer;background:var(--c-bg);border:1.5px solid var(--c-border);
   border-radius:var(--r-md);padding:var(--space-4) var(--space-5);font-size:15px;color:var(--c-text);
   display:flex;align-items:center;gap:var(--space-3);
   transition:all .2s cubic-bezier(.4,0,.2,1)}
 .branch-choice::before{content:"→";color:var(--c-primary);font-weight:700}
-.branch-choice:hover{border-color:var(--c-primary);transform:translateX(4px);
+.branch-choice:hover{border-color:var(--c-primary);transform:translateX(calc(4px * var(--dir-x)));
   box-shadow:0 2px 12px color-mix(in srgb,var(--c-primary) 10%,transparent)}
 
 /* karar senaryosu (decision_scenario) */
@@ -383,11 +397,11 @@ body[data-bg="grid"]{background-image:linear-gradient(color-mix(in srgb,var(--c-
 .scen-img{width:100%;max-height:280px;object-fit:contain;border-radius:var(--r-md);background:var(--c-surface)}
 .scen-choices{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-3)}
 .scen-row{display:flex;flex-direction:column;gap:var(--space-2)}
-.scen-choice{text-align:left;cursor:pointer;background:var(--c-bg);border:1.5px solid var(--c-border);
+.scen-choice{text-align:start;cursor:pointer;background:var(--c-bg);border:1.5px solid var(--c-border);
   border-radius:var(--r-md);padding:var(--space-4) var(--space-5);font-size:15px;color:var(--c-text);
   min-height:44px;display:flex;align-items:center;gap:var(--space-3);transition:all .2s cubic-bezier(.4,0,.2,1)}
 .scen-choice::before{content:"▸";color:var(--c-primary);font-weight:700}
-.scen-choice:hover:not(:disabled){border-color:var(--c-primary);transform:translateX(4px);
+.scen-choice:hover:not(:disabled){border-color:var(--c-primary);transform:translateX(calc(4px * var(--dir-x)));
   box-shadow:0 2px 12px color-mix(in srgb,var(--c-primary) 10%,transparent)}
 .scen-choice:disabled{cursor:default}
 .scen-choice.chosen{border-color:var(--c-primary);background:color-mix(in srgb,var(--c-primary) 8%,var(--c-bg))}
@@ -421,8 +435,8 @@ body[data-bg="grid"]{background-image:linear-gradient(color-mix(in srgb,var(--c-
 .game-hud{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2)}
 .game-hud-score b,.game-hud-lives b,.game-hud-timer b{font-variant-numeric:tabular-nums}
 .game-hud-lives{color:var(--c-error)}
-.game-hint,.game-timer-extend,.game-timer-off{margin-left:auto;font-size:12px;min-height:36px}
-.game-timer-extend,.game-timer-off{margin-left:0}
+.game-hint,.game-timer-extend,.game-timer-off{margin-inline-start:auto;font-size:12px;min-height:36px}
+.game-timer-extend,.game-timer-off{margin-inline-start:0}
 .game-hints{display:flex;flex-direction:column;gap:var(--space-2)}
 .game-hint-text{font-size:14px;color:var(--c-muted);padding:var(--space-2) var(--space-4);
   border-left:3px solid var(--c-warning,#d97706);background:var(--c-surface);border-radius:0 var(--r-sm) var(--r-sm) 0}
@@ -430,11 +444,11 @@ body[data-bg="grid"]{background-image:linear-gradient(color-mix(in srgb,var(--c-
 .game-img{width:100%;max-height:280px;object-fit:contain;border-radius:var(--r-md);background:var(--c-surface)}
 .game-choices{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-3)}
 .game-row{display:flex;flex-direction:column;gap:var(--space-2)}
-.game-choice{text-align:left;cursor:pointer;background:var(--c-bg);border:1.5px solid var(--c-border);
+.game-choice{text-align:start;cursor:pointer;background:var(--c-bg);border:1.5px solid var(--c-border);
   border-radius:var(--r-md);padding:var(--space-4) var(--space-5);font-size:15px;color:var(--c-text);
   min-height:44px;display:flex;align-items:center;gap:var(--space-3);transition:all .2s cubic-bezier(.4,0,.2,1)}
 .game-choice::before{content:"▸";color:var(--c-primary);font-weight:700}
-.game-choice:hover:not(:disabled){border-color:var(--c-primary);transform:translateX(4px);
+.game-choice:hover:not(:disabled){border-color:var(--c-primary);transform:translateX(calc(4px * var(--dir-x)));
   box-shadow:0 2px 12px color-mix(in srgb,var(--c-primary) 10%,transparent)}
 .game-choice:disabled{cursor:default}
 .game-choice.chosen{border-color:var(--c-primary);background:color-mix(in srgb,var(--c-primary) 8%,var(--c-bg))}
@@ -448,7 +462,7 @@ body[data-bg="grid"]{background-image:linear-gradient(color-mix(in srgb,var(--c-
 /* W4b — adaptif pratik (adaptive_practice) */
 .adaptive{display:flex;flex-direction:column;gap:var(--space-4)}
 .ap-hud{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2)}
-.ap-level{margin-left:auto;font-variant-numeric:tabular-nums}
+.ap-level{margin-inline-start:auto;font-variant-numeric:tabular-nums}
 .ap-prompt{font-size:16px;margin-bottom:var(--space-3)}
 .ap-options{margin-bottom:var(--space-2)}
 .ap-explain{font-size:14px;color:var(--c-muted);padding:var(--space-2) var(--space-4);
@@ -507,7 +521,7 @@ body[data-bg="grid"]{background-image:linear-gradient(color-mix(in srgb,var(--c-
 .ic-range{position:absolute;top:0;left:0;width:100%;height:100%;margin:0;opacity:0;cursor:ew-resize}
 .ic-label{position:absolute;bottom:8px;font-size:12px;font-weight:var(--w-strong);color:#fff;
   background:rgba(0,0,0,.55);padding:2px 8px;border-radius:99px;pointer-events:none}
-.ic-before{left:8px}.ic-after{right:8px}
+.ic-before{inset-inline-start:8px}.ic-after{inset-inline-end:8px}
 
 /* video (genel kurallar — ekran-spesifik kurallar yukarıda) */
 .video-wrap{margin:0}
@@ -595,10 +609,10 @@ body[data-bg="grid"]{background-image:linear-gradient(color-mix(in srgb,var(--c-
 .sort-item.wrong{border-color:var(--c-error);background:var(--c-error-bg)}
 
 /* timeline */
-.timeline{list-style:none;padding:0;position:relative;margin-left:var(--space-2)}
-.timeline::before{content:"";position:absolute;left:6px;top:8px;bottom:8px;width:2px;background:var(--c-border)}
-.tl-event{position:relative;padding-left:var(--space-6);margin-bottom:var(--space-5)}
-.tl-marker{position:absolute;left:0;top:6px;width:14px;height:14px;border-radius:var(--r-pill);
+.timeline{list-style:none;padding:0;position:relative;margin-inline-start:var(--space-2)}
+.timeline::before{content:"";position:absolute;inset-inline-start:6px;top:8px;bottom:8px;width:2px;background:var(--c-border)}
+.tl-event{position:relative;padding-inline-start:var(--space-6);margin-bottom:var(--space-5)}
+.tl-marker{position:absolute;inset-inline-start:0;top:6px;width:14px;height:14px;border-radius:var(--r-pill);
   background:var(--c-primary);border:3px solid var(--c-bg);box-shadow:0 0 0 2px var(--c-primary)}
 .tl-date{margin-bottom:var(--space-2)}
 .tl-title{font-family:var(--font-heading);font-size:var(--fs-h4);font-weight:var(--w-strong);margin-bottom:var(--space-2)}
@@ -608,14 +622,14 @@ body[data-bg="grid"]{background-image:linear-gradient(color-mix(in srgb,var(--c-
 .lottie{width:100%;max-width:480px;aspect-ratio:1/1}
 
 /* review/annotation */
-.review-fab{position:fixed;right:18px;bottom:70px;z-index:90}
+.review-fab{position:fixed;inset-inline-end:18px;bottom:70px;z-index:90}
 .review-btn{background:var(--c-primary);color:var(--c-primary-contrast);border:none;border-radius:var(--r-pill);
   padding:var(--space-3) var(--space-4);font-weight:var(--w-strong);font-size:14px;cursor:pointer;
   box-shadow:0 4px 16px color-mix(in srgb,var(--c-primary) 30%,transparent);min-height:44px;
   transition:all .2s ease}
 .review-btn:hover{transform:translateY(-2px);box-shadow:0 6px 24px color-mix(in srgb,var(--c-primary) 40%,transparent)}
 .review-btn:focus-visible{outline:3px solid color-mix(in srgb,var(--c-focus) 50%,transparent);outline-offset:2px}
-.review-panel{position:absolute;right:0;bottom:54px;width:300px;max-width:80vw;
+.review-panel{position:absolute;inset-inline-end:0;bottom:54px;width:300px;max-width:80vw;
   background:var(--c-surface);
   border:1px solid var(--c-border);
   border-radius:var(--r-lg);box-shadow:0 4px 24px color-mix(in srgb,var(--c-primary) 8%,transparent);padding:var(--space-4)}
@@ -650,7 +664,7 @@ body[data-layout="stage"][data-fit="flow"] .stage-frame{width:100%!important;hei
 body[data-layout="stage"][data-fit="flow"] .stage-frame .screen[aria-hidden="false"]{position:relative;inset:auto;min-height:100%;overflow:visible}
 body[data-layout="stage"][data-fit="flow"] .screen-inner{height:auto;min-height:100%;overflow:visible}
 /* altyazı */
-.cc-bar{position:absolute;left:5%;right:5%;bottom:12px;z-index:6;
+.cc-bar{position:absolute;inset-inline:5%;bottom:12px;z-index:6;
   background:rgba(0,0,0,.85);
   color:#fff;padding:8px 16px;border-radius:var(--r-lg);text-align:center;font-size:16px;line-height:1.5;
   box-shadow:0 2px 12px rgba(0,0,0,.25)}
@@ -700,11 +714,11 @@ body[data-layout="flow"] .stage{position:relative}
   backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
   opacity:0;visibility:hidden;transition:all .3s cubic-bezier(.22,1,.36,1)}
 .menu-overlay.open{opacity:1;visibility:visible}
-.slide-menu{position:fixed;top:0;right:0;bottom:0;z-index:50;width:320px;max-width:85vw;
+.slide-menu{position:fixed;top:0;inset-inline-end:0;bottom:0;z-index:50;width:320px;max-width:85vw;
   background:var(--c-surface);
   border-left:1px solid color-mix(in srgb,var(--c-border) 50%,transparent);
   box-shadow:-8px 0 32px color-mix(in srgb,var(--c-primary) 5%,transparent),-2px 0 8px rgba(0,0,0,.04);
-  transform:translateX(100%);transition:transform .35s cubic-bezier(.22,1,.36,1);
+  transform:translateX(calc(100% * var(--dir-x)));transition:transform .35s cubic-bezier(.22,1,.36,1);
   display:flex;flex-direction:column;overflow:hidden}
 .slide-menu.open{transform:translateX(0)}
 .slide-menu.open li{animation:menuItemIn .3s cubic-bezier(.22,1,.36,1) both}
@@ -721,13 +735,13 @@ body[data-layout="flow"] .stage{position:relative}
   display:flex;gap:10px;align-items:center;transition:all .2s cubic-bezier(.22,1,.36,1);
   margin-bottom:2px;opacity:0}
 .slide-menu.open li{opacity:1}
-@keyframes menuItemIn{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:none}}
+@keyframes menuItemIn{from{opacity:0;transform:translateX(calc(12px * var(--dir-x)))}to{opacity:1;transform:none}}
 .slide-menu li:hover{background:color-mix(in srgb,var(--c-primary) 6%,transparent);
-  transform:translateX(2px)}
+  transform:translateX(calc(2px * var(--dir-x)))}
 .slide-menu li[aria-current="true"]{font-weight:var(--w-strong);color:var(--c-primary);
   background:color-mix(in srgb,var(--c-primary) 8%,transparent);
-  border-left:3px solid var(--c-primary);padding-left:11px;opacity:1}
-.slide-menu li .mi-done{color:var(--c-success);margin-left:auto;display:inline-flex}
+  border-inline-start:3px solid var(--c-primary);padding-inline-start:11px;opacity:1}
+.slide-menu li .mi-done{color:var(--c-success);margin-inline-start:auto;display:inline-flex}
 .slide-menu li.menu-section{font-size:11px;text-transform:uppercase;letter-spacing:.08em;
   color:var(--c-muted);cursor:default;padding:16px 14px 6px;font-weight:var(--w-strong);margin-bottom:0;opacity:1}
 .slide-menu li.menu-section:hover{background:none;transform:none}
@@ -741,14 +755,14 @@ body[data-layout="flow"] .stage{position:relative}
 @keyframes tlFadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
 @keyframes tlFade{from{opacity:0}to{opacity:1}}
 @keyframes tlZoom{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}
-@keyframes tlSlideLeft{from{opacity:0;transform:translateX(28px)}to{opacity:1;transform:none}}
+@keyframes tlSlideLeft{from{opacity:0;transform:translateX(calc(28px * var(--dir-x)))}to{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){.tl-block{opacity:1 !important}
   .tl-block.tl-in{animation:none !important}}
 
 /* ===== RESPONSIVE — tablet ===== */
 @media(max-width:960px){
   .screen[data-type="video"] .split{flex-direction:column}
-  .screen[data-type="video"] .split .split-text{flex:0 0 auto;max-height:30%;max-width:100%;padding-right:0;padding-bottom:var(--space-2)}
+  .screen[data-type="video"] .split .split-text{flex:0 0 auto;max-height:30%;max-width:100%;padding-inline-end:0;padding-bottom:var(--space-2)}
   .screen[data-type="video"] .split .split-media{flex:1}
   .screen[data-type="video"] .video.portrait{max-width:50%}
   .split{grid-template-columns:1fr}
@@ -768,7 +782,7 @@ body[data-layout="flow"] .stage{position:relative}
   .dots{display:none}
   .pl-time{font-size:11px;min-width:auto}
   .pl-btn{padding:8px}
-  .cc-bar{font-size:13px;bottom:6px;left:2%;right:2%;padding:5px 10px}
+  .cc-bar{font-size:13px;bottom:6px;inset-inline:2%;padding:5px 10px}
   .slide-menu{width:280px}
   .review-fab{bottom:56px}
   .screen-inner{padding:14px}
@@ -801,6 +815,14 @@ ENGINE_JS = r"""
 (function(){
 "use strict";
 var COURSE = window.__COURSE__, ASSETS = window.__ASSETS__, S2004 = window.__SCORM_2004__;
+// I1 — çalışma anında üretilen metinler dile göre çözülür (kabuk HTML'i Python tarafında çözüldü).
+// Anahtar bulunamazsa anahtarın kendisi döner: sessiz boş metin yerine görünür sinyal.
+var I18N = window.__I18N__ || {};
+function T(key, params){
+  var s = I18N[key]; if(s==null) return key;
+  if(params){ for(var k in params){ s = s.split("{"+k+"}").join(String(params[k])); } }
+  return s;
+}
 var byId = {}; COURSE.screens.forEach(function(s){ byId[s.id]=s; });
 var order = COURSE.id_order;
 var sections = Array.prototype.slice.call(document.querySelectorAll(".screen"));
@@ -1083,8 +1105,8 @@ function renderSummaryIfNeeded(el,s){
   var sc=el.querySelector(".summary-score"); if(sc){ sc.textContent="%"+scoreValue(); }
   var cp=el.querySelector(".summary-completion");
   if(cp){ var passed=quizPassed(); var hasQuiz=COURSE.total_points>0;
-    cp.textContent=hasQuiz?(passed?"Başarıyla tamamladınız":"Geçme notuna ulaşılamadı")
-      :(isComplete()?"Tamamlandı":"Devam ediyor");
+    cp.textContent=hasQuiz?(passed?T("summary_passed"):T("summary_failed"))
+      :(isComplete()?T("summary_completed"):T("summary_in_progress"));
     cp.className="summary-completion "+(hasQuiz?(passed?"passed":"failed"):""); }
 }
 
@@ -1107,7 +1129,7 @@ function renderResultsIfNeeded(el,s){
   });
   var tot=root.querySelector(".rb-total");
   if(tot && tot.dataset.showTotal){ var gp=gMax>0?Math.round(gTot/gMax*100):0;
-    tot.hidden=false; tot.innerHTML="Toplam: <b>%"+gp+"</b>"; }
+    tot.hidden=false; tot.innerHTML=T("results_total",{pct:gp}); }
 }
 
 // ---- quiz: interaksiyon ----
@@ -1365,7 +1387,7 @@ function bindSimulation(el,s){
   window.addEventListener("resize",function(){ var st=sim.querySelector('.sim-step[data-step="'+cur+'"]'); if(st) placeStep(st); });
   function wrong(step){ var hint=step.querySelector(".sim-hint"); if(hint) hint.hidden=false; }
   function advance(step){ var hint=step.querySelector(".sim-hint"); if(hint) hint.hidden=true; cur++;
-    if(cur>=total){ recordResult(s.id,s.points,s.points,true); recordInteraction(s,true,total+" adım",null); applyActions(s.on_correct);
+    if(cur>=total){ recordResult(s.id,s.points,s.points,true); recordInteraction(s,true,"steps:"+total,null); applyActions(s.on_correct);
       if(fb&&s.feedback){ fb.innerHTML=s.feedback.correct; fb.className="feedback show ok"; } evaluate();
     } else showStep(cur); }
   // TIKLAMA adımları
@@ -1400,7 +1422,7 @@ function bindScenario(el,s){
     recordInteraction(s, ok, path, null);
     applyActions(ok?s.on_correct:s.on_wrong);
     if(fb){ var msg=ok?(s.feedback&&s.feedback.correct||""):(s.feedback&&s.feedback.incorrect||"");
-      fb.innerHTML=msg+' <b>Skor: '+score+'</b>'; fb.className="feedback show "+(ok?"ok":"no"); }
+      fb.innerHTML=msg+' <b>'+T("scenario_result_score",{score:score})+'</b>'; fb.className="feedback show "+(ok?"ok":"no"); }
     var nb=document.getElementById("btnNext"); if(cursor<order.length-1) nb.disabled=false;
     evaluate();
   }
@@ -1452,7 +1474,7 @@ function bindTermRace(el,s){
     recordInteraction(s, ok, resp, corr);
     applyActions(ok?s.on_correct:s.on_wrong);
     if(fb){ var m=ok?(s.feedback.correct||""):(s.feedback.incorrect||"");
-      fb.innerHTML=m+" <b>"+c+"/"+total+(bonus?" · +"+bonus+" hız bonusu":"")+"</b>"; fb.className="feedback show "+(ok?"ok":"no"); }
+      fb.innerHTML=m+" <b>"+T("term_race_result",{correct:c,total:total})+(bonus?T("term_race_bonus",{bonus:bonus}):"")+"</b>"; fb.className="feedback show "+(ok?"ok":"no"); }
     var nb=document.getElementById("btnNext"); if(cursor<order.length-1) nb.disabled=false; evaluate(); }
   finish.addEventListener("click",grade);
   var _tmrTimer=setInterval(function(){ if(state.cursorId!==s.id){ clearInterval(_tmrTimer); return; }
@@ -1476,7 +1498,7 @@ function bindEscape(el,s){
     recordResult(s.id, win?s.points:0, s.points, win);
     recordInteraction(s, win, resp, corr);
     applyActions(win?s.on_correct:s.on_wrong);
-    if(fb){ fb.innerHTML=win?(s.feedback.correct||"Tüm kilitleri açtın!"):(s.feedback.incorrect||"Canların bitti.");
+    if(fb){ fb.innerHTML=win?(s.feedback.correct||T("escape_win")):(s.feedback.incorrect||T("escape_lose"));
       fb.className="feedback show "+(win?"ok":"no"); }
     var nb=document.getElementById("btnNext"); if(cursor<order.length-1) nb.disabled=false; evaluate(); }
   function showPuzzle(i){ root.querySelectorAll(".esc-puzzle").forEach(function(p){ p.hidden=p.dataset.puzzle!=String(i); });
@@ -1502,7 +1524,7 @@ function bindGame(el,s){
   var cfg=s.game, G=window.SCORMGame;
   var fb=el.querySelector(".feedback");
   if(!cfg||!G){ // motor bundle yoksa: içerik statik HTML'de görünür kalır (progresif geliştirme)
-    if(fb){ fb.textContent="Oyun motoru yüklenemedi."; } return; }
+    if(fb){ fb.textContent=T("game_engine_failed"); } return; }
   var bus=G.createEventBus();
   var rng=G.createRng(G.seedFromString(cfg.seed||s.id||"game"));
   var m=cfg.mechanics||{}, mech={};
@@ -1556,7 +1578,7 @@ function bindGame(el,s){
     applyActions(ok?s.on_correct:s.on_wrong);
     root.querySelectorAll(".game-choice,.game-hint,.game-next").forEach(function(x){ x.disabled=true; });
     if(fb){ var msg=ok?(s.feedback&&s.feedback.correct||""):(s.feedback&&s.feedback.incorrect||"");
-      fb.innerHTML=msg+' <b>Skor: '+sc+'</b>'; fb.className="feedback show "+(ok?"ok":"no"); }
+      fb.innerHTML=msg+' <b>'+T("game_result_score",{score:sc})+'</b>'; fb.className="feedback show "+(ok?"ok":"no"); }
     var nb=document.getElementById("btnNext"); if(nb&&cursor<order.length-1) nb.disabled=false;
     evaluate();
   }
@@ -1590,7 +1612,7 @@ function bindGame(el,s){
 function bindAdaptive(el,s){
   var root=el.querySelector(".adaptive"); if(!root) return;
   var cfg=s.adaptive, G=window.SCORMGame, fb=el.querySelector(".feedback");
-  if(!cfg||!G){ if(fb) fb.textContent="Adaptif motor yüklenemedi."; return; }
+  if(!cfg||!G){ if(fb) fb.textContent=T("adaptive_engine_failed"); return; }
   var strategy=(cfg.adaptive&&cfg.adaptive.strategy)||"elo";
   var est=G.createEstimator(cfg.adaptive||{});
   var rng=G.createRng(G.seedFromString(cfg.seed||s.id||"adaptive"));
@@ -1600,8 +1622,8 @@ function bindAdaptive(el,s){
   var cap=(cfg.max_items&&cfg.max_items>0)?Math.min(cfg.max_items,pool.length):pool.length;
   var answered=0, correctN=0, finished=false, current=null;
   var prog=root.querySelector(".ap-progress"), lvl=root.querySelector(".ap-level");
-  function levelText(){ return strategy==="bkt" ? ("Ustalık: "+Math.round(est.mastery*100)+"%")
-                                                : ("Seviye: "+est.ability.toFixed(2)); }
+  function levelText(){ return strategy==="bkt" ? T("adaptive_mastery",{pct:Math.round(est.mastery*100)})
+                                                : T("adaptive_ability",{value:est.ability.toFixed(2)}); }
   function updHud(){ if(prog) prog.textContent=answered+" / "+cap; if(lvl) lvl.textContent=levelText(); }
   function show(p){ current=p; pool.forEach(function(x){ x.node.hidden=(x!==p); });
     var o=p.node.querySelector(".opt"); if(o) setTimeout(function(){ o.focus(); },50); }
@@ -1624,7 +1646,7 @@ function bindAdaptive(el,s){
     XAPI.emit("finalize",{ok:ok,score:correctN,max:answered});                                    // telemetri (W5b)
     applyActions(ok?s.on_correct:s.on_wrong);
     if(fb){ var msg=ok?(s.feedback&&s.feedback.correct||""):(s.feedback&&s.feedback.incorrect||"");
-      fb.innerHTML=msg+' <b>'+correctN+" / "+answered+" doğru · "+levelText()+'</b>';
+      fb.innerHTML=msg+' <b>'+T("adaptive_result",{correct:correctN,answered:answered,level:levelText()})+'</b>';
       fb.className="feedback show "+(ok?"ok":"no"); }
     var nb=document.getElementById("btnNext"); if(nb&&cursor<order.length-1) nb.disabled=false; evaluate();
   }
@@ -2012,13 +2034,13 @@ if(window.__PREVIEW__){
   if(rCancel) rCancel.addEventListener("click",function(){ rPanel.hidden=true; });
   if(rSend) rSend.addEventListener("click",function(){
     var c=(rTxt.value||"").trim(); if(!c){ rTxt.focus(); return; }
-    rSt.textContent="Gönderiliyor…"; rSend.disabled=true;
+    rSt.textContent=T("review_sending"); rSend.disabled=true;
     fetch("/feedback",{method:"POST",headers:{"Content-Type":"application/json"},
       body:JSON.stringify({preview_token:rToken(),screen_id:(curScreen()&&curScreen().id)||null,comment:c})})
     .then(function(r){ return r.ok?r.json():Promise.reject(); })
-    .then(function(){ rSt.innerHTML=CHECK_SVG+" Gönderildi"; rTxt.value=""; rSend.disabled=false;
+    .then(function(){ rSt.innerHTML=CHECK_SVG+" "+T("review_sent"); rTxt.value=""; rSend.disabled=false;
       setTimeout(function(){ rPanel.hidden=true; rSt.textContent=""; },1200); })
-    .catch(function(){ rSt.textContent="Hata — tekrar dene"; rSend.disabled=false; });
+    .catch(function(){ rSt.textContent=T("review_error"); rSend.disabled=false; });
   });
 }
 })();

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import re
+from contextvars import ContextVar
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -25,7 +26,19 @@ import nh3
 from core.engine_bundle import load_engine_bundle, load_scorm_bundle  # W3b — motor lazy, SCORM RT hep
 from core.project import Project, QUIZ_TYPES, ScreenType, ThemeTokens
 
+from . import i18n
 from .templates import BASE_CSS, ENGINE_JS, FALLBACK_RUNTIME_SHIM, SHELL
+
+# I1 — render edilen kursun dili. Ekran render fonksiyonları (~15 adet) modül düzeyinde ve
+# `project`i görmez; her birine parametre geçirmek yerine bağlam değişkeni kullanılır.
+# ContextVar (global değil) → eşzamanlı async render'lar birbirinin dilini ezmez.
+_LANG: ContextVar[str] = ContextVar("render_lang", default="tr")
+
+
+def _T(key: str, **params: object) -> str:
+    """Aktif kurs dilinde dizge çözer; {yer_tutucu} varsa doldurur."""
+    text = i18n.t(_LANG.get(), key)
+    return i18n.fmt(text, **params) if params else text
 
 _RUNTIME_PATH = Path(__file__).resolve().parent.parent / "runtime" / "scorm-again.min.js"
 _LOTTIE_PATH = Path(__file__).resolve().parent.parent / "runtime" / "lottie_light.min.js"
@@ -119,6 +132,22 @@ def render_html(
     asset_data: dict[str, tuple[str, bytes]] | None = None,
 ) -> str:
     """spec → HTML. asset_data (preview için): {asset_id: (mime, bytes)} → data-URI gömme."""
+    # I1 — bu render'ın dilini bağlama koy; _T() bunu okur. Token ile reset → iç içe/eşzamanlı
+    # render'lar sızdırmaz.
+    _lang_token = _LANG.set(project.language)
+    try:
+        return _render_html_inner(project, mode=mode, runtime_js=runtime_js, asset_data=asset_data)
+    finally:
+        _LANG.reset(_lang_token)
+
+
+def _render_html_inner(
+    project: Project,
+    *,
+    mode: Literal["preview", "package"],
+    runtime_js: str,
+    asset_data: dict[str, tuple[str, bytes]] | None = None,
+) -> str:
     theme = project.theme
     css_vars = _css_vars(theme)
     # Faz 9.1 — ayarlanabilir tuval ölçüsü → CSS değişkeni (stage modu bunları kullanır)
@@ -171,6 +200,10 @@ def render_html(
 
     return SHELL.format(
         lang=_attr(project.language),
+        # I1/I2 — kabuk dizgeleri dile göre çözülür; yön dilden türetilir (RTL betikleri)
+        t={k: _attr(v) for k, v in i18n.table(project.language).items()},
+        dir=i18n.direction(project.language),
+        i18n_json=json.dumps(i18n.runtime_table(project.language), ensure_ascii=False),
         title=_text(project.title),
         css_vars=css_vars,
         base_css=BASE_CSS,
@@ -305,8 +338,9 @@ def _course_config(project: Project) -> dict:
             item["require_complete"] = s.require_complete
         if s.type in QUIZ_TYPES:
             item["feedback"] = {
-                "correct": sanitize(s.feedback.correct_html),
-                "incorrect": sanitize(s.feedback.incorrect_html),
+                # I1 — yazar doldurmadıysa (None) kurs dilindeki jenerik metne düş.
+                "correct": sanitize(s.feedback.correct_html or _T("feedback_correct")),
+                "incorrect": sanitize(s.feedback.incorrect_html or _T("feedback_incorrect")),
                 "show_correct": s.feedback.show_correct_answer,
             }
         # Faz 5: koşullu görünürlük + girişte değişken atama (her ekran tipi)
@@ -511,7 +545,7 @@ def _render_screen(s, idx: int) -> str:
     nid = getattr(s, "narration_asset_id", None)
     if nid:
         narration = (f'<audio class="narration" preload="none" '
-                     f'data-asset="{_attr(nid)}" aria-label="Seslendirme"></audio>')
+                     f'data-asset="{_attr(nid)}" aria-label="{_attr(_T("narration_audio"))}"></audio>')
     cap = ""
     ntext = getattr(s, "narration_text", None)
     if ntext:
@@ -581,9 +615,9 @@ def _r_true_false(s) -> str:
     opts = (
         '<div class="options tf">'
         '<button class="opt" data-opt="true" type="button"><span class="opt-mark"></span>'
-        '<span class="opt-text">Doğru</span></button>'
+        f'<span class="opt-text">{_text(_T("tf_true"))}</span></button>'
         '<button class="opt" data-opt="false" type="button"><span class="opt-mark"></span>'
-        '<span class="opt-text">Yanlış</span></button></div>'
+        f'<span class="opt-text">{_text(_T("tf_false"))}</span></button></div>'
     )
     return _quiz_shell(s, opts)
 
@@ -712,7 +746,7 @@ def _r_tabs(s) -> str:
 
 def _r_flashcards(s) -> str:
     cards = "".join(
-        f'<button class="flashcard" type="button" data-card aria-label="Kartı çevir">'
+        f'<button class="flashcard" type="button" data-card aria-label="{_attr(_T("flashcard_flip"))}">'
         f'<span class="fc-inner"><span class="fc-face fc-front rich">{_media(getattr(c, "front_asset_id", None), "item-media", getattr(c, "front_alt", None) or "")}{sanitize(c.front_html)}</span>'
         f'<span class="fc-face fc-back rich">{_media(getattr(c, "back_asset_id", None), "item-media", getattr(c, "back_alt", None) or "")}{sanitize(c.back_html)}</span></span></button>'
         for c in s.cards
@@ -732,8 +766,8 @@ def _r_matching(s) -> str:
     rows = "".join(
         f'<div class="match-row" data-pair="{_attr(p.id)}">'
         f'<div class="match-left rich">{sanitize(p.left_html)}</div>'
-        f'<select class="match-select" data-pair="{_attr(p.id)}" aria-label="Eşleştir">'
-        f'<option value="">— seç —</option>{opts}</select></div>'
+        f'<select class="match-select" data-pair="{_attr(p.id)}" aria-label="{_attr(_T("matching_select"))}">'
+        f'<option value="">{_text(_T("select_placeholder"))}</option>{opts}</select></div>'
         for p in s.pairs
     )
     return _quiz_shell(s, f'<div class="matching ui-stack">{rows}</div>')
@@ -743,8 +777,8 @@ def _r_sorting(s) -> str:
     items = "".join(
         f'<li class="sort-item ui-card" data-item="{_attr(it.id)}" draggable="true">'
         f'<span class="sort-text rich">{sanitize(it.text_html)}</span>'
-        f'<span class="sort-ctrl"><button type="button" class="sort-up" aria-label="Yukarı taşı">▲</button>'
-        f'<button type="button" class="sort-down" aria-label="Aşağı taşı">▼</button></span></li>'
+        f'<span class="sort-ctrl"><button type="button" class="sort-up" aria-label="{_attr(_T("sort_move_up"))}">▲</button>'
+        f'<button type="button" class="sort-down" aria-label="{_attr(_T("sort_move_down"))}">▼</button></span></li>'
         for it in s.items
     )
     return _quiz_shell(s, f'<ol class="sorting ui-stack" data-sorting>{items}</ol>')
@@ -777,11 +811,11 @@ def _r_simulation(s) -> str:
         img = f'<img class="hotspot-img" data-asset="{_attr(st.image_asset_id)}" alt="{_attr(st.image_alt or "")}">'
         if st.input_accepted is not None:  # YAZMA adımı
             acc = _attr(json.dumps(st.input_accepted, ensure_ascii=False))
-            label = _attr(st.input_label or "Cevabını yaz")
+            label = _attr(st.input_label or _T("sim_answer"))
             stage = (f'<div class="hotspot-stage">{img}</div>'
                      f'<div class="sim-input-row"><input class="sim-input" type="text" data-accepted="{acc}"'
                      f' placeholder="{label}" aria-label="{label}" autocomplete="off">'
-                     f'<button class="btn btn-primary sim-submit" type="button">Tamam</button></div>')
+                     f'<button class="btn btn-primary sim-submit" type="button">{_text(_T("sim_submit"))}</button></div>')
         else:  # TIKLAMA adımı
             regions = "".join(
                 f'<button class="hotspot-region sim-region" type="button" data-shape="{rg.shape}"'
@@ -823,7 +857,7 @@ def _r_decision_scenario(s) -> str:
             f'<div class="scen-node" data-node="{_attr(node.id)}"{hidden}>'
             f'<div class="scen-prompt rich">{sanitize(node.prompt_html)}</div>{img}'
             f'<ul class="scen-choices">{rows}</ul>'
-            f'<button class="btn btn-primary scen-next" type="button" hidden>Devam &rarr;</button>'
+            f'<button class="btn btn-primary scen-next" type="button" hidden>{_T("scenario_continue")}</button>'
             f'</div>'
         )
     head = f'<h2 class="screen-title">{_text(s.title)}</h2>'
@@ -833,7 +867,7 @@ def _r_decision_scenario(s) -> str:
     return (
         f'{head}<div class="scenario" data-scenario data-points="{int(s.points)}"{passattr}'
         f' data-start="{_attr(start)}">'
-        f'<div class="scen-hud ui-chip">Skor: <span class="scen-score">0</span></div>'
+        f'<div class="scen-hud ui-chip">{_text(_T("scenario_score"))} <span class="scen-score">0</span></div>'
         f'{nodes_html}</div>'
         f'<div class="feedback" role="status" aria-live="polite"></div>'
     )
@@ -847,8 +881,8 @@ def _r_term_match_race(s) -> str:
     rows = "".join(
         f'<div class="match-row tmr-row" data-pair="{_attr(p.id)}">'
         f'<div class="match-left rich">{sanitize(p.term_html)}</div>'
-        f'<select class="match-select tmr-select" data-pair="{_attr(p.id)}" aria-label="Eşleştir">'
-        f'<option value="">— seç —</option>{opts}</select></div>'
+        f'<select class="match-select tmr-select" data-pair="{_attr(p.id)}" aria-label="{_attr(_T("matching_select"))}">'
+        f'<option value="">{_text(_T("select_placeholder"))}</option>{opts}</select></div>'
         for p in s.pairs
     )
     head = f'<h2 class="screen-title">{_text(s.title)}</h2>'
@@ -859,7 +893,7 @@ def _r_term_match_race(s) -> str:
         f'<div class="tmr-bar"><span class="tmr-timer ui-chip">⏱ {int(s.time_limit_sec)}</span>'
         f'<span class="tmr-score ui-chip">0 / {len(s.pairs)}</span></div>'
         f'<div class="matching ui-stack">{rows}</div>'
-        f'<div class="quiz-actions"><button class="btn btn-check tmr-finish" type="button">Bitir</button></div>'
+        f'<div class="quiz-actions"><button class="btn btn-check tmr-finish" type="button">{_text(_T("term_race_finish"))}</button></div>'
         f'</div><div class="feedback" role="status" aria-live="polite"></div>'
     )
 
@@ -873,8 +907,8 @@ def _r_escape_room(s) -> str:
             f'<div class="esc-puzzle" data-puzzle="{i}"{hidden}>'
             f'<div class="esc-prompt rich">{sanitize(p.prompt_html)}</div>'
             f'<div class="esc-input-row"><input class="esc-input" type="text" autocomplete="off"'
-            f' aria-label="Cevabını yaz" placeholder="Cevabını yaz">'
-            f'<button class="btn btn-primary esc-submit" type="button">Aç</button></div>{hint}</div>'
+            f' aria-label="{_attr(_T("escape_answer"))}" placeholder="{_attr(_T("escape_answer"))}">'
+            f'<button class="btn btn-primary esc-submit" type="button">{_text(_T("escape_unlock"))}</button></div>{hint}</div>'
         )
     head = f'<h2 class="screen-title">{_text(s.title)}</h2>'
     if s.intro_html:
@@ -891,14 +925,14 @@ def _r_escape_room(s) -> str:
 def _r_labeled_diagram(s) -> str:
     pins = "".join(
         f'<button class="ld-pin" type="button" data-label="{_attr(lb.id)}"'
-        f' style="left:{lb.x / 10:.2f}%;top:{lb.y / 10:.2f}%" aria-label="İşaretçi {i + 1}">{i + 1}</button>'
+        f' style="left:{lb.x / 10:.2f}%;top:{lb.y / 10:.2f}%" aria-label="{_attr(_T("diagram_pin", n=i + 1))}">{i + 1}</button>'
         for i, lb in enumerate(s.labels)
     )
     opts = "".join(f'<option value="{_attr(lb.id)}">{_text(lb.text)}</option>' for lb in s.labels)
     rows = "".join(
         f'<div class="ld-row"><span class="ld-num">{i + 1}</span>'
-        f'<select class="ld-select" data-label="{_attr(lb.id)}" aria-label="İşaretçi {i + 1} etiketi">'
-        f'<option value="">— etiket seç —</option>{opts}</select></div>'
+        f'<select class="ld-select" data-label="{_attr(lb.id)}" aria-label="{_attr(_T("diagram_pin_label", n=i + 1))}">'
+        f'<option value="">{_text(_T("diagram_select_placeholder"))}</option>{opts}</select></div>'
         for i, lb in enumerate(s.labels)
     )
     img = f'<img class="hotspot-img" data-asset="{_attr(s.image_asset_id)}" alt="{_attr(s.image_alt or "")}">'
@@ -1007,14 +1041,14 @@ def _r_poll(s) -> str:
         f' value="{_attr(o.id)}"><span class="rich">{sanitize(o.text_html)}</span></label>'
         for o in s.options
     )
-    text = ('<textarea class="poll-text" rows="3" aria-label="Yansımanı yaz" '
-            'placeholder="Düşünceni yaz…"></textarea>' if s.allow_text else "")
+    text = (f'<textarea class="poll-text" rows="3" aria-label="{_attr(_T("poll_reflection"))}" '
+            f'placeholder="{_attr(_T("poll_reflection_placeholder"))}"></textarea>' if s.allow_text else "")
     reflection = (f'<div class="poll-reflection rich" hidden>{sanitize(s.reflection_html)}</div>'
-                  if s.reflection_html else '<div class="poll-reflection rich" hidden>Paylaştığın için teşekkürler.</div>')
+                  if s.reflection_html else f'<div class="poll-reflection rich" hidden>{_text(_T("poll_thanks"))}</div>')
     return (
         f'{head}<div class="poll" data-poll>'
         f'<div class="poll-opts">{opts}</div>{text}'
-        f'<div class="quiz-actions"><button class="btn btn-primary poll-submit" type="button">Gönder</button></div>'
+        f'<div class="quiz-actions"><button class="btn btn-primary poll-submit" type="button">{_text(_T("poll_submit"))}</button></div>'
         f'{reflection}</div>'
     )
 
@@ -1028,9 +1062,9 @@ def _r_image_compare(s) -> str:
         head += f'<div class="rich prompt">{sanitize(s.prompt_html)}</div>'
     return (
         f'{head}<figure class="img-compare-wrap"><div class="img-compare" data-compare>'
-        f'<img class="ic-img ic-img-before" data-asset="{_attr(s.before_asset_id)}" alt="{_attr(s.before_label or "Önce")}">{bl}'
-        f'<div class="ic-after-wrap"><img class="ic-img ic-img-after" data-asset="{_attr(s.after_asset_id)}" alt="{_attr(s.after_label or "Sonra")}">{al}</div>'
-        f'<input class="ic-range" type="range" min="0" max="100" value="50" aria-label="Önce/sonra karşılaştır">'
+        f'<img class="ic-img ic-img-before" data-asset="{_attr(s.before_asset_id)}" alt="{_attr(s.before_label or _T("compare_before"))}">{bl}'
+        f'<div class="ic-after-wrap"><img class="ic-img ic-img-after" data-asset="{_attr(s.after_asset_id)}" alt="{_attr(s.after_label or _T("compare_after"))}">{al}</div>'
+        f'<input class="ic-range" type="range" min="0" max="100" value="50" aria-label="{_attr(_T("compare_slider"))}">'
         f'<div class="ic-divider"></div></div>{cap}</figure>'
     )
 
@@ -1059,7 +1093,7 @@ def _r_game(s) -> str:
             f'<div class="game-node" data-node="{_attr(node.id)}"{hidden}>'
             f'<div class="game-content rich">{sanitize(node.content_html)}</div>{img}'
             f'<ul class="game-choices">{rows}</ul>'
-            f'<button class="btn btn-primary game-next" type="button" hidden>Devam &rarr;</button>'
+            f'<button class="btn btn-primary game-next" type="button" hidden>{_T("game_continue")}</button>'
             f'</div>'
         )
     head = f'<h2 class="screen-title">{_text(s.title)}</h2>'
@@ -1068,12 +1102,12 @@ def _r_game(s) -> str:
     # HUD: chip'ler + a11y kontrolleri (WCAG 2.2.1 süre uzat/kapat) — hepsi gizli, bindGame açar
     hud = (
         '<div class="game-hud" role="status" aria-live="polite">'
-        '<span class="game-hud-score ui-chip" hidden>Skor: <b>0</b></span>'
+        f'<span class="game-hud-score ui-chip" hidden>{_text(_T("game_score"))} <b>0</b></span>'
         '<span class="game-hud-lives ui-chip" hidden>&hearts; <b>0</b></span>'
         '<span class="game-hud-timer ui-chip" hidden>&#9201; <b>0</b></span>'
-        '<button class="game-hint btn btn-ghost" type="button" hidden>İpucu</button>'
-        '<button class="game-timer-extend btn btn-ghost" type="button" hidden>+30 sn</button>'
-        '<button class="game-timer-off btn btn-ghost" type="button" hidden>Süreyi kapat</button>'
+        f'<button class="game-hint btn btn-ghost" type="button" hidden>{_text(_T("game_hint"))}</button>'
+        f'<button class="game-timer-extend btn btn-ghost" type="button" hidden>{_text(_T("game_timer_extend"))}</button>'
+        f'<button class="game-timer-off btn btn-ghost" type="button" hidden>{_text(_T("game_timer_off"))}</button>'
         '</div>'
     )
     return (
@@ -1100,7 +1134,7 @@ def _r_adaptive_practice(s) -> str:
             f'<div class="ap-item" data-item="{_attr(it.id)}" data-difficulty="{float(it.difficulty)}" hidden>'
             f'<div class="ap-prompt rich">{sanitize(it.prompt_html)}</div>'
             f'<div class="ap-options ui-stack">{opts}</div>{explain}'
-            f'<div class="quiz-actions"><button class="btn btn-check ap-check" type="button">Kontrol Et</button></div>'
+            f'<div class="quiz-actions"><button class="btn btn-check ap-check" type="button">{_text(_T("quiz_check"))}</button></div>'
             f'</div>'
         )
     head = f'<h2 class="screen-title">{_text(s.title)}</h2>'
@@ -1126,7 +1160,7 @@ def _quiz_shell(s, inner: str) -> str:
         f'<h2 class="screen-title">{_text(s.title)}</h2>'
         f'<div class="rich prompt">{sanitize(s.prompt_html)}</div>'
         f'{inner}'
-        f'<div class="quiz-actions"><button class="btn btn-check" type="button">Kontrol Et</button></div>'
+        f'<div class="quiz-actions"><button class="btn btn-check" type="button">{_text(_T("quiz_check"))}</button></div>'
         f'<div class="feedback" role="status" aria-live="polite"></div>'
     )
 
