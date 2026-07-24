@@ -36,12 +36,10 @@ def _compile_module(src: str) -> tuple[str, list[str]]:
     return src, names
 
 
-@lru_cache(maxsize=1)
-def load_engine_bundle() -> str:
-    """Tüm motor modüllerini per-modül IIFE'ye sarıp birleştir; export'ları window.SCORMGame'e aç.
-    Yalnız `game` ekranı olan pakette lazy inline edilir (lottie deseni gibi)."""
+def _bundle(order: tuple[str, ...], global_name: str) -> str:
+    """Modülleri per-modül IIFE'ye sarıp birleştir; export'ları tek paylaşılan nesneye aç."""
     blocks: list[str] = []
-    for rel in _ORDER:
+    for rel in order:
         p = ENGINE_DIR / rel
         if not p.exists():
             continue
@@ -49,4 +47,21 @@ def load_engine_bundle() -> str:
         assign = "; ".join(f"__E.{n} = {n}" for n in names)
         blocks.append(f"/* engine/{rel} */\n(function(){{\n{body}\n{assign};\n}})();")
     inner = "\n".join(blocks)
-    return f"(function(){{\nvar __E = {{}};\n{inner}\nwindow.SCORMGame = __E;\n}})();"
+    return f"(function(){{\nvar __E = {{}};\n{inner}\nwindow.{global_name} = __E;\n}})();"
+
+
+@lru_cache(maxsize=1)
+def load_engine_bundle() -> str:
+    """Tüm motor modüllerini per-modül IIFE'ye sarıp birleştir; export'ları window.SCORMGame'e aç.
+    Yalnız `game` ekranı olan pakette lazy inline edilir (lottie deseni gibi)."""
+    return _bundle(tuple(_ORDER), "SCORMGame")
+
+
+@lru_cache(maxsize=1)
+def load_scorm_bundle() -> str:
+    """S1/S3/S4 — SCORM veri sözleşmesi yardımcıları → window.SCORMRT.
+
+    Oyun bundle'ından AYRI ve KOŞULSUZ inline edilir: interactions/seat-time/exit HER pakette
+    gerekir (oyun bundle'ı yalnız game/adaptive/xAPI kursunda yüklenir). ~3 KB.
+    """
+    return _bundle(("scorm.js",), "SCORMRT")

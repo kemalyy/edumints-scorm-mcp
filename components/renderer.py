@@ -22,7 +22,7 @@ from typing import Literal
 
 import nh3
 
-from core.engine_bundle import load_engine_bundle  # W3b — oyun motoru lazy inline
+from core.engine_bundle import load_engine_bundle, load_scorm_bundle  # W3b — motor lazy, SCORM RT hep
 from core.project import Project, QUIZ_TYPES, ScreenType, ThemeTokens
 
 from .templates import BASE_CSS, ENGINE_JS, FALLBACK_RUNTIME_SHIM, SHELL
@@ -133,6 +133,9 @@ def render_html(
 
     # Faz 7 — opt-in/lazy: lottie lib YALNIZ animasyon kullanılırsa eklenir (zero-load)
     extras = []
+    # S1/S3/S4 — SCORM veri sözleşmesi (interactions/seat-time/exit): HER pakette gerekli, koşulsuz.
+    # engine_js'ten ÖNCE gelir → window.SCORMRT bind'lerden önce tanımlı.
+    extras.append(f"<script>{load_scorm_bundle()}</script>")
     if _uses_lottie(project):
         extras.append(f"<script>{_load_lottie_js()}</script>" if mode == "preview"
                       else f'<script src="{_LOTTIE_REL}"></script>')
@@ -231,6 +234,9 @@ def _course_config(project: Project) -> dict:
     for idx, s in enumerate(project.screens):
         item: dict = {"id": s.id or f"idx{idx}", "type": s.type.value, "index": idx,
                       "is_quiz": s.type in QUIZ_TYPES}
+        # S1 — cmi.interactions.n.description (yalnız 2004'te yazılır; puanlanan ekranlarda anlamlı).
+        if s.type in QUIZ_TYPES and getattr(s, "title", None):
+            item["title"] = s.title
         if s.type == ScreenType.mcq:
             item["points"] = s.points
             item["multi"] = s.multi_select

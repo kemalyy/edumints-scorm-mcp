@@ -845,13 +845,31 @@ function sCommit(){ if(!api)return; try{ S2004?api.Commit(""):api.LMSCommit("");
 function sInit(){ if(!api)return; try{ S2004?api.Initialize(""):api.LMSInitialize(""); }catch(e){} }
 function sFinish(){ if(!api)return; try{ S2004?api.Terminate(""):api.LMSFinish(""); }catch(e){} }
 sInit();
+// S1/S3/S4 — SCORM veri sözleşmesi yardımcıları (components/engine/scorm.js → koşulsuz inline).
+// Yoksa (beklenmedik) tüm yeni yazımlar sessizce atlanır; mevcut davranış bozulmaz.
+var RT = window.SCORMRT || {};
 if(S2004){ sSet("cmi.score.min","0"); sSet("cmi.score.max","100"); sSet("cmi.completion_status","incomplete"); }
 else { sSet("cmi.core.score.min","0"); sSet("cmi.core.score.max","100"); sSet("cmi.core.lesson_status","incomplete"); }
 
+// ---- S3: seat time (oturum süresi) ----
+// Sekme GİZLİYKEN geçen süre sayılmaz — açık bırakılan sekme "20 saat eğitim" olarak raporlanmasın.
+var _sesMs=0, _sesFrom=Date.now();
+function _sesPause(){ if(_sesFrom!=null){ _sesMs+=Date.now()-_sesFrom; _sesFrom=null; } }
+function _sesResume(){ if(_sesFrom==null) _sesFrom=Date.now(); }
+document.addEventListener("visibilitychange",function(){ document.hidden?_sesPause():_sesResume(); });
+function sessionMs(){ return _sesMs + (_sesFrom!=null ? Date.now()-_sesFrom : 0); }
+function writeSessionTime(){ if(!RT.sessionTime) return;
+  sSet(S2004?"cmi.session_time":"cmi.core.session_time", RT.sessionTime(sessionMs(), S2004)); }
+
 // ---- durum (suspend_data'dan geri yükle) ----
+// S4 — entry "ab-initio" ise LMS yeni bir deneme başlatmıştır: eski suspend_data'yı GERİ YÜKLEME.
 var state={visited:{},results:{},history:[]};
-(function restore(){ try{ var raw=sGet(S2004?"cmi.suspend_data":"cmi.suspend_data");
-  if(raw){ var d=JSON.parse(raw); if(d&&d.visited){ state=d; state.history=state.history||[]; } } }catch(e){} })();
+(function restore(){ try{
+  var raw=sGet("cmi.suspend_data");
+  var entry=sGet(S2004?"cmi.entry":"cmi.core.entry");
+  var may = RT.shouldRestore ? RT.shouldRestore(entry, !!raw) : !!raw;
+  if(may && raw){ var d=JSON.parse(raw); if(d&&d.visited){ state=d; state.history=state.history||[]; } }
+}catch(e){} })();
 
 // ---- Faz 5: değişken/durum motoru (state.vars → suspend_data'da persist) ----
 if(!state.vars){ state.vars={}; (COURSE.variables||[]).forEach(function(v){ state.vars[v.name]=v.default; }); }
@@ -952,6 +970,10 @@ function evaluate(){
     }
     sSet("cmi.core.lesson_status",status);
   }
+  writeSessionTime();  // S3
+  // S4 — exit'i HER değerlendirmede yaz: beforeunload mobilde/bfcache'te kaçırılabilir; boş exit
+  // 1.2'de "normal çıkış" demektir ve LMS suspend_data'yı atmakta serbesttir.
+  sSet(S2004?"cmi.exit":"cmi.core.exit", RT.exitValue?RT.exitValue(complete):(complete?"normal":"suspend"));
   persist();
 }
 
@@ -1005,6 +1027,7 @@ function showAt(idx,push){
   sections.forEach(function(el){ el.setAttribute("aria-hidden", el.dataset.screenId===id?"false":"true"); });
   state.visited[id]=true;
   state.cursorId=id;
+  if(_shownAt[id]==null) _shownAt[id]=Date.now();  // S1 — latency başlangıcı (ilk gösterim)
   var _sc=byId[id]; if(_sc&&_sc.on_enter) applyActions(_sc.on_enter);  // Faz 5
   interpolateScreen(secById[id]);
   startTimer(_sc); updateHud();  // Faz 6 + Faz 15 (G1)
@@ -1089,6 +1112,29 @@ function renderResultsIfNeeded(el,s){
 
 // ---- quiz: interaksiyon ----
 function recordResult(id,pts,maxpts,ok){ state.results[id]={points:pts,max:maxpts,ok:!!ok,answered:true}; }
+
+// ---- S1: cmi.interactions.* ----
+// Ekran → sabit etkileşim indeksi. suspend_data'da taşınır: aynı soru tekrar cevaplanırsa AYNI
+// indekse yazılır (LMS'te kopya satır oluşmaz), yeni sorular sıradaki indeksi alır.
+if(!state.ix) state.ix={};
+if(state.inext==null) state.inext=0;
+var _shownAt={};   // ekran id → gösterim zamanı (latency; kalıcı DEĞİL — suspend_data bütçesi)
+function _ixOf(id){ var n=state.ix[id]; if(n==null){ n=state.inext++; state.ix[id]=n; } return n; }
+// resp/corr verilmezse (bileşik ekranlar) yalnız result/latency yazılır — yanlış cevap uydurulmaz.
+function recordInteraction(s,ok,resp,corr,idOverride,typeOverride){
+  if(!RT.interactionElements||!s) return;
+  try{
+    var iid=idOverride||s.id;
+    var rec={ id:iid, screenType:typeOverride||s.type, ok:ok, time:Date.now(),
+              description:s.title||"", response:(resp==null?"":resp) };
+    if(corr!=null) rec.correct=corr;
+    if(s.points!=null) rec.weighting=s.points;
+    var t0=(_shownAt[iid]!=null)?_shownAt[iid]:_shownAt[s.id];   // varsa öğe-bazlı, yoksa ekran-bazlı
+    if(t0!=null) rec.latencyMs=Date.now()-t0;
+    var kv=RT.interactionElements(rec,_ixOf(iid),S2004);
+    for(var i=0;i<kv.length;i++){ sSet(kv[i][0],kv[i][1]); }
+  }catch(e){}
+}
 
 // resume: cevaplanmış quiz'i (suspend_data'dan) işaretle — kullanıcı kaldığı yerden cevabı/skoruyla görür
 function applyAnsweredState(el,s){
@@ -1180,17 +1226,22 @@ function checkChoice(el,s){
     if(isC && s.feedback.show_correct) o.classList.add("correct");
     if(o.classList.contains("selected")&&!isC) o.classList.add("wrong");
   });
-  return ok;
+  // true_false → tek boolean; mcq → seçilen şık id'leri (S1 çeldirici analizi bunu kullanır)
+  if(s.type==="true_false"){
+    return {ok:ok, response:sel.length?sel[0]:"", correct:correct.length?correct[0]:""};
+  }
+  return {ok:ok, response:sel, correct:correct};
 }
 function checkFill(el,s){
-  var ok=true;
+  var ok=true; var resp=[], corr=[];
   el.querySelectorAll("input[data-blank]").forEach(function(inp){
     var acc=s.blanks[inp.dataset.blank]||[]; var val=inp.value.trim();
     var v=s.case_sensitive?val:val.toLowerCase();
     var hit=acc.some(function(a){ return (s.case_sensitive?a:a.toLowerCase())===v; });
     inp.disabled=true; inp.parentNode.classList.add(hit?"correct":"wrong"); if(!hit) ok=false;
+    resp.push(val); corr.push(acc.length?acc[0]:"");
   });
-  return ok;
+  return {ok:ok, response:resp, correct:corr};
 }
 function bindDrag(el,s){
   var dragging=null;
@@ -1224,9 +1275,10 @@ function bindDrag(el,s){
   bindCheck(el,s,function(){ return checkDrag(el,s); });
 }
 function checkDrag(el,s){
-  var ok=true;
+  var ok=true; var placed={};   // S1 — matching deseni: {itemId: targetId}
   el.querySelectorAll(".drop-target").forEach(function(tg){
     var tid=tg.dataset.target; var items=tg.querySelectorAll(".drag-item"); var good=true;
+    items.forEach(function(it){ placed[it.dataset.item]=tid; });
     items.forEach(function(it){ if(s.correct[it.dataset.item]!==tid) good=false; });
     // hedefte olması gereken tüm item'lar burada mı?
     for(var item in s.correct){ if(s.correct[item]===tid){ var found=false;
@@ -1234,7 +1286,7 @@ function checkDrag(el,s){
     tg.classList.add(good?"correct":"wrong"); if(!good) ok=false;
   });
   el.querySelectorAll(".drag-item").forEach(function(it){ it.setAttribute("draggable","false"); });
-  return ok;
+  return {ok:ok, response:placed, correct:s.correct};
 }
 function bindHotspot(el,s){
   var img=el.querySelector(".hotspot-img"); var picked=null;
@@ -1257,13 +1309,18 @@ function bindHotspot(el,s){
   bindCheck(el,s,function(){ var ok=s.correct.indexOf(picked)>=0;
     el.querySelectorAll(".hotspot-region").forEach(function(r){
       if(s.correct.indexOf(r.dataset.region)>=0) r.classList.add("correct");
-      else if(r.dataset.region===picked) r.classList.add("wrong"); }); return ok; });
+      else if(r.dataset.region===picked) r.classList.add("wrong"); });
+    return {ok:ok, response:picked?[picked]:[], correct:s.correct}; });
 }
 function bindCheck(el,s,checker){
   var btn=el.querySelector(".btn-check"); var fb=el.querySelector(".feedback");
   btn.addEventListener("click",function(){
-    var ok=checker(); btn.disabled=true;
+    // checker: boolean VEYA {ok,response,correct} — ikincisi S1 için öğrenci cevabını da taşır.
+    var r=checker(); var rich=(r&&typeof r==="object");
+    var ok=rich?!!r.ok:!!r;
+    btn.disabled=true;
     var pts=ok?s.points:0; recordResult(s.id,pts,s.points,ok);
+    recordInteraction(s,ok,rich?r.response:null,rich?r.correct:null);
     applyActions(ok?s.on_correct:s.on_wrong);  // Faz 6 — quiz sonucu → değişken (puan vb.)
     fb.innerHTML=ok?s.feedback.correct:s.feedback.incorrect;
     fb.className="feedback show "+(ok?"ok":"no");
@@ -1308,7 +1365,7 @@ function bindSimulation(el,s){
   window.addEventListener("resize",function(){ var st=sim.querySelector('.sim-step[data-step="'+cur+'"]'); if(st) placeStep(st); });
   function wrong(step){ var hint=step.querySelector(".sim-hint"); if(hint) hint.hidden=false; }
   function advance(step){ var hint=step.querySelector(".sim-hint"); if(hint) hint.hidden=true; cur++;
-    if(cur>=total){ recordResult(s.id,s.points,s.points,true); applyActions(s.on_correct);
+    if(cur>=total){ recordResult(s.id,s.points,s.points,true); recordInteraction(s,true,total+" adım",null); applyActions(s.on_correct);
       if(fb&&s.feedback){ fb.innerHTML=s.feedback.correct; fb.className="feedback show ok"; } evaluate();
     } else showStep(cur); }
   // TIKLAMA adımları
@@ -1331,7 +1388,7 @@ function bindSimulation(el,s){
 // Faz 12 (G2) — dallanan karar senaryosu (durum/skor taşır, uç düğümde skorlanır)
 function bindScenario(el,s){
   var root=el.querySelector(".scenario"); if(!root) return;
-  var score=0, finished=false;
+  var score=0, finished=false, path=[];   // path: S1 — öğrencinin izlediği karar yolu
   var hud=root.querySelector(".scen-score");
   var fb=el.querySelector(".feedback");
   var pass=(root.dataset.pass!==undefined&&root.dataset.pass!=="")?parseInt(root.dataset.pass,10):null;
@@ -1340,6 +1397,7 @@ function bindScenario(el,s){
   function finalize(){ if(finished) return; finished=true;
     var ok = (pass!=null) ? (score>=pass) : (score>0);
     recordResult(s.id, ok?points:0, points, ok);
+    recordInteraction(s, ok, path, null);
     applyActions(ok?s.on_correct:s.on_wrong);
     if(fb){ var msg=ok?(s.feedback&&s.feedback.correct||""):(s.feedback&&s.feedback.incorrect||"");
       fb.innerHTML=msg+' <b>Skor: '+score+'</b>'; fb.className="feedback show "+(ok?"ok":"no"); }
@@ -1352,6 +1410,7 @@ function bindScenario(el,s){
       b.addEventListener("click",function(){
         if(node.dataset.done) return; node.dataset.done="1";
         score+=parseInt(b.dataset.delta,10)||0; if(hud) hud.textContent=score;
+        path.push(node.dataset.node);
         node.querySelectorAll(".scen-choice").forEach(function(x){ x.disabled=true; if(x!==b) x.classList.add("dim"); });
         b.classList.add("chosen");
         var cf=b.parentNode.querySelector(".scen-conseq"); if(cf) cf.hidden=false;
@@ -1385,9 +1444,12 @@ function bindTermRace(el,s){
   function grade(){ if(done) return; done=true; if(_tmrTimer) clearInterval(_tmrTimer);
     var c=correctCount(); var bonus=(c===total)?Math.round(left/5):0;
     var earned=Math.min(s.points, Math.round(s.points*c/total)+bonus); var ok=c===total;
-    root.querySelectorAll(".tmr-row").forEach(function(r){ var sel=r.querySelector(".tmr-select"); sel.disabled=true;
-      r.classList.add(sel.value===r.dataset.pair?"correct":"wrong"); });
+    var resp={}, corr={};   // S1 — matching deseni
+    root.querySelectorAll(".tmr-row").forEach(function(r,i){ var sel=r.querySelector(".tmr-select"); sel.disabled=true;
+      r.classList.add(sel.value===r.dataset.pair?"correct":"wrong");
+      var key=r.dataset.row||String(i); resp[key]=sel.value; corr[key]=r.dataset.pair; });
     finish.disabled=true; recordResult(s.id, earned, s.points, ok);
+    recordInteraction(s, ok, resp, corr);
     applyActions(ok?s.on_correct:s.on_wrong);
     if(fb){ var m=ok?(s.feedback.correct||""):(s.feedback.incorrect||"");
       fb.innerHTML=m+" <b>"+c+"/"+total+(bonus?" · +"+bonus+" hız bonusu":"")+"</b>"; fb.className="feedback show "+(ok?"ok":"no"); }
@@ -1408,8 +1470,12 @@ function bindEscape(el,s){
     if(hearts[lives]) hearts[lives].classList.add("lost");
     if(lives<=0){ finish(false); } }
   function finish(win){ if(done) return; done=true;
+    var resp=[], corr=[];   // S1 — bulmaca başına girilen cevap / ilk kabul edilen cevap
+    root.querySelectorAll(".esc-input").forEach(function(x,i){ resp.push(x.value); corr.push((acc[i]||[])[0]||""); });
     root.querySelectorAll(".esc-input,.esc-submit").forEach(function(x){ x.disabled=true; });
-    recordResult(s.id, win?s.points:0, s.points, win); applyActions(win?s.on_correct:s.on_wrong);
+    recordResult(s.id, win?s.points:0, s.points, win);
+    recordInteraction(s, win, resp, corr);
+    applyActions(win?s.on_correct:s.on_wrong);
     if(fb){ fb.innerHTML=win?(s.feedback.correct||"Tüm kilitleri açtın!"):(s.feedback.incorrect||"Canların bitti.");
       fb.className="feedback show "+(win?"ok":"no"); }
     var nb=document.getElementById("btnNext"); if(cursor<order.length-1) nb.disabled=false; evaluate(); }
@@ -1485,6 +1551,7 @@ function bindGame(el,s){
     if(mech.lives&&mech.lives.depleted) ok=false;       // can bitti → kaybetti
     else if(pass!=null) ok=sc>=pass; else ok=sc>0;
     recordResult(s.id, ok?points:0, points, ok);
+    recordInteraction(s, ok, "skor:"+sc, null);
     XAPI.emit("finalize",{ok:ok,score:sc,max:points});                                            // telemetri (W5b)
     applyActions(ok?s.on_correct:s.on_wrong);
     root.querySelectorAll(".game-choice,.game-hint,.game-next").forEach(function(x){ x.disabled=true; });
@@ -1547,6 +1614,7 @@ function bindAdaptive(el,s){
     var pick;
     if(strategy==="bkt"){ avail.sort(function(a,b){ return a.d-b.d; }); pick=avail[0]; }   // ustalık: kolaydan zora
     else { pick=G.pickByTargetSuccess(function(p){ return est.pCorrect(p.d); }, avail, {target:target}, rng); } // akış: ZPD
+    if(pick) _shownAt[s.id+"."+pick.id]=Date.now();   // S1 — öğe-bazlı latency başlangıcı
     show(pick);
   }
   function finalize(){ if(finished) return; finished=true;
@@ -1573,6 +1641,8 @@ function bindAdaptive(el,s){
       opts.forEach(function(o){ o.disabled=true;
         if(correct.indexOf(o.dataset.opt)>=0 && s.feedback && s.feedback.show_correct) o.classList.add("correct");
         if(o.classList.contains("selected")&&!ok) o.classList.add("wrong"); });
+      // S1 — adaptif havuz SORU BAZINDA raporlanır: her öğe ayrı bir cmi.interactions kaydı.
+      recordInteraction(s, ok, [sel.dataset.opt], correct, s.id+"."+p.id, "mcq");
       if(strategy==="bkt") est.observe(ok); else est.observe(p.d, ok);   // yeterliliği güncelle
       XAPI.emit("adaptive.observe", strategy==="bkt"                       // telemetri (W5b): ability VEYA mastery
         ? {itemId:p.id,correct:ok,mastery:est.mastery}
@@ -1594,9 +1664,11 @@ function bindLabeledDiagram(el,s){
     sel.addEventListener("focus",function(){ hl(true); }); sel.addEventListener("blur",function(){ hl(false); });
     if(pin) pin.addEventListener("click",function(){ sel.focus(); sel.scrollIntoView({block:"nearest"}); });
   });
-  bindCheck(el,s,function(){ var ok=true;
+  bindCheck(el,s,function(){ var ok=true; var resp={}, corr={};
     ld.querySelectorAll(".ld-select").forEach(function(sel){ var hit=sel.value===sel.dataset.label;
-      sel.disabled=true; sel.closest(".ld-row").classList.add(hit?"correct":"wrong"); if(!hit) ok=false; }); return ok; });
+      sel.disabled=true; sel.closest(".ld-row").classList.add(hit?"correct":"wrong"); if(!hit) ok=false;
+      resp[sel.dataset.label]=sel.value; corr[sel.dataset.label]=sel.dataset.label; });
+    return {ok:ok, response:resp, correct:corr}; });
 }
 // Faz 14 — anket/yansıma (skorlanmaz; gönderince yansıma belirir)
 function bindPoll(el){
@@ -1640,12 +1712,14 @@ function bindFlashcards(el){
   });
 }
 function checkMatching(el){
-  var ok=true;
-  el.querySelectorAll(".match-row").forEach(function(row){
+  var ok=true; var resp={}, corr={};   // S1 — {satır: seçilen} / {satır: doğru}
+  el.querySelectorAll(".match-row").forEach(function(row,i){
     var sel=row.querySelector(".match-select"); var hit=sel.value===row.dataset.pair;
     sel.disabled=true; row.classList.add(hit?"correct":"wrong"); if(!hit) ok=false;
+    var key=row.dataset.row||String(i);
+    resp[key]=sel.value; corr[key]=row.dataset.pair;
   });
-  return ok;
+  return {ok:ok, response:resp, correct:corr};
 }
 function bindSorting(el,s){
   var list=el.querySelector(".sorting");
@@ -1674,7 +1748,7 @@ function checkSorting(el,s){
   var c=s.correct_order; var ok=cur.length===c.length && cur.every(function(x,i){return x===c[i];});
   el.querySelectorAll(".sort-item").forEach(function(li,i){ li.classList.add(cur[i]===c[i]?"correct":"wrong");
     li.setAttribute("draggable","false"); li.querySelectorAll("button").forEach(function(b){b.disabled=true;}); });
-  return ok;
+  return {ok:ok, response:cur, correct:c};
 }
 
 /* ===== Faz 9 — stage ölçekleme + player + timeline reveal ===== */
@@ -1913,7 +1987,12 @@ function closeMenu(){ var m=document.getElementById("slideMenu"), o=document.get
 
 document.getElementById("btnNext").addEventListener("click",next);
 document.getElementById("btnPrev").addEventListener("click",prev);
-window.addEventListener("beforeunload",function(){ evaluate(); sFinish(); });
+// S3/S4 — kapanış: beforeunload mobilde/bfcache'te tetiklenmeyebilir, pagehide daha güvenilir.
+// _finished bayrağı çift Terminate'i (LMS hatası) engeller.
+var _finished=false;
+function finishNow(){ if(_finished) return; _finished=true; _sesPause(); evaluate(); sFinish(); }
+window.addEventListener("beforeunload",finishNow);
+window.addEventListener("pagehide",finishNow);
 
 // başla — suspend_data'dan kaldığı ekrana devam (yoksa baştan)
 var startIdx=0;
