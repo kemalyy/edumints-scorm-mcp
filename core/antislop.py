@@ -271,9 +271,10 @@ def _lint_default_feedback(s, path: str) -> list[LintIssue]:
     fb = getattr(s, "feedback", None)
     if fb is None:
         return []
-    if fb.correct_html == "Doğru!" and fb.incorrect_html == "Tekrar deneyin.":
+    # I1 — varsayılan artık None (dil-nötr); metin karşılaştırması yerine "yazar doldurdu mu"ya bak.
+    if not fb.correct_html and not fb.incorrect_html:
         return [LintIssue("warn", "default_feedback",
-                          "Feedback şema varsayılanında bırakılmış ('Doğru!'/'Tekrar deneyin.') — "
+                          "Feedback yazılmamış, jenerik varsayılana bırakılmış — "
                           "her feedback nedeni açıklamalı ve doğru modele bağlanmalı",
                           f"{path}.feedback")]
     return []

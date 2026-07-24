@@ -175,8 +175,12 @@ class Choice(BaseModel):
 
 
 class Feedback(BaseModel):
-    correct_html: str = "Doğru!"
-    incorrect_html: str = "Tekrar deneyin."
+    # I1 — varsayılan artık Türkçe SABİT metin değil None: metin render anında kursun diline göre
+    # çözülür (components/i18n.py: feedback_correct / feedback_incorrect). Böylece Almanca bir kurs
+    # "Doğru!" göstermez. None ayrıca "yazar doldurmadı"yı belirsizlikten kurtarır — antislop'un
+    # default_feedback kuralı bunu doğrudan görür (eski hâlde metin karşılaştırması yapıyordu).
+    correct_html: str | None = None
+    incorrect_html: str | None = None
     show_correct_answer: bool = True
 
 
