@@ -18,7 +18,12 @@ import pytest
 from components import i18n
 from components.renderer import render_html
 from core.project import (
-    Choice, ContentSlide, MCQScreen, Project, TrueFalseScreen, new_project_id,
+    Choice,
+    ContentSlide,
+    MCQScreen,
+    Project,
+    TrueFalseScreen,
+    new_project_id,
 )
 
 REPO = Path(__file__).resolve().parent.parent

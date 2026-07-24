@@ -23,7 +23,12 @@ import server
 from components.renderer import render_html
 from core.engine_bundle import load_scorm_bundle
 from core.project import (
-    Project, new_project_id, ContentSlide, MCQScreen, Choice, TrueFalseScreen,
+    Choice,
+    ContentSlide,
+    MCQScreen,
+    Project,
+    TrueFalseScreen,
+    new_project_id,
 )
 
 
