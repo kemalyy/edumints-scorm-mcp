@@ -644,10 +644,10 @@ body[data-layout="flow"] .stage-scaler,body[data-layout="flow"] .stage-frame{
 /* Faz 17 — JS-tetikli reflow: sabit-tuval ölçeği okunabilirlik eşiğinin (k<0.85) altına
    düşünce fitStage data-fit="flow" set eder → dar/kısa ekran ve LMS iframe'lerde içerik
    küçülmek yerine doğal akışla (≤640px reflow ile aynı) yerleşir, dikey kaydırılır. */
-body[data-layout="stage"][data-fit="flow"] .stage{align-items:stretch;justify-content:flex-start;overflow-y:auto}
+body[data-layout="stage"][data-fit="flow"] .stage{align-items:center;justify-content:flex-start;overflow-y:auto}
 body[data-layout="stage"][data-fit="flow"] .stage-scaler{width:100%!important;height:auto!important;margin:0}
 body[data-layout="stage"][data-fit="flow"] .stage-frame{width:100%!important;height:auto!important;transform:none!important}
-body[data-layout="stage"][data-fit="flow"] .stage-frame .screen{position:relative;inset:auto;min-height:100%;overflow:visible}
+body[data-layout="stage"][data-fit="flow"] .stage-frame .screen[aria-hidden="false"]{position:relative;inset:auto;min-height:100%;overflow:visible}
 body[data-layout="stage"][data-fit="flow"] .screen-inner{height:auto;min-height:100%;overflow:visible}
 /* altyazı */
 .cc-bar{position:absolute;left:5%;right:5%;bottom:12px;z-index:6;
@@ -778,10 +778,10 @@ body[data-layout="flow"] .stage{position:relative}
   .options.tf{flex-direction:column}
   /* Faz 16 — mobil/dar ekran: sabit-tuval ölçeklemesini BIRAK, içerik doğal akışla reflow
      + dikey kaydırma (metin okunabilir kalır, tuval küçülmez) */
-  body[data-layout="stage"] .stage{align-items:stretch;justify-content:flex-start;overflow-y:auto}
+  body[data-layout="stage"] .stage{align-items:center;justify-content:flex-start;overflow-y:auto}
   body[data-layout="stage"] .stage-scaler{width:100%!important;height:auto!important;margin:0}
   body[data-layout="stage"] .stage-frame{width:100%!important;height:auto!important;transform:none!important}
-  body[data-layout="stage"] .stage-frame .screen{position:relative;inset:auto;min-height:100%;overflow:visible}
+  body[data-layout="stage"] .stage-frame .screen[aria-hidden="false"]{position:relative;inset:auto;min-height:100%;overflow:visible}
   .screen-inner{height:auto;min-height:100%;overflow:visible}
 }
 /* ===== RESPONSIVE — küçük mobil ===== */
