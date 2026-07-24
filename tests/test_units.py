@@ -1266,7 +1266,7 @@ def test_w9_antislop_b3_default_feedback():
 
 
 def test_w10_theme_logo_alt_and_custom_fonts_fields():
-    from core.project import ThemeTokens, CustomFont
+    from core.project import CustomFont, ThemeTokens
 
     t = ThemeTokens()
     assert t.logo_alt is None
@@ -1326,7 +1326,7 @@ def test_w10_font_faces_empty_when_no_custom_fonts():
 
 
 def test_w10_font_faces_rendered_for_custom_fonts():
-    from core.project import ThemeTokens, CustomFont, AssetRef
+    from core.project import AssetRef, CustomFont, ThemeTokens
 
     theme = ThemeTokens(custom_fonts=[CustomFont(family="Acme Sans", asset_id="font1", weight=700,
                                                    style="italic")])
@@ -1345,7 +1345,7 @@ def test_w10_font_faces_rendered_for_custom_fonts():
 
 def test_w10_font_faces_skips_unresolved_asset():
     """asset_map'te bulunmayan bir asset_id sessizce atlanır (paket bozulmaz)."""
-    from core.project import ThemeTokens, CustomFont
+    from core.project import CustomFont, ThemeTokens
 
     theme = ThemeTokens(custom_fonts=[CustomFont(family="Ghost", asset_id="missing_asset")])
     p = Project(id=new_project_id(), title="K", theme=theme,
