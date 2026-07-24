@@ -80,11 +80,50 @@ def test_responsive_engine_js_presence():
     p = Project(id=new_project_id(), title="JS Test")
     # Even with no screens, the ENGINE_JS is included in SHELL
     html = render_html(p, mode="preview", runtime_js="/*rt*/")
-    
+
     assert "addEventListener(\"touchstart\"" in html
     assert "addEventListener(\"touchmove\"" in html
     assert "addEventListener(\"touchend\"" in html
     assert "document.elementFromPoint" in html
+
+
+def test_mobile_flow_only_repositions_visible_screen():
+    """Regression test: mobil/flow modunda (data-fit="flow") yalnızca görünür ekran
+    (aria-hidden="false") normal akışa alınmalı. Önceki hata: seçici aria-hidden'a göre
+    daraltılmamıştı, bu yüzden GİZLİ 23 ekran de position:relative oluyordu — visibility:hidden
+    layout alanını kaplamaya devam ettiği için (display:none'dan farklı olarak), stage-frame
+    onlarca ekranın toplam yüksekliğine göre şişiyordu (gerçek bir kursta ~10.000px), mobilde
+    içeriğin altında dev bir boş alan bırakıyordu."""
+    p = Project(id=new_project_id(), title="Mobile Test",
+                screens=[ContentSlide(id="s1", title="T", body_html="<p>x</p>")])
+    html = render_html(p, mode="preview", runtime_js="/*rt*/")
+
+    # İki kopya kural da (media query + data-fit tetiklemeli) aria-hidden="false" ile
+    # daraltılmış olmalı — hiçbiri TÜM .screen'leri kapsamamalı.
+    assert (
+        'body[data-layout="stage"][data-fit="flow"] .stage-frame .screen[aria-hidden="false"]'
+        '{position:relative;inset:auto;min-height:100%;overflow:visible}'
+    ) in html
+    assert (
+        'body[data-layout="stage"] .stage-frame .screen[aria-hidden="false"]'
+        '{position:relative;inset:auto;min-height:100%;overflow:visible}'
+    ) in html
+    # Daraltılmamış eski (hatalı) desen artık hiç bulunmamalı.
+    assert '.stage-frame .screen{position:relative;inset:auto;min-height:100%;overflow:visible}' not in html
+
+
+def test_mobile_flow_stage_centers_short_content():
+    """Regression test: mobil/flow modunda .stage align-items:stretch KULLANMAMALI — bu, kısa
+    içeriği (ör. title_slide) .stage'in tam yükseklik kutusuna zorla gererek, kart üstte kalıp
+    altında boş bir alan bırakıyordu (kullanıcı raporu: 'mobilde ekranı tam ortalamıyor').
+    align-items:center, kısa içeriği .stage'in mevcut boşluğu içinde dikey olarak ortalar."""
+    p = Project(id=new_project_id(), title="Mobile Test",
+                screens=[ContentSlide(id="s1", title="T", body_html="<p>x</p>")])
+    html = render_html(p, mode="preview", runtime_js="/*rt*/")
+
+    assert 'align-items:center;justify-content:flex-start;overflow-y:auto' in html
+    assert 'align-items:stretch;justify-content:flex-start;overflow-y:auto' not in html
+
 
 if __name__ == "__main__":
     pytest.main([__file__])
