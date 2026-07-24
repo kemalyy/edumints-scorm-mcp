@@ -5,6 +5,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — tema stil/marka katmanlaştırması (W10)
+- 3 yeni "stil varyantı" tema preset'i (`style-minimal`, `style-playful`, `style-premium`) — yapısal
+  kişilik (gölge, kenarlık, buton davranışı) `custom_css` içinde yalnız `var(--c-*)` token'larına
+  dayanır, sabit marka rengi içermez; herhangi bir marka paletiyle `set_theme` üzerinden serbestçe
+  birleştirilebilir.
+- Tema preset yüklemesine yeni bir `extends` yönergesi — bir preset başka birini miras alıp yalnız
+  farkını override edebilir (`style-playful.json`, `playground`'ı extends eder — CSS mantığı tek
+  kaynakta yaşar, kopyalanmaz). Döngüsel miras tespit edilip reddedilir.
+- `ThemeTokens.logo_asset_id` artık gerçekten render ediliyor — player chrome'undaki marka noktasının
+  yerine paketlenmiş logo görseli geçiyor (`ThemeTokens.logo_alt` ile erişilebilir alt-text).
+- Yeni `ThemeTokens.custom_fonts` — paketlenmiş bir `.woff2` asset'inden otomatik `@font-face` üretimi,
+  kurumsal fontların harici CDN bağımlılığı olmadan (SCORM paketleri offline/LMS-içi çalışabilsin diye)
+  gömülmesini sağlar.
+- `lint_course` yeni bir `missing_alt_text` dalı kazandı — tema logosu var ama `logo_alt` boşsa WARN.
+
 ## [1.4.0] — 2026-07-23
 
 Institutional-readiness hardening (W9 P0+P1): accessibility alt-text, rate limiting, audit logging,

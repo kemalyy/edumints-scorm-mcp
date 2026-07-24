@@ -28,7 +28,7 @@ MANDATORY_COLOR = {
 
 # Tüm temaların birleşimi (union) - izin verilen tüm token'lar.
 ALLOWED_TOP_LEVEL = MANDATORY_KEYS | {
-    "spacing", "radii", "elevation", "motion", "logo_asset_id", "custom_css"
+    "spacing", "radii", "elevation", "motion", "logo_asset_id", "logo_alt", "custom_fonts", "custom_css"
 }
 
 ALLOWED_SPACING = {"base_px", "scale", "content_max_width", "gutter"}
@@ -47,29 +47,39 @@ def get_theme_files():
 def test_theme_schema_integrity(theme_path):
     with open(theme_path, "r", encoding="utf-8") as f:
         data = json.load(f)
-    
-    # 1. Üst düzey zorunlu anahtarlar
-    missing_top = MANDATORY_KEYS - set(data.keys())
-    assert not missing_top, f"{theme_path.name} eksik üst düzey anahtarlar: {missing_top}"
-    
+
+    extends = data.get("extends")
+    top_keys = set(data.keys()) - {"extends"}  # extends özel bir yükleme yönergesi, ThemeTokens alanı değil
+
+    # 1. Üst düzey zorunlu anahtarlar (extends varken sadece 'name' zorunlu, gerisi mirastan gelebilir)
+    if extends:
+        assert "name" in data, f"{theme_path.name} 'extends' kullanırken bile 'name' zorunlu"
+        parent_path = theme_path.parent / f"{extends}.json"
+        assert parent_path.exists(), f"{theme_path.name} var olmayan bir temayı extends ediyor: {extends}"
+    else:
+        missing_top = MANDATORY_KEYS - top_keys
+        assert not missing_top, f"{theme_path.name} eksik üst düzey anahtarlar: {missing_top}"
+
     # 2. Üst düzey fazla anahtarlar
-    extra_top = set(data.keys()) - ALLOWED_TOP_LEVEL
+    extra_top = top_keys - ALLOWED_TOP_LEVEL
     assert not extra_top, f"{theme_path.name} bilinmeyen üst düzey anahtarlar: {extra_top}"
-    
-    # 3. Typography detayları (Zorunlu)
-    typo = data.get("typography", {})
-    missing_typo = MANDATORY_TYPOGRAPHY - set(typo.keys())
-    assert not missing_typo, f"{theme_path.name} eksik typography anahtarları: {missing_typo}"
-    extra_typo = set(typo.keys()) - MANDATORY_TYPOGRAPHY
-    assert not extra_typo, f"{theme_path.name} bilinmeyen typography anahtarları: {extra_typo}"
-    
-    # 4. Color detayları (Zorunlu)
-    color = data.get("color", {})
-    missing_color = MANDATORY_COLOR - set(color.keys())
-    assert not missing_color, f"{theme_path.name} eksik color anahtarları: {missing_color}"
-    extra_color = set(color.keys()) - MANDATORY_COLOR
-    assert not extra_color, f"{theme_path.name} bilinmeyen color anahtarları: {extra_color}"
-    
+
+    # 3. Typography detayları (YALNIZ mevcutsa kontrol edilir — extends'te olmayabilir)
+    if "typography" in data:
+        typo = data["typography"]
+        missing_typo = MANDATORY_TYPOGRAPHY - set(typo.keys())
+        assert not missing_typo, f"{theme_path.name} eksik typography anahtarları: {missing_typo}"
+        extra_typo = set(typo.keys()) - MANDATORY_TYPOGRAPHY
+        assert not extra_typo, f"{theme_path.name} bilinmeyen typography anahtarları: {extra_typo}"
+
+    # 4. Color detayları (YALNIZ mevcutsa kontrol edilir — extends'te olmayabilir)
+    if "color" in data:
+        color = data["color"]
+        missing_color = MANDATORY_COLOR - set(color.keys())
+        assert not missing_color, f"{theme_path.name} eksik color anahtarları: {missing_color}"
+        extra_color = set(color.keys()) - MANDATORY_COLOR
+        assert not extra_color, f"{theme_path.name} bilinmeyen color anahtarları: {extra_color}"
+
     # 5. Opsiyonel grupların iç bütünlüğü (varsa tam olmalı)
     if "spacing" in data:
         missing_sp = ALLOWED_SPACING - set(data["spacing"].keys())

@@ -16,13 +16,14 @@ SHELL = """<!DOCTYPE html>
 <title>{title}</title>
 <style>:root{{{css_vars}}}
 {base_css}
+{font_faces}
 {custom_css}</style>
 </head>
 <body data-bg="{bg_pattern}" data-layout="{layout_mode}">
 <a class="skip-link" href="#stage">İçeriğe geç</a>
 <div class="app">
   <header class="app-header">
-    <div class="brand"><span class="brand-dot"></span><span class="brand-title">{header_title}</span></div>
+    <div class="brand">{brand_mark}<span class="brand-title">{header_title}</span></div>
     <div class="progress" role="progressbar" aria-label="İlerleme" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="progress-bar"></div></div>
     <span class="timer-hud" id="timerHud" aria-live="polite" hidden></span>
     <span class="level-hud" id="levelHud" aria-live="polite" hidden></span>
@@ -141,6 +142,7 @@ body[data-bg="grid"]{background-image:linear-gradient(color-mix(in srgb,var(--c-
   animation:dotPulse 4s ease-in-out infinite}
 @keyframes dotPulse{0%,100%{box-shadow:0 0 0 3px color-mix(in srgb,var(--c-primary) 12%,transparent)}
   50%{box-shadow:0 0 0 5px color-mix(in srgb,var(--c-primary) 20%,transparent)}}
+.chrome-logo{height:22px;width:auto;max-width:120px;display:block;object-fit:contain}
 .brand-title{font-size:15px;font-weight:600;color:var(--c-text);
   letter-spacing:-0.01em}
 .progress{flex:1;height:6px;background:color-mix(in srgb,var(--c-border) 40%,transparent);

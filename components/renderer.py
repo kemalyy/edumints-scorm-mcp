@@ -156,6 +156,16 @@ def render_html(
     else:
         asset_map = {a.id: a.rel_path for a in project.assets}
 
+    if theme.logo_asset_id:
+        brand_mark = (
+            f'<img class="chrome-logo" data-asset="{_attr(theme.logo_asset_id)}" '
+            f'alt="{_attr(theme.logo_alt or theme.name)}">'
+        )
+    else:
+        brand_mark = '<span class="brand-dot"></span>'
+
+    font_faces = _font_faces_css(theme, asset_map)
+
     return SHELL.format(
         lang=_attr(project.language),
         title=_text(project.title),
@@ -165,6 +175,8 @@ def render_html(
         bg_pattern=theme.background_pattern,
         layout_mode=project.layout_mode,
         header_title=_text(project.title),
+        brand_mark=brand_mark,
+        font_faces=font_faces,
         screens=screens_html,
         runtime_block=runtime_block,
         course_json=json.dumps(course_cfg, ensure_ascii=False),
@@ -1154,3 +1166,24 @@ def _attr(s: str | None) -> str:
 
 def _text(s: str | None) -> str:
     return (s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _css_str(s: str) -> str:
+    """CSS string literal içine güvenle gömmek için kaçışla (font-family adı gibi)."""
+    return s.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def _font_faces_css(theme: ThemeTokens, asset_map: dict[str, str]) -> str:
+    """theme.custom_fonts'tan @font-face blokları üretir. asset_map zaten render_html'de
+    hesaplanmış {asset_id: url} sözlüğüdür (preview'da data-URI, package'da rel_path) —
+    yeni bir asset çözümleme mekanizması gerekmez."""
+    out = []
+    for f in theme.custom_fonts:
+        url = asset_map.get(f.asset_id)
+        if not url:
+            continue
+        out.append(
+            f'@font-face{{font-family:"{_css_str(f.family)}";src:url("{url}") format("woff2");'
+            f"font-weight:{int(f.weight)};font-style:{f.style};font-display:swap}}"
+        )
+    return "\n".join(out)

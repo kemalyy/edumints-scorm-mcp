@@ -63,6 +63,7 @@ def lint_course(project: Project) -> list[LintIssue]:
         issues += _lint_list_items(s, path)
         issues += _lint_default_feedback(s, path)
     issues += _lint_consecutive_content_slides(project)
+    issues += _lint_theme_logo_alt(project)
     return issues
 
 
@@ -275,6 +276,18 @@ def _lint_default_feedback(s, path: str) -> list[LintIssue]:
                           "Feedback şema varsayılanında bırakılmış ('Doğru!'/'Tekrar deneyin.') — "
                           "her feedback nedeni açıklamalı ve doğru modele bağlanmalı",
                           f"{path}.feedback")]
+    return []
+
+
+def _lint_theme_logo_alt(project: Project) -> list[LintIssue]:
+    """Tema logosu var ama alt-text yoksa WARN — missing_alt_text ile aynı kod, tema seviyesi
+    (diğer tüm alt-text kontrolleri _lint_missing_alt'te ekran seviyesinde çalışır)."""
+    t = project.theme
+    if t.logo_asset_id and not (t.logo_alt or "").strip():
+        return [LintIssue("warn", "missing_alt_text",
+                           "Tema logosu var ama alt-text yok (theme.logo_alt) — ekran okuyucu "
+                           "kullanıcılar için logonun kime ait olduğunu kısaca anlatan bir alt "
+                           "metni ekle", "theme.logo_asset_id")]
     return []
 
 
