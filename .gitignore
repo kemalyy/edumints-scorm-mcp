@@ -14,3 +14,6 @@ packages/
 node_modules/
 coverage/
 tests/a11y/fixtures/
+
+# kök dizine düşen build artefaktları (D3)
+/*.html

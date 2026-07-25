@@ -5,6 +5,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.5.0] — 2026-07-25
+
+Standards fidelity + internationalisation + theme composability. The player now reports
+question-level data to the LMS, speaks the course's language, and supports RTL scripts;
+themes decouple structural style from brand identity. All additive — existing specs unchanged.
+
+### Added — SCORM data contract (S1/S3/S4)
+- `cmi.interactions.*` — every graded answer now reaches the LMS with id, type, learner response,
+  result, correct-response pattern, latency and timestamp (1.2/2004 element-name and format
+  differences handled in one place: `components/engine/scorm.js`, exposed as `window.SCORMRT`).
+- Seat time — `cmi.core.session_time` (1.2) / `cmi.session_time` (2004) written in the
+  version-correct duration format on every evaluate and on unload.
+- `exit`/`entry` — `exit="suspend"` while incomplete, `"normal"` on completion; restore honours
+  `entry` so "continue where you left off" is guaranteed across LMSs, not incidental.
+
+### Added — player internationalisation (I1/I2)
+- `components/i18n.py` string table — all ~47 previously hard-coded Turkish shell strings
+  (aria-labels, buttons, runtime messages) now resolve from `project.language`; `tr` and `en`
+  fully maintained in-repo, missing keys fall back to `en` (never to `tr`).
+- RTL support — `<html dir>` derived from language; Arabic, Persian, Hebrew and other RTL
+  scripts render correctly.
+- `Feedback.correct_html`/`incorrect_html` defaults are now `None` and resolve to the course
+  language at render time (a German course no longer shows "Doğru!"); the `default_feedback`
+  lint rule checks for unfilled feedback directly instead of comparing Turkish strings.
+
 ### Added — tema stil/marka katmanlaştırması (W10)
 - 3 yeni "stil varyantı" tema preset'i (`style-minimal`, `style-playful`, `style-premium`) — yapısal
   kişilik (gölge, kenarlık, buton davranışı) `custom_css` içinde yalnız `var(--c-*)` token'larına
@@ -19,6 +44,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   kurumsal fontların harici CDN bağımlılığı olmadan (SCORM paketleri offline/LMS-içi çalışabilsin diye)
   gömülmesini sağlar.
 - `lint_course` yeni bir `missing_alt_text` dalı kazandı — tema logosu var ama `logo_alt` boşsa WARN.
+
+### Fixed
+- Mobile viewports: content is now vertically centred and hidden screens no longer stack into
+  the layout (the flow-mode `.screen` rule is scoped to the visible screen; `.stage` uses
+  `align-items:center`) — previously a real course inflated the stage to ~10,000px on phones.
 
 ## [1.4.0] — 2026-07-23
 
