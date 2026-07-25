@@ -5,6 +5,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — görsel anlatı sistemleştirmesi (W11)
+- `lint_course`'a iki yeni görsel-yoğunluk kuralı (WARN): `text_only_run` (≥4 ardışık görselsiz
+  ekran) ve `visual_poverty` (≥8 ekranlı kursta <%25 görsel ekran) — "metin duvarı" artık makine-
+  denetimli.
+- Yeni `search_images` MCP tool'u (26. araç): Openverse/Wikimedia üzerinden CC0/Public-Domain
+  görsel arama; sonuçlar lisans/yazar/kaynak bilgisiyle döner, indirme mevcut `add_asset` üzerinden.
+  Sorgu URL-encode edilir (CC0 filtre bypass'ı kapalı), per-item lisans aile kontrolü var, tüm API
+  istekleri SSRF korumasından geçer.
+
+### Added — `search_images` (W11 Bölüm 2)
+- New `search_images(query, source="openverse", limit=5)` MCP tool wires the previously-dormant
+  Openverse/Wikimedia adapters into a real CC0/Public-Domain image search (26th MCP tool).
+  Candidate-only (no download); pick a result's `url` and pass it to the existing
+  `add_asset(project_id, source=url, filename=...)` to attach it (download + SSRF checks happen
+  there). Each result carries license/creator/source-page for attribution.
+- `OpenverseAdapter.search()` / `WikimediaAdapter.search()` — new candidate-listing methods
+  alongside the existing `fetch()` (untouched); Wikimedia results are filtered to the PD/CC0
+  license family; both go through `assert_safe_url` and degrade gracefully (`[]`) on error.
+
 ## [1.5.0] — 2026-07-25
 
 Standards fidelity + internationalisation + theme composability. The player now reports

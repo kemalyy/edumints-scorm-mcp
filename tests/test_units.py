@@ -1486,3 +1486,287 @@ async def test_w10_style_brand_composition_end_to_end():
         # custom font @font-face üretilmiş
         assert "@font-face" in html
         assert 'font-family:"Acme Sans"' in html
+
+
+# ---- W11 Kural 1: text_only_run (≥4 ardışık görselsiz ekran) ----
+def test_w11_antislop_text_only_run_threshold():
+    """W11 Kural 1 — 4 ardışık görselsiz ekran text_only_run WARN tetikler; 3 tanesi tetiklemez
+    (2-3 metin-ağırlıklı ekran meşru, 4+ 'metin duvarı' desenidir)."""
+    from core.antislop import lint_course
+
+    def cs(i):
+        return {"type": "content_slide", "id": f"c{i}", "title": f"Fikir {i}", "body_html": "<p>x</p>"}
+
+    screens4 = [cs(i) for i in range(4)]
+    p = Project(id=new_project_id(), title="K", screens=screens4)
+    codes = {i.code for i in lint_course(p)}
+    assert "text_only_run" in codes
+
+    screens3 = [cs(i) for i in range(3)]
+    p2 = Project(id=new_project_id(), title="K2", screens=screens3)
+    codes2 = {i.code for i in lint_course(p2)}
+    assert "text_only_run" not in codes2
+
+
+def test_w11_antislop_text_only_run_broken_by_visual_field():
+    """W11 Kural 1 — blocks[].asset_id ya da flashcard front_asset_id dolu bir ekran görselsiz
+    koşuyu KIRAR: koşu 4'e ulaşmadan bölünür, text_only_run tetiklenmez."""
+    from core.antislop import lint_course
+
+    def cs(i):
+        return {"type": "content_slide", "id": f"c{i}", "title": f"Fikir {i}", "body_html": "<p>x</p>"}
+
+    # blocks[].asset_id ile kırılan koşu: 2 metin + 1 görselli blok + 2 metin (en uzun koşu 2)
+    visual_block = {"type": "content_slide", "id": "vb", "title": "Görsel",
+                     "blocks": [{"asset_id": "a1", "caption": "Bir görsel"}]}
+    screens = [cs(0), cs(1), visual_block, cs(2), cs(3)]
+    p = Project(id=new_project_id(), title="K", screens=screens)
+    codes = {i.code for i in lint_course(p)}
+    assert "text_only_run" not in codes
+
+    # flashcard front_asset_id ile kırılan koşu
+    flash = {"type": "flashcards", "id": "fc", "title": "Kartlar",
+             "cards": [{"front_html": "<p>ön</p>", "back_html": "<p>arka</p>", "front_asset_id": "a1"}]}
+    screens2 = [cs(0), cs(1), flash, cs(2), cs(3)]
+    p2 = Project(id=new_project_id(), title="K2", screens=screens2)
+    codes2 = {i.code for i in lint_course(p2)}
+    assert "text_only_run" not in codes2
+
+
+# ---- W11 Kural 2: visual_poverty (≥8 ekran VE görsel oran <%25) ----
+def test_w11_antislop_visual_poverty():
+    """W11 Kural 2 — ekran sayısı ≥8 VE görsel ekran oranı <%25 → visual_poverty WARN. <8 ekranlı
+    kurslar muaf; oran tam %25 (eşik dahil değil, katı '<') iken de WARN yok."""
+    from core.antislop import lint_course
+
+    def cs(i):
+        return {"type": "content_slide", "id": f"c{i}", "title": f"Fikir {i}", "body_html": "<p>x</p>"}
+
+    def hotspot(hid):
+        return {"type": "hotspot", "id": hid, "title": "Bul", "prompt_html": "<p>x</p>",
+                "image_asset_id": "a1", "image_alt": "Görsel",
+                "regions": [{"id": "r1", "shape": "rect", "coords": [0, 0, 10, 10], "correct": True}]}
+
+    # 10 ekran, yalnızca 1 görsel (%10 < %25) → WARN
+    screens10 = [hotspot("h1")] + [cs(i) for i in range(9)]
+    p = Project(id=new_project_id(), title="K", screens=screens10)
+    codes = {i.code for i in lint_course(p)}
+    assert "visual_poverty" in codes
+
+    # 7 ekran, yalnızca 1 görsel (<8 muaf) → WARN yok
+    screens7 = [hotspot("h1")] + [cs(i) for i in range(6)]
+    p2 = Project(id=new_project_id(), title="K2", screens=screens7)
+    codes2 = {i.code for i in lint_course(p2)}
+    assert "visual_poverty" not in codes2
+
+    # 8 ekran, 2 görsel (%25 tam eşik, "<" katı) → WARN yok
+    screens8 = [hotspot("h1"), hotspot("h2")] + [cs(i) for i in range(6)]
+    p3 = Project(id=new_project_id(), title="K3", screens=screens8)
+    codes3 = {i.code for i in lint_course(p3)}
+    assert "visual_poverty" not in codes3
+
+
+def test_w11_antislop_visually_rich_course_triggers_neither_rule():
+    """W11 — görsel-zengin bir kurs (v2 'Spot the Phish' vitrin deseni: hotspot/image_compare/
+    flashcards karışımı, hiçbir görselsiz koşu 4'e ulaşmıyor, görsel oran ≥%25) NE text_only_run
+    NE DE visual_poverty üretir."""
+    from core.antislop import lint_course
+
+    def cs(i):
+        return {"type": "content_slide", "id": f"c{i}", "title": f"Fikir {i}", "body_html": "<p>x</p>"}
+
+    hotspot = {"type": "hotspot", "id": "h1", "title": "Bul", "prompt_html": "<p>x</p>",
+               "image_asset_id": "a1", "image_alt": "Gelen kutusu ekran görüntüsü",
+               "regions": [{"id": "r1", "shape": "rect", "coords": [0, 0, 10, 10], "correct": True}]}
+    content_with_block = {"type": "content_slide", "id": "cb", "title": "Domain kontrolü",
+                           "blocks": [{"asset_id": "a2", "caption": "Sahte domain örneği"}]}
+    mcq = {"type": "mcq", "id": "q1", "title": "Soru", "prompt_html": "<p>?</p>",
+           "options": [{"id": "a", "text_html": "A", "correct": True}, {"id": "b", "text_html": "B"}],
+           "feedback": {"correct_html": "Doğru.", "incorrect_html": "Tekrar dene."}}
+    image_compare = {"type": "image_compare", "id": "ic", "title": "Önce/Sonra",
+                      "before_asset_id": "a3", "after_asset_id": "a4"}
+    flashcards = {"type": "flashcards", "id": "fc", "title": "Kartlar",
+                  "cards": [{"front_html": "<p>ön</p>", "back_html": "<p>arka</p>", "front_asset_id": "a5"}]}
+    summary = {"type": "summary", "id": "sm", "title": "Özet"}
+
+    screens = [cs(0), hotspot, cs(1), content_with_block, mcq, image_compare, cs(2), flashcards, cs(3), summary]
+    p = Project(id=new_project_id(), title="K", screens=screens)
+    codes = {i.code for i in lint_course(p)}
+    assert "text_only_run" not in codes
+    assert "visual_poverty" not in codes
+
+
+# ---- W11 Bölüm 2: search_images (Openverse/Wikimedia adaptör + MCP tool) ----
+@pytest.mark.asyncio
+async def test_w11_openverse_adapter_search_maps_results():
+    """OpenverseAdapter.search — API JSON'unu dokümante edilen aday şekline eşler; indirme yapmaz
+    (safe_fetch_asset hiç çağrılmamalı)."""
+    from unittest.mock import MagicMock, patch
+    from core.integrations.openverse import OpenverseAdapter
+
+    mock_api_resp = {
+        "results": [{
+            "title": "Kedi fotoğrafı",
+            "url": "https://safe.example.com/cat.jpg",
+            "thumbnail": "https://safe.example.com/cat_thumb.jpg",
+            "width": 800, "height": 600,
+            "license": "cc0",
+            "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+            "creator": "Artist Name",
+            "foreign_landing_url": "https://openverse.org/image/abc",
+        }]
+    }
+
+    with patch("core.integrations.openverse.assert_safe_url") as mock_assert, \
+         patch("httpx.AsyncClient.get") as mock_get, \
+         patch("core.integrations.openverse.safe_fetch_asset") as mock_fetch:
+        mock_get.return_value = MagicMock(status_code=200, json=lambda: mock_api_resp)
+
+        adapter = OpenverseAdapter()
+        images = await adapter.search("cats", limit=3)
+
+        assert mock_assert.called
+        assert not mock_fetch.called  # search yalnız aday listeler, İNDİRME YAPMAZ
+        assert images == [{
+            "title": "Kedi fotoğrafı",
+            "url": "https://safe.example.com/cat.jpg",
+            "thumb_url": "https://safe.example.com/cat_thumb.jpg",
+            "width": 800, "height": 600,
+            "license": "CC0",
+            "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+            "creator": "Artist Name",
+            "source_page": "https://openverse.org/image/abc",
+        }]
+
+
+@pytest.mark.asyncio
+async def test_w11_openverse_adapter_search_graceful_on_error():
+    """OpenverseAdapter.search — HTTP hatasında/boş sonuçta [] döner (istisna fırlatmaz)."""
+    from unittest.mock import MagicMock, patch
+    from core.integrations.openverse import OpenverseAdapter
+
+    with patch("core.integrations.openverse.assert_safe_url"), \
+         patch("httpx.AsyncClient.get") as mock_get:
+        mock_get.return_value = MagicMock(status_code=500)
+        adapter = OpenverseAdapter()
+        assert await adapter.search("error") == []
+
+
+@pytest.mark.asyncio
+async def test_w11_openverse_adapter_search_encodes_query():
+    """OpenverseAdapter.search — sorgu URL-encode edilir; '#' gibi karakterler license filtresini
+    URL fragment'ına çevirip CC0/PD filtresini atlatamaz (query smuggling koruması)."""
+    from unittest.mock import MagicMock, patch
+    from core.integrations.openverse import OpenverseAdapter
+
+    with patch("core.integrations.openverse.assert_safe_url"), \
+         patch("httpx.AsyncClient.get") as mock_get, \
+         patch("core.integrations.openverse.safe_fetch_asset"):
+        mock_get.return_value = MagicMock(status_code=200, json=lambda: {"results": []})
+
+        adapter = OpenverseAdapter()
+        await adapter.search("cats#evil", limit=3)
+
+        assert mock_get.called
+        called_url = mock_get.call_args.args[0]
+        assert "cats%23evil" in called_url
+        assert "license=cc0,pdm" in called_url
+
+
+@pytest.mark.asyncio
+async def test_w11_wikimedia_adapter_search_filters_by_license():
+    """WikimediaAdapter.search — yalnız PD/CC0 ailesinden lisanslı sonuçlar dahil edilir; diğerleri
+    atlanır (indirme yapmadan)."""
+    from unittest.mock import MagicMock, patch
+    from core.integrations.wikimedia import WikimediaAdapter
+
+    mock_api_resp = {
+        "query": {
+            "pages": {
+                "1": {
+                    "title": "File:test.jpg",
+                    "imageinfo": [{
+                        "url": "https://upload.wikimedia.org/wikipedia/commons/test.jpg",
+                        "descriptionurl": "https://commons.wikimedia.org/wiki/File:test.jpg",
+                        "width": 640, "height": 480,
+                        "extmetadata": {
+                            "LicenseShortName": {"value": "CC0"},
+                            "Artist": {"value": "Wikimedia Artist"},
+                        },
+                    }],
+                },
+                "2": {
+                    "title": "File:copyrighted.jpg",
+                    "imageinfo": [{
+                        "url": "https://upload.wikimedia.org/wikipedia/commons/copyrighted.jpg",
+                        "extmetadata": {"LicenseShortName": {"value": "CC-BY-SA-4.0"}},
+                    }],
+                },
+            }
+        }
+    }
+
+    with patch("core.integrations.wikimedia.assert_safe_url") as mock_assert, \
+         patch("httpx.AsyncClient.get") as mock_get, \
+         patch("core.integrations.wikimedia.safe_fetch_asset") as mock_fetch:
+        mock_get.return_value = MagicMock(status_code=200, json=lambda: mock_api_resp)
+
+        adapter = WikimediaAdapter()
+        images = await adapter.search("test", limit=5)
+
+        assert mock_assert.called
+        assert not mock_fetch.called
+        assert len(images) == 1
+        assert images[0]["url"] == "https://upload.wikimedia.org/wikipedia/commons/test.jpg"
+        assert images[0]["license"] == "CC0"
+        assert images[0]["creator"] == "Wikimedia Artist"
+
+
+@pytest.mark.asyncio
+async def test_w11_search_images_tool_returns_count_and_images(monkeypatch):
+    """search_images tool'u — adaptörün search() sonucunu {count, source, images} şekline sarar."""
+    from core.integrations.openverse import OpenverseAdapter
+
+    async def fake_search(self, query, limit=5):
+        return [{
+            "title": "Örnek", "url": "https://safe.example.com/x.jpg", "thumb_url": None,
+            "width": None, "height": None, "license": "CC0", "license_url": None,
+            "creator": "Biri", "source_page": None,
+        }]
+
+    monkeypatch.setattr(OpenverseAdapter, "search", fake_search)
+
+    async with Client(server.mcp) as c:
+        res = await c.call_tool("search_images", {"query": "cats", "source": "openverse", "limit": 3})
+        assert res.data["count"] == 1
+        assert res.data["source"] == "openverse"
+        assert res.data["images"][0]["url"] == "https://safe.example.com/x.jpg"
+        assert res.data["images"][0]["creator"] == "Biri"
+
+
+@pytest.mark.asyncio
+async def test_w11_search_images_unknown_source_raises():
+    """search_images — bilinmeyen `source` değeri ToolError('invalid_source', ...) fırlatır."""
+    async with Client(server.mcp) as c:
+        with pytest.raises(Exception, match="invalid_source"):
+            await c.call_tool("search_images", {"query": "cats", "source": "bogus"})
+
+
+@pytest.mark.asyncio
+async def test_w11_search_images_clamps_limit(monkeypatch):
+    """search_images — `limit` her zaman 1..10 aralığına kelepçelenir (99 verilse bile adaptöre 10
+    gider)."""
+    from core.integrations.openverse import OpenverseAdapter
+
+    captured = {}
+
+    async def fake_search(self, query, limit=5):
+        captured["limit"] = limit
+        return []
+
+    monkeypatch.setattr(OpenverseAdapter, "search", fake_search)
+
+    async with Client(server.mcp) as c:
+        await c.call_tool("search_images", {"query": "cats", "source": "openverse", "limit": 99})
+
+    assert captured["limit"] == 10
