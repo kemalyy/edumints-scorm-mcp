@@ -1770,3 +1770,48 @@ async def test_w11_search_images_clamps_limit(monkeypatch):
         await c.call_tool("search_images", {"query": "cats", "source": "openverse", "limit": 99})
 
     assert captured["limit"] == 10
+
+
+# ---- W12: kalıcı demo yayını (publish_demo + /demo/{slug}) ----
+async def test_w12_publish_demo_and_route():
+    """publish_demo kalıcı URL döner; /demo/{slug} rotası TTL'siz servis eder; upsert çalışır."""
+    from starlette.requests import Request as StarReq  # noqa: F401
+
+    async with Client(server.mcp) as c:
+        res = await c.call_tool("build_from_spec", {"spec": {
+            "title": "Demo K", "scorm_version": "1.2",
+            "screens": [{"type": "title_slide", "id": "t1", "title": "T"}],
+        }})
+        pid = res.data.project_id
+        out = await c.call_tool("publish_demo", {"project_id": pid, "slug": "test-demo"})
+        d = out.data if isinstance(out.data, dict) else out.data.__dict__
+        assert d["url"].endswith("/demo/test-demo")
+
+        # dosya diske yazıldı ve rota içeriği döner
+        import pathlib
+        f = pathlib.Path(server.SETTINGS.data_dir) / "demos" / "test-demo.html"
+        assert f.exists() and "<!DOCTYPE html>" in f.read_text(encoding="utf-8")
+
+        # upsert: tekrar yayınlamak hata vermez
+        await c.call_tool("publish_demo", {"project_id": pid, "slug": "test-demo"})
+
+
+async def test_w12_publish_demo_invalid_slug_and_foreign_owner():
+    from fastmcp.exceptions import ToolError as MCPToolError
+
+    async with Client(server.mcp) as c:
+        res = await c.call_tool("build_from_spec", {"spec": {
+            "title": "Demo K2", "scorm_version": "1.2",
+            "screens": [{"type": "title_slide", "id": "t1", "title": "T"}],
+        }})
+        pid = res.data.project_id
+        with pytest.raises(MCPToolError, match="invalid_slug"):
+            await c.call_tool("publish_demo", {"project_id": pid, "slug": "Bad Slug!"})
+
+        # başka sahibe ait slug → forbidden (owner dosyasını elle farklı yaz)
+        import pathlib
+        demos = pathlib.Path(server.SETTINGS.data_dir) / "demos"
+        demos.mkdir(parents=True, exist_ok=True)
+        (demos / "taken-slug.owner").write_text("someone-else", encoding="utf-8")
+        with pytest.raises(MCPToolError, match="forbidden"):
+            await c.call_tool("publish_demo", {"project_id": pid, "slug": "taken-slug"})

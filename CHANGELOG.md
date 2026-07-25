@@ -5,6 +5,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — kalıcı demo linkleri (W12)
+- Yeni `publish_demo` MCP tool'u (27. araç) + `GET /demo/{slug}` rotası: projeyi TTL'siz, kalıcı
+  bir herkese-açık URL'e yayınlar (README/vitrin linkleri artık kırılmaz). Upsert; slug sahibine
+  kilitli; slug regex'i path-traversal'ı engeller.
+
 ### Added — görsel anlatı sistemleştirmesi (W11)
 - `lint_course`'a iki yeni görsel-yoğunluk kuralı (WARN): `text_only_run` (≥4 ardışık görselsiz
   ekran) ve `visual_poverty` (≥8 ekranlı kursta <%25 görsel ekran) — "metin duvarı" artık makine-

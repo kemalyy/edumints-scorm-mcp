@@ -349,17 +349,22 @@ async def _job_to_out(job, project: Project) -> BuildOut:
     return _build_out(job, None, None, project.scorm_version)
 
 
-async def _build_preview(p: Project) -> tuple[str, str]:
-    """Tek-dosya self-contained önizleme render eder, diske + DB'ye yazar. → (token, html)."""
+async def _render_preview_html(p: Project) -> str:
+    """Tek-dosya self-contained önizleme HTML'i (persist YOK — preview ve demo paylaşır)."""
     asset_data: dict[str, tuple[str, bytes]] = {}
     for a in p.assets:
         try:
             asset_data[a.id] = (a.mime, await SVC.store.get_asset_bytes(p.id, a.id))
         except FileNotFoundError:
             pass
-    html = renderer.render_html(
+    return renderer.render_html(
         p, mode="preview", runtime_js=renderer.load_runtime_js(), asset_data=asset_data
     )
+
+
+async def _build_preview(p: Project) -> tuple[str, str]:
+    """Önizleme render eder, diske + DB'ye TTL'li yazar. → (token, html)."""
+    html = await _render_preview_html(p)
     token = secrets.token_urlsafe(18)
     out = Path(SETTINGS.data_dir) / "previews" / f"{token}.html"
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -886,6 +891,36 @@ async def preview(project_id: str) -> PreviewOut:
         raise _wrap(e)
 
 
+_DEMO_SLUG = re.compile(r"^[a-z0-9][a-z0-9-]{2,39}$")
+
+
+@mcp.tool
+async def publish_demo(project_id: str, slug: str) -> dict:
+    """Projeyi KALICI herkese açık demo linkine yayınlar: {PUBLIC_BASE_URL}/demo/{slug}.
+
+    `preview`'dan farkı: TTL YOK — link süresiz yaşar (README/vitrin/portföy linkleri için).
+    Upsert: aynı slug'a tekrar yayınlamak içeriği günceller (yalnız slug'ı ilk yayınlayan
+    sahip güncelleyebilir). slug: [a-z0-9-], 3-40 karakter."""
+    await SVC.ensure()
+    try:
+        owner = await _owner()
+        if not _DEMO_SLUG.match(slug or ""):
+            raise ToolError("invalid_slug", "slug küçük harf/rakam/tire, 3-40 karakter olmalı")
+        p = await _load(project_id, owner)
+        demos = Path(SETTINGS.data_dir) / "demos"
+        demos.mkdir(parents=True, exist_ok=True)
+        owner_file = demos / f"{slug}.owner"
+        if owner_file.exists() and owner_file.read_text(encoding="utf-8").strip() != owner.id:
+            raise ToolError("forbidden", f"'{slug}' başka bir sahibe ait")
+        html = await _render_preview_html(p)
+        (demos / f"{slug}.html").write_text(html, encoding="utf-8")
+        owner_file.write_text(owner.id, encoding="utf-8")
+        logger.info("event=demo_publish owner=%s project_id=%s slug=%s", owner.id, p.id, slug)
+        return {"url": f"{SETTINGS.public_base_url}/demo/{slug}", "slug": slug}
+    except ToolError as e:
+        raise _wrap(e)
+
+
 @mcp.tool
 async def build_package(project_id: str) -> BuildOut:
     """Build job tetikler (fast-path §3.1): küçük kurs senkron döner, uzun ise job_id+poll."""
@@ -1317,6 +1352,19 @@ async def preview_route(request: Request):
     path = Path(SETTINGS.data_dir) / "previews" / f"{token}.html"
     if not path.exists():
         return PlainTextResponse("gone", status_code=410)
+    return HTMLResponse(path.read_text(encoding="utf-8"))
+
+
+@mcp.custom_route("/demo/{slug}", methods=["GET"])
+async def demo_route(request: Request):
+    """Kalıcı demo (publish_demo çıktısı). TTL yok; slug regex'i path-traversal'ı da engeller."""
+    await SVC.ensure()
+    slug = request.path_params["slug"]
+    if not _DEMO_SLUG.match(slug or ""):
+        return PlainTextResponse("not found", status_code=404)
+    path = Path(SETTINGS.data_dir) / "demos" / f"{slug}.html"
+    if not path.exists():
+        return PlainTextResponse("not found", status_code=404)
     return HTMLResponse(path.read_text(encoding="utf-8"))
 
 
