@@ -5,6 +5,19 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
 [![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-6E56CF)](https://modelcontextprotocol.io)
 
+## 在线演示
+
+三门完整课程——三个级别，三种视觉风格——完全用本服务器构建，并通过一个在线部署提供。
+**点击任意截图即可启动。**
+
+| [Be a Password Hero!](https://scorm.edumints.com/demo/password-hero) | [Spot the Phish](https://scorm.edumints.com/demo/spot-the-phish) | [The Ad Hominem Argument](https://scorm.edumints.com/demo/ad-hominem) |
+|:---:|:---:|:---:|
+| [![Password Hero 演示](docs/assets/demo-password-hero.png)](https://scorm.edumints.com/demo/password-hero) | [![Spot the Phish 演示](docs/assets/demo-spot-the-phish.png)](https://scorm.edumints.com/demo/spot-the-phish) | [![Ad Hominem 演示](docs/assets/demo-ad-hominem.png)](https://scorm.edumints.com/demo/ad-hominem) |
+| 9–13 岁 · 网络安全 · `style-playful` + 定制品牌 | 企业新员工培训 · 邮件安全 · `style-minimal` + 企业品牌 | 研究生 · 论证理论 · `style-premium` |
+
+每个演示都包含：叙事主线、逼真的仿真物件 SVG、找旗标模拟、前后对比、时间线、案例游戏与自适应
+反馈——底层还有按题目粒度的 SCORM 报告。
+
 > **一个用于组装交互式、符合 SCORM 标准的在线学习课程的 MCP 服务器。**
 > 你（或像 Claude 这样的 AI 客户端）是**作者**；本服务器是**组装器**。
 > 用结构化的规范描述课程——服务器负责校验、渲染并打包成可在任意 LMS（Moodle、SCORM Cloud……）

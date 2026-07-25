@@ -5,6 +5,20 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
 [![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-6E56CF)](https://modelcontextprotocol.io)
 
+## Demos en vivo
+
+Tres cursos completos — tres niveles, tres identidades visuales — construidos enteramente con
+este servidor y servidos desde un despliegue en vivo. **Haz clic en cualquier captura para lanzarlo.**
+
+| [Be a Password Hero!](https://scorm.edumints.com/demo/password-hero) | [Spot the Phish](https://scorm.edumints.com/demo/spot-the-phish) | [The Ad Hominem Argument](https://scorm.edumints.com/demo/ad-hominem) |
+|:---:|:---:|:---:|
+| [![Demo de Password Hero](docs/assets/demo-password-hero.png)](https://scorm.edumints.com/demo/password-hero) | [![Demo de Spot the Phish](docs/assets/demo-spot-the-phish.png)](https://scorm.edumints.com/demo/spot-the-phish) | [![Demo de Ad Hominem](docs/assets/demo-ad-hominem.png)](https://scorm.edumints.com/demo/ad-hominem) |
+| 9–13 años · seguridad en internet · `style-playful` + marca personalizada | Incorporación corporativa · seguridad del correo electrónico · `style-minimal` + marca corporativa | Posgrado · teoría de la argumentación · `style-premium` |
+
+Cada demo: hilo narrativo, SVGs realistas de maquetas de artefactos, simulaciones de
+encontrar-las-señales, comparaciones antes/después, líneas de tiempo, un juego de casos y
+retroalimentación adaptativa — con reporte SCORM a nivel de pregunta por debajo.
+
 > **Un servidor MCP que ensambla cursos de e-learning interactivos y compatibles con SCORM.**
 > Tú (o un cliente de IA como Claude) eres el **autor**; este servidor es el **ensamblador**.
 > Describe un curso como una especificación estructurada — el servidor valida, renderiza y empaqueta

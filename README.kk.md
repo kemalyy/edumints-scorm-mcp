@@ -5,6 +5,20 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
 [![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-6E56CF)](https://modelcontextprotocol.io)
 
+## Тірі демолар
+
+Үш толық курс — үш деңгей, үш визуалды бірегейлік — толығымен осы сервермен құрылған және тірі
+деплойдан ұсынылады. **Іске қосу үшін кез келген скриншотты басыңыз.**
+
+| [Be a Password Hero!](https://scorm.edumints.com/demo/password-hero) | [Spot the Phish](https://scorm.edumints.com/demo/spot-the-phish) | [The Ad Hominem Argument](https://scorm.edumints.com/demo/ad-hominem) |
+|:---:|:---:|:---:|
+| [![Password Hero демосы](docs/assets/demo-password-hero.png)](https://scorm.edumints.com/demo/password-hero) | [![Spot the Phish демосы](docs/assets/demo-spot-the-phish.png)](https://scorm.edumints.com/demo/spot-the-phish) | [![Ad Hominem демосы](docs/assets/demo-ad-hominem.png)](https://scorm.edumints.com/demo/ad-hominem) |
+| 9–13 жас · интернеттегі қауіпсіздік · `style-playful` + жеке брендинг | Корпоративтік бейімдеу · электрондық пошта қауіпсіздігі · `style-minimal` + корпоративтік брендинг | Магистратура · дәлелдеу теориясы · `style-premium` |
+
+Әр демо: баяндау желісі, шынайы артефакт-мокап SVG-лері, жалауша-табу симуляциялары, дейін/кейін
+салыстырулары, уақыт сызықтары, кейс-ойын және бейімделгіш кері байланыс — астында сұрақ
+деңгейіндегі SCORM есептілігімен.
+
 > **Интерактивті, SCORM-үйлесімді электрондық оқыту курстарын құрастыратын MCP сервері.**
 > Сіз (немесе Claude сияқты ЖИ-клиент) — **автор**; бұл сервер — **құрастырушы**.
 > Курсты құрылымдалған спецификация ретінде сипаттаңыз — сервер тексеріп, рендерлеп, кез келген
