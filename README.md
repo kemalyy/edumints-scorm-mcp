@@ -57,11 +57,16 @@ runtime bridge, and packaging. The result is a standards-compliant SCORM package
 
 ### Docker (recommended)
 ```bash
+docker run -p 8000:8000 -v "$PWD/data:/data" ghcr.io/kemalyy/edumints-scorm-mcp:latest
+# MCP endpoint: http://localhost:8000/mcp   ·   health: http://localhost:8000/health
+```
+
+Or build from source:
+```bash
 git clone https://github.com/kemalyy/edumints-scorm-mcp.git
 cd edumints-scorm-mcp
 docker build -t edumints-scorm-mcp .
 docker run -p 8000:8000 -v "$PWD/data:/data" edumints-scorm-mcp
-# MCP endpoint: http://localhost:8000/mcp   ·   health: http://localhost:8000/health
 ```
 The image includes everything for the optional features (ffmpeg, Node + HyperFrames for video,
 Piper + a Turkish voice for TTS).

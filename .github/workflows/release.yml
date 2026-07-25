@@ -1,0 +1,81 @@
+name: Release
+
+# D1 — v* tag'i push edilince: GHCR'a çok-mimarili imaj (amd64+arm64) + CHANGELOG'un ilgili
+# bölümünden GitHub Release. İmaj adı: ghcr.io/kemalyy/edumints-scorm-mcp:{sürüm,latest}
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write   # release oluşturma
+  packages: write   # GHCR push
+
+jobs:
+  publish-image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sürümü tag'den çıkar
+        id: ver
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: pyproject sürümü tag ile eşleşiyor mu (kapı)
+        run: |
+          PYVER=$(grep '^version' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          if [ "$PYVER" != "${{ steps.ver.outputs.version }}" ]; then
+            echo "::error::pyproject.toml ($PYVER) ile tag (${{ steps.ver.outputs.version }}) uyuşmuyor"
+            exit 1
+          fi
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: GHCR girişi
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: İmajı derle ve yayınla (amd64 + arm64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:${{ steps.ver.outputs.version }}
+            ghcr.io/${{ github.repository }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  github-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: CHANGELOG'dan sürüm notlarını çıkar
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          # "## [X.Y.Z]" başlığından bir sonraki "## [" başlığına kadar olan blok
+          awk -v ver="$VERSION" '
+            $0 ~ "^## \\[" ver "\\]" {found=1; next}
+            found && /^## \[/ {exit}
+            found {print}
+          ' CHANGELOG.md > /tmp/notes.md
+          if [ ! -s /tmp/notes.md ]; then
+            echo "::warning::CHANGELOG'da [$VERSION] bölümü bulunamadı, boş notlarla devam"
+            echo "See CHANGELOG.md" > /tmp/notes.md
+          fi
+
+      - name: GitHub Release oluştur
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file /tmp/notes.md \
+            --verify-tag
