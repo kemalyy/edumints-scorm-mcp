@@ -5,6 +5,20 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
 [![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-6E56CF)](https://modelcontextprotocol.io)
 
+## Canlı demolar
+
+Üç eksiksiz kurs — üç seviye, üç görsel kimlik — tamamen bu sunucuyla oluşturuldu ve canlı bir
+deploy'dan sunuluyor. **Başlatmak için herhangi bir ekran görüntüsüne tıklayın.**
+
+| [Be a Password Hero!](https://scorm.edumints.com/demo/password-hero) | [Spot the Phish](https://scorm.edumints.com/demo/spot-the-phish) | [The Ad Hominem Argument](https://scorm.edumints.com/demo/ad-hominem) |
+|:---:|:---:|:---:|
+| [![Password Hero demosu](docs/assets/demo-password-hero.png)](https://scorm.edumints.com/demo/password-hero) | [![Spot the Phish demosu](docs/assets/demo-spot-the-phish.png)](https://scorm.edumints.com/demo/spot-the-phish) | [![Ad Hominem demosu](docs/assets/demo-ad-hominem.png)](https://scorm.edumints.com/demo/ad-hominem) |
+| 9–13 yaş · internet güvenliği · `style-playful` + özel marka | Kurumsal oryantasyon · e-posta güvenliği · `style-minimal` + kurumsal marka | Lisansüstü · argümantasyon teorisi · `style-premium` |
+
+Her demo: anlatı ipliği, gerçekçi artifact-mockup SVG'leri, bayrak-bulma simülasyonları,
+önce/sonra karşılaştırmaları, zaman çizelgeleri, bir vaka oyunu ve adaptif geri bildirim —
+altyapıda soru düzeyinde SCORM raporlamasıyla birlikte.
+
 > **Etkileşimli, SCORM-uyumlu e-öğrenme kursları üreten bir MCP sunucusu.**
 > Sen (ya da Claude gibi bir yapay zekâ istemcisi) **yazarsın**; bu sunucu **derleyicidir**.
 > Kursu yapılandırılmış bir spec olarak tarif edersin — sunucu doğrular, render eder ve
