@@ -134,6 +134,7 @@ body[data-bg="grid"]{background-image:linear-gradient(color-mix(in srgb,var(--c-
 .ui-chip{display:inline-flex;align-items:center;gap:var(--space-2);font-size:12px;font-weight:var(--w-strong);
   padding:var(--space-2) var(--space-3);border-radius:var(--r-pill);
   background:color-mix(in srgb,var(--c-primary) 10%,var(--c-surface-alt));color:var(--c-primary)}
+.ui-chip[hidden]{display:none}
 .visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 @media(prefers-contrast:more){
   .opt,.branch-choice,.drag-item,.ui-card{border-width:2px}

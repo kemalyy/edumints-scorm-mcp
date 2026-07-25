@@ -748,6 +748,27 @@ def test_w3b_game_validator_rejects_bad_target_and_a11y_timer_gate():
     assert validate_project(p3) == []
 
 
+def test_w3b_game_hud_hidden_chip_actually_hidden_by_css():
+    """Bug: .game-hud çipleri (score/lives/timer) HER ZAMAN 'hidden' özniteliğiyle statik
+    render edilir (bindGame mevcut mekaniğe göre açar — progresif geliştirme, bkz. _r_game).
+    Ama .ui-chip{display:inline-flex} yazar stil sayfasında olduğundan, özgüllükten BAĞIMSIZ
+    UA'nın öntanımlı [hidden]{display:none} kuralını ezer (cascade: author > user-agent) —
+    açık bir .ui-chip[hidden]{display:none} karşı-kuralı olmadıkça 'gizli' render edilen çip
+    tarayıcıda GÖRÜNÜR kalır. Süresiz oyunda (mechanics.timer=None) bu yüzden boş '⏱ 0' çipi
+    hiç kapanmadan görünüyordu (Playwright reprosu ile doğrulandı)."""
+    import re
+
+    p = Project(id=new_project_id(), title="K", screens=[_game_screen()])  # timer:None (varsayılan)
+    html = render_html(p, mode="preview", runtime_js="/*rt*/")
+    # statik markup: çip yine 'hidden' ile render edilir (progresif geliştirme sözleşmesi bozulmaz)
+    assert '<span class="game-hud-timer ui-chip" hidden>' in html
+    assert '<span class="game-hud-score ui-chip" hidden>' in html
+    assert '<span class="game-hud-lives ui-chip" hidden>' in html
+    # KÖK NEDEN düzeltmesi: .ui-chip[hidden] için display:none karşı-kuralı CSS'te olmalı,
+    # yoksa yukarıdaki 'hidden' özniteliği tarayıcıda etkisiz kalır (author CSS UA'yı ezer)
+    assert re.search(r"\.ui-chip\[hidden\]\s*\{[^}]*display\s*:\s*none", html)
+
+
 # ---- W4a: adaptif katman (Elo-vs-BKT tahminci + akış/ZPD seçici) ----
 def test_w4a_adaptive_specs_discriminate_by_strategy():
     from core.game_primitives import EloSpec, BktSpec, AdaptiveSpec, ADAPTIVE_STRATEGIES
