@@ -329,6 +329,7 @@ _INHERENTLY_VISUAL_TYPES = {
     ScreenType.video,
     ScreenType.lottie,
     ScreenType.simulation,
+    ScreenType.results_breakdown,  # skor çubukları çizer — grafik ekran
 }
 
 
