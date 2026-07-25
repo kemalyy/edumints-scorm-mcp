@@ -64,6 +64,8 @@ def lint_course(project: Project) -> list[LintIssue]:
         issues += _lint_default_feedback(s, path)
     issues += _lint_consecutive_content_slides(project)
     issues += _lint_theme_logo_alt(project)
+    issues += _lint_text_only_runs(project)
+    issues += _lint_visual_poverty(project)
     return issues
 
 
@@ -315,3 +317,91 @@ def _lint_consecutive_content_slides(project: Project) -> list[LintIssue]:
                              "— araya bir etkileşim ekranı sok",
                              f"screens[{run_start}]..end"))
     return out
+
+
+# --- W11: görsel yoğunluk (text_only_run / visual_poverty) -------------------
+# Tipi doğası gereği görsel olan ekranlar (adımları/etkileşimi görsel zorunlu kılar).
+_INHERENTLY_VISUAL_TYPES = {
+    ScreenType.image_compare,
+    ScreenType.hotspot,
+    ScreenType.labeled_diagram,
+    ScreenType.data_chart,
+    ScreenType.video,
+    ScreenType.lottie,
+    ScreenType.simulation,
+}
+
+
+def _has_visual(s) -> bool:
+    """Ekran görsel taşıyor mu? Doğası gereği görsel tipler VEYA herhangi bir görsel-alanı dolu
+    olan ekranlar True döner. Alan yüzeyi `_lint_missing_alt` ile PARALEL tutulur (aynı ekran
+    tiplerini, aynı alt-alanları gezer) — DRY yerine okunabilirlik tercih edildi; biri değişirse
+    öteki elle senkron kalmalı (testler bunu yakalar)."""
+    if s.type in _INHERENTLY_VISUAL_TYPES:
+        return True
+    if isinstance(s, AccordionScreen):
+        return any(it.image_asset_id for it in s.items)
+    if isinstance(s, TabsScreen):
+        return any(t.image_asset_id for t in s.tabs)
+    if isinstance(s, TimelineScreen):
+        return any(e.image_asset_id for e in s.events)
+    if isinstance(s, FlashcardsScreen):
+        return any(c.front_asset_id or c.back_asset_id for c in s.cards)
+    if isinstance(s, (GameScreen, DecisionScenarioScreen)):
+        return any(n.image_asset_id for n in s.nodes)
+    if getattr(s, "media_asset_id", None):
+        return True
+    for b in getattr(s, "blocks", None) or []:
+        if b.asset_id:
+            return True
+    return False
+
+
+def _lint_text_only_runs(project: Project) -> list[LintIssue]:
+    """Kural 1 (W11) — text_only_run: ≥4 ardışık görselsiz ekran WARN. 2-3 metin-ağırlıklı ekran
+    meşru (içerik→içerik→mcq); 4+ süreklilik v1 teşhisindeki 'metin duvarı' desenidir."""
+    out: list[LintIssue] = []
+    run_start = None
+    run_len = 0
+
+    def flush(end_idx: int) -> None:
+        if run_len >= 4:
+            out.append(LintIssue(
+                "warn", "text_only_run",
+                f"{run_len} ardışık görselsiz ekran (screens[{run_start}..{end_idx - 1}]) — metin "
+                "duvarı: birine blok görseli ekle, birini data_chart'a çevir, ya da "
+                "flashcards/accordion öğelerine görsel ver",
+                f"screens[{run_start}..{end_idx - 1}]",
+            ))
+
+    for i, s in enumerate(project.screens):
+        if not _has_visual(s):
+            if run_start is None:
+                run_start = i
+            run_len += 1
+        else:
+            flush(i)
+            run_start = None
+            run_len = 0
+    flush(len(project.screens))
+    return out
+
+
+def _lint_visual_poverty(project: Project) -> list[LintIssue]:
+    """Kural 2 (W11) — visual_poverty: ekran sayısı ≥8 VE görsel ekran oranı <%25 WARN. Kısa
+    kurslar (<8) muaf — mikro kurslarda oran gürültülü."""
+    screens = project.screens
+    total = len(screens)
+    if total < 8:
+        return []
+    visual_count = sum(1 for s in screens if _has_visual(s))
+    share = visual_count / total
+    if share < 0.25:
+        return [LintIssue(
+            "warn", "visual_poverty",
+            f"Kursta {total} ekranın yalnızca %{share * 100:.1f}'i görsel taşıyor (<%25) — görsel "
+            "yoksulluk: content_slide'lara blok görseli, quiz'lere hotspot/image_compare, "
+            "istatistiklere data_chart ekle",
+            "screens",
+        )]
+    return []

@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 from typing import Optional
+from urllib.parse import quote
 
 import httpx
 
@@ -29,7 +30,7 @@ class OpenverseAdapter(ProvenanceAdapter):
         try:
             # 1. API Araması
             # Sadece CC0 ve Public Domain (pdm) lisanslarını istiyoruz.
-            search_url = f"{OPENVERSE_API_BASE}/images/?q={query}&license=cc0,pdm&page_size=1"
+            search_url = f"{OPENVERSE_API_BASE}/images/?q={quote(query)}&license=cc0,pdm&page_size=1"
             
             # SSRF Guard: API URL'sini doğrula
             assert_safe_url(search_url)
@@ -73,3 +74,55 @@ class OpenverseAdapter(ProvenanceAdapter):
         except Exception as e:
             logger.error(f"Openverse fetch hatası (sessiz): {e}")
             return None, None
+
+    async def search(self, query: str, limit: int = 5) -> list[dict]:
+        """
+        Openverse üzerinden CC0/Public Domain görsel ADAY listesi döner — İNDİRME YAPMAZ.
+        Her öğe: {title, url, thumb_url?, width?, height?, license, license_url?, creator?,
+        source_page?}. Graceful degrade: hata/boş durumda [] döner (mevcut fetch() felsefesi).
+        """
+        try:
+            search_url = f"{OPENVERSE_API_BASE}/images/?q={quote(query)}&license=cc0,pdm&page_size={limit}"
+
+            # SSRF Guard: API URL'sini doğrula
+            assert_safe_url(search_url)
+
+            headers = {}
+            if self.api_key:
+                headers["Authorization"] = f"Bearer {self.api_key}"
+
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(search_url, headers=headers)
+                if resp.status_code != 200:
+                    logger.warning(f"Openverse arama API hatası: {resp.status_code}")
+                    return []
+
+                data = resp.json()
+                results = data.get("results", [])
+
+            items: list[dict] = []
+            for img_data in results:
+                img_url = img_data.get("url")
+                if not img_url:
+                    continue
+                license_value = img_data.get("license")
+                if not license_value or str(license_value).lower() not in ("cc0", "pdm"):
+                    # Lisans eksik VEYA CC0/PD ailesi dışında → öğeyi ATLA. Sorgu filtresine ek
+                    # per-item savunma (Wikimedia simetrisi); yanlış etiketleme riskini kapatır.
+                    continue
+                items.append({
+                    "title": img_data.get("title") or "",
+                    "url": img_url,
+                    "thumb_url": img_data.get("thumbnail"),
+                    "width": img_data.get("width"),
+                    "height": img_data.get("height"),
+                    "license": license_value.upper(),
+                    "license_url": img_data.get("license_url"),
+                    "creator": img_data.get("creator"),
+                    "source_page": img_data.get("foreign_landing_url"),
+                })
+            return items
+
+        except Exception as e:
+            logger.warning(f"Openverse search hatası (sessiz): {e}")
+            return []

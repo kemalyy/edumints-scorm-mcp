@@ -102,3 +102,84 @@ class WikimediaAdapter(ProvenanceAdapter):
         except Exception as e:
             logger.error(f"Wikimedia fetch hatası (sessiz): {e}")
             return None, None
+
+    async def search(self, query: str, limit: int = 5) -> list[dict]:
+        """
+        Wikimedia Commons üzerinden CC0/Public Domain görsel ADAY listesi döner — İNDİRME YAPMAZ.
+        Yalnızca lisansı PD/CC0 ailesinden okunan sonuçlar dahil edilir. Her öğe: {title, url,
+        thumb_url?, width?, height?, license, license_url?, creator?, source_page?}. Graceful
+        degrade: hata/boş durumda [] döner (mevcut fetch() felsefesi).
+        """
+        try:
+            params = {
+                "action": "query",
+                "format": "json",
+                "generator": "search",
+                "gsrsearch": f"File:{query}",
+                "gsrnamespace": 6,  # File namespace
+                "gsrlimit": limit,
+                "prop": "imageinfo",
+                "iiprop": "url|size|extmetadata",
+                "iiextmetadatafilter": "LicenseShortName|UsageTerms|Artist",
+            }
+
+            query_string = "&".join(f"{k}={quote(str(v))}" for k, v in params.items())
+            search_url = f"{WIKIMEDIA_API_BASE}?{query_string}"
+
+            assert_safe_url(search_url)
+
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(search_url)
+                if resp.status_code != 200:
+                    logger.warning(f"Wikimedia arama API hatası: {resp.status_code}")
+                    return []
+
+                data = resp.json()
+                pages = data.get("query", {}).get("pages", {})
+
+            items: list[dict] = []
+            for page_id, page_data in pages.items():
+                imageinfo = page_data.get("imageinfo", [])
+                if not imageinfo:
+                    continue
+
+                info = imageinfo[0]
+                metadata = info.get("extmetadata", {})
+
+                license_name = metadata.get("LicenseShortName", {}).get("value", "").lower()
+
+                # Yalnızca CC0 ve Public Domain kabul edilir.
+                source = None
+                if license_name in ("cc0", "pd", "public domain"):
+                    source = "cc0" if license_name == "cc0" else "public-domain"
+                else:
+                    # Bazı durumlarda UsageTerms daha açıklayıcı olabilir.
+                    usage_terms = metadata.get("UsageTerms", {}).get("value", "").lower()
+                    if "public domain" in usage_terms:
+                        source = "public-domain"
+                    elif "cc0" in usage_terms:
+                        source = "cc0"
+
+                if not source:
+                    continue
+
+                img_url = info.get("url")
+                if not img_url:
+                    continue
+
+                items.append({
+                    "title": page_data.get("title") or "",
+                    "url": img_url,
+                    "thumb_url": None,
+                    "width": info.get("width"),
+                    "height": info.get("height"),
+                    "license": license_name.upper() or "PD",
+                    "license_url": info.get("descriptionurl"),
+                    "creator": metadata.get("Artist", {}).get("value"),
+                    "source_page": info.get("descriptionurl"),
+                })
+            return items
+
+        except Exception as e:
+            logger.warning(f"Wikimedia search hatası (sessiz): {e}")
+            return []

@@ -670,6 +670,33 @@ async def svg_to_asset(
         raise _wrap(e)
 
 
+@mcp.tool
+async def search_images(query: str, source: str = "openverse", limit: int = 5) -> dict:
+    """Telifsiz (CC0/Public Domain) görsel arar — kurslara görsel eklemenin ilk adımı. `source`:
+    "openverse" | "wikimedia". Yalnızca CC0/Public Domain lisanslı sonuçlar döner. Sonuçtan bir
+    `url` seçip `add_asset(project_id, source=url, filename=...)` ile projeye ekle (indirme+SSRF
+    denetimi orada yapılır — bu tool yalnız aday listeler, İNDİRME YAPMAZ). Her sonuç lisans/yazar/
+    kaynak-sayfa bilgisi taşır; uygun yerde yazarı kursa kredilendirin."""
+    await SVC.ensure()
+    try:
+        await _owner()
+        from core.integrations.openverse import OpenverseAdapter
+        from core.integrations.wikimedia import WikimediaAdapter
+
+        if source == "openverse":
+            adapter = OpenverseAdapter()
+        elif source == "wikimedia":
+            adapter = WikimediaAdapter()
+        else:
+            raise ToolError("invalid_source", f"Bilinmeyen source: {source}. 'openverse' veya 'wikimedia' olmalı.")
+
+        safe_limit = max(1, min(int(limit), 10))
+        images = await adapter.search(query, limit=safe_limit)
+        return {"count": len(images), "source": source, "images": images}
+    except ToolError as e:
+        raise _wrap(e)
+
+
 async def _add_processed_asset(p, owner, data: bytes, mime: str, filename: str):
     """ffmpeg çıktısını yeni asset olarak ekler (medya tool'ları için ortak)."""
     await enforce_size_quota(SVC.store, owner, len(data))
