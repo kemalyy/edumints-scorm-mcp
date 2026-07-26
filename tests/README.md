@@ -7,7 +7,7 @@ pip install -e ".[dev]"
 pytest -q                      # tests/test_golden.py + tests/test_units.py
 ```
 
-- `test_golden.py` — DoD (CONTRACTS.md §11): `examples/small.json` → `build_from_spec` → zip aç →
+- `test_golden.py` — DoD (definition of done): `examples/small.json` → `build_from_spec` → zip aç →
   `imsmanifest.xml` geçerli + `index.html` + scorm-again gömülü + quiz skorlama hook'u. Ayrıca
   `rich.json` ile 10 ekran tipinin tamamı + asset paketleme; preview'in tek-dosya / harici bağımlısız olması.
 - `test_units.py` — manifest well-formed (1.2/2004), SSRF blok listesi (private/CGNAT/ULA/metadata),
