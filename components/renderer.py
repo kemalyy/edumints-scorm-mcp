@@ -4,6 +4,11 @@
   - mode="preview": TEK dosya, harici bağımlılık YOK (runtime_js + tema + CSS + JS gömülü)
   - mode="package": index.html; assets/ ve runtime/scorm-again.min.js'e referans verir
 
+review (1.1) `mode`den bağımsız bayrak: mode="preview" iki işlevi taşıyordu (tek-dosya asset
+gömme + review/annotation FAB'ı); publish_demo de mode="preview" kullanır ama review UI'yı
+istemez (rToken() yalnız /preview/{token} yolunu bilir → /demo'da buton bozuktu). review=False
+(varsayılan) iken review markup SHELL'e hiç verilmez — gizlenmez, HTML'de yoktur.
+
 Premium görünüm: ThemeTokens → CSS custom property; modüler tipografi, katmanlı elevation,
 akıcı motion (prefers-reduced-motion'a uyar). Tüm *_html alanları nh3 ile sanitize edilir.
 
@@ -27,7 +32,17 @@ from core.engine_bundle import load_engine_bundle, load_scorm_bundle  # W3b — 
 from core.project import Project, QUIZ_TYPES, ScreenType, ThemeTokens
 
 from . import i18n
-from .templates import BASE_CSS, ENGINE_JS, FALLBACK_RUNTIME_SHIM, SHELL
+from .templates import (
+    BASE_CSS,
+    ENGINE_JS,
+    FALLBACK_RUNTIME_SHIM,
+    REVIEW_JS,
+    REVIEW_MARKUP,
+    SHELL,
+)
+
+# 1.1 — ENGINE_JS içindeki review JS yer tutucusu (templates.py'de tanımlı sentinel).
+_REVIEW_JS_SLOT = "/*__REVIEW_JS_SLOT__*/"
 
 # I1 — render edilen kursun dili. Ekran render fonksiyonları (~15 adet) modül düzeyinde ve
 # `project`i görmez; her birine parametre geçirmek yerine bağlam değişkeni kullanılır.
@@ -130,15 +145,53 @@ def render_html(
     mode: Literal["preview", "package"],
     runtime_js: str,
     asset_data: dict[str, tuple[str, bytes]] | None = None,
+    review: bool = False,
+    canonical_url: str | None = None,
 ) -> str:
-    """spec → HTML. asset_data (preview için): {asset_id: (mime, bytes)} → data-URI gömme."""
+    """spec → HTML. asset_data (preview için): {asset_id: (mime, bytes)} → data-URI gömme.
+
+    review (1.1) — `mode`den BAĞIMSIZ bayrak: yalnız gerçek önizleme/inceleme akışında (rToken()
+    /preview/{token}'ı bekler) review FAB'ı/paneli render edilsin. mode="preview" iki işlevi
+    karıştırıyordu (tek-dosya asset gömme + review UI); publish_demo de mode="preview" kullanır
+    ama review=False geçer → /demo HTML'inde reviewBtn/reviewPanel/reviewFab id'leri HİÇ YOK
+    (gizli değil, yok). Güvenli varsayılan False: yeni/var olan tüm diğer çağıranlar (packager,
+    render_screen_video) review UI istemez.
+
+    canonical_url (1.4) — og:url için; yalnız KALICI demo linkleri (publish_demo) anlamlı olduğundan
+    varsayılan None. project.description ve canonical_url'in ikisi de yoksa OG/twitter bloğu HİÇ
+    basılmaz (bkz. _og_meta_tags).
+    """
     # I1 — bu render'ın dilini bağlama koy; _T() bunu okur. Token ile reset → iç içe/eşzamanlı
     # render'lar sızdırmaz.
     _lang_token = _LANG.set(project.language)
     try:
-        return _render_html_inner(project, mode=mode, runtime_js=runtime_js, asset_data=asset_data)
+        return _render_html_inner(
+            project, mode=mode, runtime_js=runtime_js, asset_data=asset_data, review=review,
+            canonical_url=canonical_url,
+        )
     finally:
         _LANG.reset(_lang_token)
+
+
+def _og_meta_tags(project: Project, canonical_url: str | None) -> str:
+    """1.4 — Open Graph/Twitter kart etiketleri; SADECE paylaşılabilir bağlam varsa (description
+    ve/veya canonical_url) basılır — hiçbiri yoksa blok TAMAMEN yok (og:title tek başına, `<title>`
+    zaten bastığı için, ayrı bir sosyal-kart bağlamı olmadan basılmaz). Boş değerli etiket YOK:
+    her satır kendi kaynak alanı doluysa eklenir. og:image kasıtlı olarak atlanır (kurs-başına
+    görsel şeması henüz yok — icat edilmedi)."""
+    desc = (project.description or "").strip()
+    if not desc and not canonical_url:
+        return ""
+    lines = ['<meta property="og:type" content="website">']
+    title = _text(project.title)
+    if title:
+        lines.append(f'<meta property="og:title" content="{_attr(project.title)}">')
+    if desc:
+        lines.append(f'<meta property="og:description" content="{_attr(desc)}">')
+    if canonical_url:
+        lines.append(f'<meta property="og:url" content="{_attr(canonical_url)}">')
+    lines.append('<meta name="twitter:card" content="summary">')
+    return "\n".join(lines)
 
 
 def _render_html_inner(
@@ -147,6 +200,8 @@ def _render_html_inner(
     mode: Literal["preview", "package"],
     runtime_js: str,
     asset_data: dict[str, tuple[str, bytes]] | None = None,
+    review: bool = False,
+    canonical_url: str | None = None,
 ) -> str:
     theme = project.theme
     css_vars = _css_vars(theme)
@@ -198,13 +253,23 @@ def _render_html_inner(
 
     font_faces = _font_faces_css(theme, asset_map)
 
+    # I1/I2 — kabuk dizgeleri dile göre çözülür; yön dilden türetilir (RTL betikleri)
+    t_attr = {k: _attr(v) for k, v in i18n.table(project.language).items()}
+    # 1.1 — review markup SHELL'den AYRI .format() edilir (aynı {{t[...]}} deseni), sonuç düz metin
+    # olarak {review_markup} alanına geçer; review=False iken tamamen boş → HTML'de hiç yok.
+    review_markup = REVIEW_MARKUP.format(t=t_attr) if review else ""
+    # ENGINE_JS .format() edilmez (JS'in kendi {{}} kaçışlama derdi olmasın diye); review JS'i
+    # düz .replace() ile sentinel'e gömülür → review=False'ta ENGINE_JS'te "reviewBtn" gibi
+    # hiçbir iz kalmaz (yalnız markup değil, JS de fiziksel olarak yok).
+    engine_js = ENGINE_JS.replace(_REVIEW_JS_SLOT, REVIEW_JS if review else "")
+
     return SHELL.format(
         lang=_attr(project.language),
-        # I1/I2 — kabuk dizgeleri dile göre çözülür; yön dilden türetilir (RTL betikleri)
-        t={k: _attr(v) for k, v in i18n.table(project.language).items()},
+        t=t_attr,
         dir=i18n.direction(project.language),
         i18n_json=json.dumps(i18n.runtime_table(project.language), ensure_ascii=False),
         title=_text(project.title),
+        og_tags=_og_meta_tags(project, canonical_url),
         css_vars=css_vars,
         base_css=BASE_CSS,
         custom_css=theme.custom_css or "",
@@ -219,8 +284,10 @@ def _render_html_inner(
         asset_json=json.dumps(asset_map, ensure_ascii=False),
         scorm_2004="true" if project.scorm_version == "2004" else "false",
         preview="true" if mode == "preview" else "false",
+        review="true" if review else "false",
+        review_markup=review_markup,
         extra_runtime=extra_runtime,
-        engine_js=ENGINE_JS,
+        engine_js=engine_js,
     )
 
 
@@ -270,6 +337,11 @@ def _course_config(project: Project) -> dict:
         # S1 — cmi.interactions.n.description (yalnız 2004'te yazılır; puanlanan ekranlarda anlamlı).
         if s.type in QUIZ_TYPES and getattr(s, "title", None):
             item["title"] = s.title
+        # S2 (2.4) — hedef bağları (yalnız puanlı ekranlar taşır; boşsa anahtar hiç serileşmez).
+        # dict.fromkeys: ekran-içi yinelenen id çift sayılmasın (sıra korunur).
+        obj_ids = list(dict.fromkeys(getattr(s, "objective_ids", None) or []))
+        if s.type in QUIZ_TYPES and obj_ids:
+            item["objective_ids"] = obj_ids
         if s.type == ScreenType.mcq:
             item["points"] = s.points
             item["multi"] = s.multi_select
@@ -391,6 +463,8 @@ def _course_config(project: Project) -> dict:
         "stage_height": project.stage_height,
         "screens": screens,
         "id_order": [s.id or f"idx{i}" for i, s in enumerate(project.screens)],
+        # S2 (2.4) — kurs hedef sırası (determinizm kaynağı); yalnız id'ler (runtime'a metin gerekmez)
+        **({"objectives": [o.id for o in project.objectives]} if project.objectives else {}),
         # W5 — xAPI/cmi5 telemetri config'i YALNIZ açıkken serileşir (kapalıysa runtime no-op)
         **({"xapi": {"enabled": True, "mode": project.xapi.mode,
                      "endpoint": project.xapi.endpoint, "activity_base": project.xapi.activity_base}}

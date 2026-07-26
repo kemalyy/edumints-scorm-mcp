@@ -1,18 +1,26 @@
 __pycache__/
-*.pyc
+*.py[cod]
 .venv/
 venv/
 .env
-data/
-cache/
-packages/
-*.zip
-.DS_Store
+*.db
+*.db-wal
+*.db-shm
+/data/
+dist/
+build/
+.ruff_cache/
 .pytest_cache/
 *.egg-info/
+preview_showcase.html
+skills/authoring-scorm-courses/examples/*.zip
+examples/*.zip
+.DS_Store
 
 node_modules/
 coverage/
+# package-lock tutulur (CI reproducibility)
+.superpowers/
 tests/a11y/fixtures/
 
 # kök dizine düşen build artefaktları (D3)

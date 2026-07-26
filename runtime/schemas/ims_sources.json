@@ -11,6 +11,16 @@
         "url": "https://www.imsglobal.org/xsd/ims_xml.xsd",
         "sha256": "d5ee21b60f118e42f70837e66ef99f9b9977b7d9cf2bb321346371f2fa22a6b2",
         "bytes": 1104
+      },
+      "xml.xsd": {
+        "url": "https://www.w3.org/2001/xml.xsd",
+        "sha256": "61960fb3131e38022caad5360e2f33a3382578ab3c80cd58bd74320ede61b20c",
+        "bytes": 8836
+      },
+      "imsmd_v1p2p4.xsd": {
+        "url": "https://www.imsglobal.org/xsd/imsmd_v1p2p4.xsd",
+        "sha256": "6090369e809afcfe23dae5463830e52aac7193703e46a378f8eb00fa082568c7",
+        "bytes": 28831
       }
     },
     "2004": {
@@ -73,6 +83,11 @@
         "url": "https://www.w3.org/2001/xml.xsd",
         "sha256": "61960fb3131e38022caad5360e2f33a3382578ab3c80cd58bd74320ede61b20c",
         "bytes": 8836
+      },
+      "imsmd_v1p2p4.xsd": {
+        "url": "https://www.imsglobal.org/xsd/imsmd_v1p2p4.xsd",
+        "sha256": "6090369e809afcfe23dae5463830e52aac7193703e46a378f8eb00fa082568c7",
+        "bytes": 28831
       }
     }
   }

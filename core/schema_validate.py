@@ -30,7 +30,9 @@ _SCHEMAS_DIR = Path(__file__).resolve().parent.parent / "runtime" / "schemas"
 _ADL_DIR = _SCHEMAS_DIR / "adl"
 _DRIVER = {"1.2": "driver_12.xsd", "2004": "driver_2004.xsd"}
 _VER_KEY = {"1.2": "12", "2004": "2004"}
-_W3_XML = "http://www.w3.org/2001/xml.xsd"
+# Bazı IMS şemaları (ör. imsmd_v1p2p4.xsd) xml.xsd'yi "/2001/03/xml.xsd" varyantıyla import eder;
+# ikisi de aynı yerel "xml.xsd" cache dosyasına yeniden yazılır (S7 / 2.3).
+_W3_XML_RE = re.compile(r"http://www\.w3\.org/2001(?:/03)?/xml\.xsd")
 
 SCHEMA_UNAVAILABLE = "schema_unavailable"   # UYARI kodu (build'i bloklamaz)
 CONFORMANCE_ERROR = "conformance_error"     # gerçek XSD ihlali
@@ -83,7 +85,7 @@ def _ensure_populated(version: str) -> Path | None:
                     # integrity yumuşak: uyumsuzlukta yine yaz ama işaretle (standart şemalar dondurulmuş)
                     (rd / "INTEGRITY_MISMATCH.txt").write_text(
                         f"{fn}: beklenen {want}\n", encoding="utf-8")
-                text = data.decode("utf-8", "ignore").replace(_W3_XML, "xml.xsd")
+                text = _W3_XML_RE.sub("xml.xsd", data.decode("utf-8", "ignore"))
                 (rd / fn).write_text(text, encoding="utf-8")
         return rd if driver.exists() else None
     except Exception:

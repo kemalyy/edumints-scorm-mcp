@@ -27,6 +27,22 @@ p = Project(id=new_project_id(), title="probe", scorm_version=ver, screens=[
 open(out, "w", encoding="utf-8").write(render_html(p, mode="preview", runtime_js="/*probe*/"))
 `;
 
+// S2 (2.4) — 3 hedefli / 9 soruluk kurs: q1-q3→o1, q4-q6→o2, q7-q9→o3.
+const OBJ_RENDER_PY = `
+import sys
+from components.renderer import render_html
+from core.project import Project, new_project_id, MCQScreen, Choice, Objective
+out, ver = sys.argv[1], sys.argv[2]
+screens = [MCQScreen(id="q%d" % i, title="Soru %d" % i, prompt_html="<p>?</p>", points=10,
+                     objective_ids=["o%d" % (((i - 1) // 3) + 1)],
+                     options=[Choice(id="a", text_html="Dogru", correct=True),
+                              Choice(id="b", text_html="Yanlis")])
+           for i in range(1, 10)]
+p = Project(id=new_project_id(), title="probe-obj", scorm_version=ver, screens=screens,
+            objectives=[Objective(id="o1"), Objective(id="o2"), Objective(id="o3")])
+open(out, "w", encoding="utf-8").write(render_html(p, mode="preview", runtime_js="/*probe*/"))
+`;
+
 const failures = [];
 function check(label, actual, expected) {
   const ok = actual === expected;
@@ -40,12 +56,13 @@ function checkMatch(label, actual, re) {
 }
 
 // Sahte LMS: her SetValue kaydedilir, GetValue önceden ekilen değerleri döndürür.
-function lmsInit([is2004, entry, suspend]) {
+function lmsInit([is2004, entry, suspend, seed]) {
   const log = [];
   window.__LMS__ = log;
   const store = {};
   store[is2004 ? "cmi.entry" : "cmi.core.entry"] = entry;
   store["cmi.suspend_data"] = suspend;
+  if (seed) Object.assign(store, seed);   // S2 — LMS pre-populate senaryosu (manifest objectives)
   const shim = {
     LMSInitialize: () => "true", Initialize: () => "true",
     LMSFinish: () => { log.push(["__FINISH__", ""]); return "true"; },
@@ -61,11 +78,11 @@ function lmsInit([is2004, entry, suspend]) {
   window[is2004 ? "API_1484_11" : "API"] = shim;
 }
 
-async function session(browser, file, { is2004 = false, entry = "", suspend = "", act } = {}) {
+async function session(browser, file, { is2004 = false, entry = "", suspend = "", seed = null, act } = {}) {
   const context = await browser.newContext();
   try {
     const page = await context.newPage();
-    await page.addInitScript(lmsInit, [is2004, entry, suspend]);
+    await page.addInitScript(lmsInit, [is2004, entry, suspend, seed]);
     await page.goto(`file://${file}`);
     await page.waitForTimeout(150);
     if (act) await act(page);
@@ -92,13 +109,28 @@ const answerWrong = async (p) => {
   await p.waitForTimeout(120);
 };
 
+// S2 — q1 doğru + q2 yanlış (ikisi de o1); o2/o3 hiç denenmez.
+const answerTwoOfObjective1 = async (p) => {
+  await p.click('.screen[aria-hidden="false"] .opt[data-opt="a"]');
+  await p.click('.screen[aria-hidden="false"] .btn-check');
+  await p.waitForTimeout(120);
+  await p.click("#btnNext");
+  await p.waitForTimeout(120);
+  await p.click('.screen[aria-hidden="false"] .opt[data-opt="b"]');
+  await p.click('.screen[aria-hidden="false"] .btn-check');
+  await p.waitForTimeout(150);
+};
+
 async function main() {
   const tmp = mkdtempSync(path.join(tmpdir(), "scorm-probe-"));
   let browser;
   try {
     const f12 = path.join(tmp, "c12.html"), f2004 = path.join(tmp, "c2004.html");
+    const o12 = path.join(tmp, "o12.html"), o2004 = path.join(tmp, "o2004.html");
     execFileSync("python3", ["-c", RENDER_PY, f12, "1.2"], { cwd: process.cwd() });
     execFileSync("python3", ["-c", RENDER_PY, f2004, "2004"], { cwd: process.cwd() });
+    execFileSync("python3", ["-c", OBJ_RENDER_PY, o12, "1.2"], { cwd: process.cwd() });
+    execFileSync("python3", ["-c", OBJ_RENDER_PY, o2004, "2004"], { cwd: process.cwd() });
 
     browser = await chromium.launch(
       process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {}
@@ -144,6 +176,37 @@ async function main() {
 
     const done = await session(browser, f12, { act: answerWrong });
     check("tamamlanan kursta exit", done.last["cmi.core.exit"], "normal");
+
+    // --- S2: cmi.objectives.* — 3 hedef / 9 soru ---
+    console.log("\n== S2 (1.2) — 3 hedefli kurs: 3 AYRI objective kaydi ==");
+    const j = await session(browser, o12, { is2004: false, act: answerTwoOfObjective1 });
+    const ids12 = [j.last["cmi.objectives.0.id"], j.last["cmi.objectives.1.id"], j.last["cmi.objectives.2.id"]];
+    check("objectives.0.id", ids12[0], "o1");
+    check("objectives.1.id", ids12[1], "o2");
+    check("objectives.2.id", ids12[2], "o3");
+    check("3 AYRI hedef kaydi", new Set(ids12).size, 3);
+    check("o1 score.raw (1/3 dogru)", j.last["cmi.objectives.0.score.raw"], "33");
+    check("o1 status (2/3 cevaplandi)", j.last["cmi.objectives.0.status"], "incomplete");
+    check("o2 status (hic denenmedi)", j.last["cmi.objectives.1.status"], "not attempted");
+    check("o2 skor YAZILMAZ (denenmedi)", j.last["cmi.objectives.1.score.raw"], undefined);
+    check("fazla hedef kaydi YOK", j.last["cmi.objectives.3.id"], undefined);
+
+    console.log("\n== S2 (2004) — ayni senaryo + LMS pre-populate (manifest objectives) ==");
+    // LMS, manifest'teki imsss:objective'lerden o2'yi 0. indekse önceden koymuş olsun:
+    // runtime id'ye göre çözer — o2'nin .id'si YENİDEN YAZILMAZ, yeniler sona eklenir.
+    const k = await session(browser, o2004, {
+      is2004: true, act: answerTwoOfObjective1,
+      seed: { "cmi.objectives._count": "1", "cmi.objectives.0.id": "o2" },
+    });
+    check("pre-populate .id yeniden YAZILMAZ", k.last["cmi.objectives.0.id"], undefined);
+    check("o2 mevcut indeksinde guncellenir", k.last["cmi.objectives.0.completion_status"], "not attempted");
+    check("o1 sona eklenir (indeks 1)", k.last["cmi.objectives.1.id"], "o1");
+    check("o1 score.scaled", k.last["cmi.objectives.1.score.scaled"], "0.3333");
+    check("o1 success_status (bitmedi)", k.last["cmi.objectives.1.success_status"], "unknown");
+    check("o1 completion_status", k.last["cmi.objectives.1.completion_status"], "incomplete");
+    check("o3 sona eklenir (indeks 2)", k.last["cmi.objectives.2.id"], "o3");
+    check("o3 completion_status", k.last["cmi.objectives.2.completion_status"], "not attempted");
+    check("2004'te 1.2 sozlugu YOK (.status)", k.last["cmi.objectives.1.status"], undefined);
   } finally {
     if (browser) await browser.close();
     rmSync(tmp, { recursive: true, force: true });
@@ -154,7 +217,7 @@ async function main() {
     failures.forEach((f) => console.error("   - " + f));
     process.exit(1);
   }
-  console.log("\n✓ SCORM probe: S1/S3/S4 tum kontroller gecti.");
+  console.log("\n✓ SCORM probe: S1/S2/S3/S4 tum kontroller gecti.");
 }
 
 main().catch((e) => {

@@ -2,4 +2,12 @@
 <xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema">
   <xsd:import namespace="http://www.imsproject.org/xsd/imscp_rootv1p1p2" schemaLocation="imscp_rootv1p1p2.xsd"/>
   <xsd:import namespace="http://www.adlnet.org/xsd/adlcp_rootv1p2" schemaLocation="adlcp_rootv1p2.xsd"/>
+  <!-- S7 (2.3) — imsmd LOM binding (<metadata> içi opsiyonel imsmd:lom bloğu). "resmi" 1.2.1 binding
+       (imsmd_rootv1p2p1.xsd) DEĞİL — o şema generalType/educationalType/… içinde grp.any'yi
+       namespace="##any" ile tanımlıyor (kendi namespace'ini de kapsıyor), bu da komşu opsiyonel
+       elemanlarla (description/keyword/…) UPA (Unique Particle Attribution) ihlaline / "content
+       model is not determinist" hatasına yol açıyor — libxml2 bu şemayı hiç DERLEYEMİYOR (schema
+       yoksa gibi schema_unavailable'a düşer, sessizce yanlış-yeşil verir). 1.2.4 binding'i (aynı IMS
+       1.2.x soyu, ##other) UPA-temiz ve gerçekten derleniyor/doğruluyor — 2004 ile PAYLAŞILIYOR. -->
+  <xsd:import namespace="http://www.imsglobal.org/xsd/imsmd_v1p2" schemaLocation="imsmd_v1p2p4.xsd"/>
 </xsd:schema>

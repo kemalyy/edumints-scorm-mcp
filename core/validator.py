@@ -34,6 +34,15 @@ def validate_project(project: Project) -> list[ValidationError]:
     asset_ids = {a.id for a in project.assets}
     screen_ids = {s.id for s in project.screens if s.id}
 
+    # S2 (2.4) — hedef referans bütünlüğü: kurs hedef id'leri tekil olmalı; puanlı ekranın
+    # objective_ids'i yalnız tanımlı hedeflere işaret edebilir (bilinmeyen id = sert hata).
+    objective_ids: set[str] = set()
+    for j, o in enumerate(project.objectives):
+        if o.id in objective_ids:
+            errors.append(ValidationError(code="validation_error",
+                          message=f"Yinelenen hedef id'si: {o.id}", path=f"objectives[{j}]"))
+        objective_ids.add(o.id)
+
     for i, s in enumerate(project.screens):
         path = f"screens[{i}]"
         # asset referansları
@@ -60,6 +69,13 @@ def validate_project(project: Project) -> list[ValidationError]:
             _aref(getattr(c, "back_asset_id", None), "cards.back_asset_id")
         for e in getattr(s, "events", None) or []:
             _aref(getattr(e, "image_asset_id", None), "events.image_asset_id")
+
+        # S2 (2.4) — puanlı ekranın hedef bağları: bilinmeyen hedef id'si build'i bloklar
+        for oid in getattr(s, "objective_ids", None) or []:
+            if oid not in objective_ids:
+                errors.append(ValidationError(code="validation_error",
+                              message=f"Bilinmeyen hedef referansı: {oid} (course.objectives'te tanımlı değil)",
+                              path=f"{path}.objective_ids"))
 
         # video: asset ya da url
         if isinstance(s, VideoScreen) and not s.video_asset_id and not s.video_url:

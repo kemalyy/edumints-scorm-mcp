@@ -5,4 +5,8 @@
   <xsd:import namespace="http://www.adlnet.org/xsd/adlseq_v1p3" schemaLocation="adlseq_v1p3.xsd"/>
   <xsd:import namespace="http://www.adlnet.org/xsd/adlnav_v1p3" schemaLocation="adlnav_v1p3.xsd"/>
   <xsd:import namespace="http://www.imsglobal.org/xsd/imsss" schemaLocation="imsss_v1p0.xsd"/>
+  <!-- S7 (2.3) — imsmd LOM 1.2.4 binding (<metadata> içi opsiyonel imsmd:lom bloğu; imsglobal.org
+       kaynaklı, IEEE LOM (ltsc.ieee.org) yerine — fetch altyapımız yalnız imsglobal.org/w3.org
+       kaynaklarını destekliyor, IEEE sitesi doğrudan indirilebilir/sabitlenebilir değil). -->
+  <xsd:import namespace="http://www.imsglobal.org/xsd/imsmd_v1p2" schemaLocation="imsmd_v1p2p4.xsd"/>
 </xsd:schema>

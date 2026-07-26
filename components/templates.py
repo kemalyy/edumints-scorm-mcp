@@ -3,6 +3,9 @@
 renderer.py bunları kullanır. SHELL bir str.format() şablonudur; içindeki literal CSS süslü
 parantezleri YOKTUR (tüm CSS {base_css} değeri olarak gelir), yalnız :root{{...}} kaçışlıdır.
 BASE_CSS / ENGINE_JS / FALLBACK_RUNTIME_SHIM düz string'dir (format edilmez).
+REVIEW_MARKUP da SHELL gibi bir str.format() şablonudur (renderer.py ayrıca .format(t=...) eder);
+sonucu SHELL'e {review_markup} alanıyla düz metin olarak geçer, o alan SHELL.format() tarafından
+tekrar işlenmez (1.1 — review UI, __PREVIEW__'dan bağımsız `review` bayrağına bağlı).
 """
 
 # --------------------------------------------------------------------------- #
@@ -14,6 +17,7 @@ SHELL = """<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{title}</title>
+{og_tags}
 <style>:root{{{css_vars}}}
 {base_css}
 {font_faces}
@@ -54,7 +58,30 @@ SHELL = """<!DOCTYPE html>
   <nav class="slide-menu" id="slideMenu" aria-label="{t[menu_label]}"><div class="slide-menu-header"><h3>{t[menu_heading]}</h3><button class="slide-menu-close" id="menuClose" type="button" aria-label="{t[menu_close]}"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div><ul id="slideMenuList"></ul></nav>
   <div class="menu-overlay" id="menuOverlay"></div>
 </div>
-<div class="review-fab" id="reviewFab" hidden>
+{review_markup}
+{runtime_block}
+{extra_runtime}
+<script>
+window.__COURSE__ = {course_json};
+window.__ASSETS__ = {asset_json};
+window.__SCORM_2004__ = {scorm_2004};
+window.__PREVIEW__ = {preview};
+window.__REVIEW__ = {review};
+window.__I18N__ = {i18n_json};
+</script>
+<script>
+{engine_js}
+</script>
+</body>
+</html>"""
+
+
+# --------------------------------------------------------------------------- #
+# 1.1 — review/annotation FAB'ı bağımsız `review` bayrağına bağlı (str.format şablonu, SHELL'in
+# {{t[...]}} kaçışlaması ile aynı desen). review=False iken renderer.py bunu SHELL'e HİÇ vermez
+# (gizlemek değil, yoklamak) — /demo yüzeyinde reviewBtn/reviewPanel/reviewFab id'leri hiç yok.
+# --------------------------------------------------------------------------- #
+REVIEW_MARKUP = """<div class="review-fab" id="reviewFab" hidden>
   <button class="review-btn" id="reviewBtn" type="button" aria-haspopup="dialog"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> {t[review_open]}</button>
   <div class="review-panel" id="reviewPanel" role="dialog" aria-label="{t[review_open]}" hidden>
     <div class="review-head">{t[review_title]}</div>
@@ -65,21 +92,7 @@ SHELL = """<!DOCTYPE html>
     </div>
     <div class="review-status" id="reviewStatus" aria-live="polite"></div>
   </div>
-</div>
-{runtime_block}
-{extra_runtime}
-<script>
-window.__COURSE__ = {course_json};
-window.__ASSETS__ = {asset_json};
-window.__SCORM_2004__ = {scorm_2004};
-window.__PREVIEW__ = {preview};
-window.__I18N__ = {i18n_json};
-</script>
-<script>
-{engine_js}
-</script>
-</body>
-</html>"""
+</div>"""
 
 
 # --------------------------------------------------------------------------- #
@@ -806,6 +819,15 @@ body[data-layout="flow"] .stage{position:relative}
   .brand-title{display:none}
   .screen-inner{padding:10px}
 }
+/* ===== 1.5 — GÖMME MODU (?embed=1) — chromeless varyant, tek dosya/tek önbellek =====
+   Sunucu ?embed=1'i asla görmez (render dallanmaz); boot JS location.search'ten okuyup
+   body[data-embed="1"] koyar (bkz. ENGINE_JS). Menü butonu + dots + review FAB gizlenir
+   (Feedback FAB zaten demolarda yok); dış boşluk azaltılır. prev/next KALIR. */
+body[data-embed="1"] #btnMenu{display:none!important}
+body[data-embed="1"] .dots{display:none!important}
+body[data-embed="1"] .review-fab{display:none!important}
+body[data-embed="1"] .app-header{padding:6px var(--gutter,12px)}
+body[data-embed="1"] .app-footer{padding:6px var(--gutter,12px)}
 """
 
 
@@ -815,6 +837,9 @@ body[data-layout="flow"] .stage{position:relative}
 ENGINE_JS = r"""
 (function(){
 "use strict";
+// 1.5 — gömme modu: sunucu ?embed=1'i hiç görmez (aynı önbellekli HTML), yalnız istemci burada
+// location.search'ü okuyup body[data-embed="1"] koyar → BASE_CSS chromeless kuralları devreye girer.
+if(/(?:^|[?&])embed=1(?:&|$)/.test(location.search||"")) document.body.dataset.embed="1";
 var COURSE = window.__COURSE__, ASSETS = window.__ASSETS__, S2004 = window.__SCORM_2004__;
 // I1 — çalışma anında üretilen metinler dile göre çözülür (kabuk HTML'i Python tarafında çözüldü).
 // Anahtar bulunamazsa anahtarın kendisi döner: sessiz boş metin yerine görünür sinyal.
@@ -863,6 +888,11 @@ function getAPI(){
 }
 var api=getAPI();
 function sSet(k,v){ if(!api)return; try{ S2004?api.SetValue(k,String(v)):api.LMSSetValue(k,String(v)); }catch(e){} }
+// S5 (2.2c) — suspend_data görünürlüğü: sSet hatayı yutar ama BU yazımın başarısını bilmemiz gerekir.
+// API yoksa (preview) true: uyarı spam'i olmasın. Başarı yorumu (CMIBoolean) scorm.js'te (saf, testli).
+function sSetChecked(k,v){ if(!api)return true;
+  try{ var r=S2004?api.SetValue(k,String(v)):api.LMSSetValue(k,String(v));
+    return RT.setResultOk?RT.setResultOk(r):String(r)!=="false"; }catch(e){ return false; } }
 function sGet(k){ if(!api)return""; try{ return S2004?api.GetValue(k):api.LMSGetValue(k); }catch(e){ return ""; } }
 function sCommit(){ if(!api)return; try{ S2004?api.Commit(""):api.LMSCommit(""); }catch(e){} }
 function sInit(){ if(!api)return; try{ S2004?api.Initialize(""):api.LMSInitialize(""); }catch(e){} }
@@ -891,7 +921,9 @@ var state={visited:{},results:{},history:[]};
   var raw=sGet("cmi.suspend_data");
   var entry=sGet(S2004?"cmi.entry":"cmi.core.entry");
   var may = RT.shouldRestore ? RT.shouldRestore(entry, !!raw) : !!raw;
-  if(may && raw){ var d=JSON.parse(raw); if(d&&d.visited){ state=d; state.history=state.history||[]; } }
+  // S5 — v2 kompakt format + v1 (eski JSON) migrasyonu scorm.js'te; RT yoksa eski yol.
+  if(may && raw){ var d=RT.decodeSuspend?RT.decodeSuspend(raw,order):JSON.parse(raw);
+    if(d&&d.visited){ state=d; state.history=state.history||[]; } }
 }catch(e){} })();
 
 // ---- Faz 5: değişken/durum motoru (state.vars → suspend_data'da persist) ----
@@ -948,10 +980,25 @@ function initLottie(el,s){ if(!window.lottie || !s || _lottieInit[s.id]) return;
     loop:box.dataset.loop==="1", autoplay:box.dataset.autoplay==="1", path:src}); _lottieInit[s.id]=true; }catch(e){} }
 
 function persist(){
-  var json=JSON.stringify(state);
-  if(json.length>4000 && !S2004){ json=JSON.stringify({visited:state.visited,results:state.results,
-    history:[],cursorId:state.cursorId,reachedEnd:state.reachedEnd}); }
-  sSet("cmi.suspend_data",json); sCommit();
+  // S5 — kompakt v2 kodlama (scorm.js): kısa anahtar yok, indeks+bitfield; limitte önce history düşer.
+  var lim=RT.suspendLimit?RT.suspendLimit(S2004):(S2004?64000:4096);
+  var json, fit=null;
+  if(RT.encodeSuspendFit){ fit=RT.encodeSuspendFit(state,order,lim); json=fit.data; }
+  else { json=JSON.stringify(state);   // beklenmedik: bundle yok → eski davranış
+    if(json.length>4000 && !S2004){ json=JSON.stringify({visited:state.visited,results:state.results,
+      history:[],cursorId:state.cursorId,reachedEnd:state.reachedEnd}); } }
+  var wok=sSetChecked("cmi.suspend_data",json); sCommit();
+  // 2.2c — yazma hatası/kırpma SESSİZ kalmasın: konsol + (varsa) xAPI izi; asla throw yok.
+  if(RT.suspendWriteIssues){
+    var probs=RT.suspendWriteIssues({ok:wok,size:json.length,limit:lim,truncated:!!(fit&&fit.truncated)});
+    for(var pi=0;pi<probs.length;pi++) suspendTrouble(probs[pi]);
+  }
+}
+var _suspendWarned={};
+function suspendTrouble(p){
+  if(_suspendWarned[p.kind]) return; _suspendWarned[p.kind]=true;   // olay başına TEK uyarı (spam yok)
+  try{ console.warn("[scorm] suspend_data "+p.kind+": "+p.size+" chars (limit "+p.limit+") - progress data may be incomplete"); }catch(e){}
+  try{ if(typeof XAPI!=="undefined"&&XAPI&&XAPI.emit) XAPI.emit("suspend.trouble",{kind:p.kind,size:p.size,limit:p.limit}); }catch(e){}
 }
 
 // ---- skor + tamamlanma ----
@@ -978,8 +1025,35 @@ function writeScore(){
   if(S2004){ sSet("cmi.score.raw",sc); sSet("cmi.score.scaled",(sc/100).toFixed(4)); }
   else { sSet("cmi.core.score.raw",sc); }
 }
+// ---- S2: cmi.objectives.* (hedef başına skor; 1.2↔2004 farkları scorm.js'te) ----
+// POLİTİKA: yalnız ≥1 puanlı ekrana bağlı hedefler yazılır (aggregateObjectives filtreler).
+var OBJ_IDS=COURSE.objectives||[];
+var OBJ_MAP={};
+COURSE.screens.forEach(function(s){ if(s.objective_ids&&s.objective_ids.length) OBJ_MAP[s.id]=s.objective_ids; });
+var _objIdx=null;   // hedef id → cmi.objectives indeksi (oturum boyunca sabit — deterministik)
+function writeObjectives(){
+  if(!OBJ_IDS.length||!RT.aggregateObjectives||!RT.objectiveElements||!RT.objectiveIndices) return;
+  var aggs=RT.aggregateObjectives(OBJ_IDS,OBJ_MAP,state.results);
+  if(!aggs.length) return;
+  if(_objIdx==null){
+    // LMS'te önceden var olan kayıtlar (2004'te manifest imsss:objective pre-populate edebilir)
+    // id'ye göre çözülür: mevcut id kendi indeksini korur (.id yeniden YAZILMAZ), yeniler sona.
+    var n=parseInt(sGet("cmi.objectives._count"),10)||0, ex=[], i;
+    for(i=0;i<n;i++) ex.push(sGet("cmi.objectives."+i+".id"));
+    var ids=[]; for(i=0;i<aggs.length;i++) ids.push(aggs[i].id);
+    _objIdx={map:RT.objectiveIndices(ex,ids),existing:{}};
+    for(i=0;i<ex.length;i++) _objIdx.existing[ex[i]]=true;
+  }
+  var pr=(COURSE.tracking.passing_score||0)/100;
+  for(var k=0;k<aggs.length;k++){
+    var a=aggs[k];
+    var kv=RT.objectiveElements(a,_objIdx.map[a.id],S2004,pr,!_objIdx.existing[a.id]);
+    for(var m=0;m<kv.length;m++) sSet(kv[m][0],kv[m][1]);
+  }
+}
 function evaluate(){
   writeScore();
+  writeObjectives();   // S2 — skor commit'iyle AYNI yaşam döngüsü noktası
   var complete=isComplete();
   if(S2004){
     sSet("cmi.completion_status",complete?"completed":"incomplete");
@@ -2024,8 +2098,19 @@ showAt(startIdx,false);
 fitStage();  // Faz 9 — ilk ölçekleme (layout görseli oturduktan sonra)
 window.__navReady=true;  // ilk render bitti → sonraki gezinmelerde focus aktif ekrana taşınır
 
-// ---- review/annotation: yalnız preview'da; paket modunda hiç çalışmaz ----
-if(window.__PREVIEW__){
+/*__REVIEW_JS_SLOT__*/
+})();
+"""
+
+# --------------------------------------------------------------------------- #
+# 1.1 — review/annotation JS'i ENGINE_JS'ten AYRILDI: renderer.py yalnız review=True iken
+# ENGINE_JS içindeki /*__REVIEW_JS_SLOT__*/ sentinelini bununla değiştirir (düz .replace(),
+# ENGINE_JS zaten .format() edilmediği için {{}} kaçışlama derdi yok). review=False'ta sentinel
+# boş dizgeyle değişir → çıktı HTML/JS'de "reviewBtn" vb. hiçbir iz kalmaz (yalnız markup değil,
+# JS de HİÇ basılmaz). T()/curScreen()/CHECK_SVG dış IIFE kapsamından geldiği için bu blok
+# ENGINE_JS'in ana IIFE'sinin İÇİNDE (kapanış })();'den önce) kalmak ZORUNDA.
+# ---- review/annotation: yalnız review=true render'da (örn. /preview); /demo ve pakette hiç yok ----
+REVIEW_JS = r"""if(window.__REVIEW__){
   var rFab=document.getElementById("reviewFab"); if(rFab) rFab.hidden=false;
   var rPanel=document.getElementById("reviewPanel"), rBtn=document.getElementById("reviewBtn"),
       rTxt=document.getElementById("reviewText"), rSend=document.getElementById("reviewSend"),
@@ -2043,9 +2128,7 @@ if(window.__PREVIEW__){
       setTimeout(function(){ rPanel.hidden=true; rSt.textContent=""; },1200); })
     .catch(function(){ rSt.textContent=T("review_error"); rSend.disabled=false; });
   });
-}
-})();
-"""
+}"""
 
 
 # --------------------------------------------------------------------------- #

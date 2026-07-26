@@ -4,6 +4,10 @@ import {
   exitValue, shouldRestore,
   INTERACTION_TYPES, interactionType, sanitizeId, resultValue, formatResponse,
   interactionElements,
+  SUSPEND_LIMIT_12, SUSPEND_LIMIT_2004, suspendLimit,
+  encodeSuspend, decodeSuspend, encodeSuspendFit,
+  setResultOk, suspendWriteIssues,
+  aggregateObjectives, objectiveIndices, objectiveElements,
 } from "../../components/engine/scorm.js";
 
 // --------------------------------------------------------------------------- //
@@ -212,5 +216,333 @@ describe("S1 interactionElements — yazılacak eleman listesi", () => {
       interactionElements({ id: "q3", screenType: "mcq", response: ["a"], weighting: 10 }, 0, true)
     );
     expect(kv["cmi.interactions.0.weighting"]).toBe("10");
+  });
+});
+
+// --------------------------------------------------------------------------- //
+// S5 — suspend_data: kompakt v2 kodlaması + v1 migrasyonu + boyut regresyonu
+// --------------------------------------------------------------------------- //
+describe("S5 suspend_data kompakt kodlama", () => {
+  // Sentetik büyük kurs: 64 ekran (uzun, gerçekçi id'ler), 30 puanlı soru — tam durum.
+  const ORDER = Array.from({ length: 64 }, (_, i) =>
+    `bolum_${Math.floor(i / 8)}_ekran_uzun_kimlik_${String(i).padStart(3, "0")}`);
+  function bigState() {
+    const st = { visited: {}, results: {}, history: [], vars: { puan: 300, can: 2 },
+                 ix: {}, inext: 30, cursorId: ORDER[63], reachedEnd: true };
+    ORDER.forEach((id, i) => {
+      st.visited[id] = true;
+      if (i < 63) st.history.push(id);
+    });
+    for (let q = 0; q < 30; q++) {
+      const id = ORDER[q * 2 + 1];
+      st.results[id] = { points: q % 3 ? 10 : 0, max: 10, ok: q % 3 !== 0, answered: true };
+      st.ix[id] = q;
+    }
+    return st;
+  }
+
+  it("gidiş-dönüş kayıpsız (visited/results/history/vars/ix/inext/cursorId/reachedEnd)", () => {
+    const st = bigState();
+    const out = decodeSuspend(encodeSuspend(st, ORDER), ORDER);
+    expect(out).toEqual(st);
+  });
+
+  it("kabul: 64 ekran / 30 puanlı kursta payload SCORM 1.2 sınırının altında", () => {
+    const enc = encodeSuspend(bigState(), ORDER);
+    expect(enc.length).toBeLessThan(SUSPEND_LIMIT_12);
+    // regresyon çıpası: v1 JSON'dan belirgin küçük olmalı (kodlama gerçekten kompakt)
+    const v1 = JSON.stringify(bigState());
+    expect(v1.length).toBeGreaterThan(SUSPEND_LIMIT_12);   // v1 bu kursta TAŞIYORDU
+    expect(enc.length).toBeLessThan(v1.length / 3);
+  });
+
+  it("eski (v1) format tanınır ve migrate edilir — yayındaki kurslarda resume bozulmaz", () => {
+    const st = bigState();
+    const out = decodeSuspend(JSON.stringify(st), ORDER);
+    expect(out).toEqual(st);
+    // çok eski v1 (history'siz fallback yazımı) → history boş diziye tamamlanır
+    const old = decodeSuspend(JSON.stringify({ visited: { a: true }, results: {} }), ORDER);
+    expect(old.visited).toEqual({ a: true });
+    expect(old.history).toEqual([]);
+  });
+
+  it("v1 KİMLİK-anahtarlıdır → order NE OLURSA OLSUN (reorder/insert/farklı kurs) migrate eder", () => {
+    const st = { visited: { a: true }, results: { a: { points: 5, max: 10, ok: false, answered: true } },
+                 history: ["a"] };
+    const shuffled = [...ORDER].reverse();
+    const withInsert = [ORDER[0], "yeni_ekran", ...ORDER.slice(1)];
+    expect(decodeSuspend(JSON.stringify(st), shuffled)).toEqual(st);
+    expect(decodeSuspend(JSON.stringify(st), withInsert)).toEqual(st);
+    expect(decodeSuspend(JSON.stringify(st), [])).toEqual(st);
+  });
+
+  it("boş/çöp girdi null döner (restore atlanır)", () => {
+    expect(decodeSuspend("", ORDER)).toBeNull();
+    expect(decodeSuspend(null, ORDER)).toBeNull();
+    expect(decodeSuspend("çöp veri", ORDER)).toBeNull();
+    expect(decodeSuspend("[1,2,3]", ORDER)).toBeNull();
+    // fingerprint alanı yok/uyuşmuyor → temiz başlangıç (null), İSTİSNA fırlatmaz
+    expect(decodeSuspend("2|bozuk", ORDER)).toBeNull();
+  });
+
+  // --------------------------------------------------------------------------- //
+  // S5 (batch3 finding) — order parmak izi: reorder/insert paketi güncellendiğinde
+  // pozisyonel v2 indeksleri YANLIŞ ekrana atfetmesin; eşleşmezse temiz başlangıç.
+  // --------------------------------------------------------------------------- //
+  it("AYNI order ile round-trip fingerprint eşleşir (regresyon çıpası)", () => {
+    const st = bigState();
+    const out = decodeSuspend(encodeSuspend(st, ORDER), ORDER);
+    expect(out).toEqual(st);
+  });
+
+  it("YENİDEN SIRALANMIŞ order → decode temiz başlangıç (null) döner, yanlış atıf YOK", () => {
+    const st = bigState();
+    const encoded = encodeSuspend(st, ORDER);
+    const reordered = [...ORDER].reverse();          // aynı elemanlar, farklı sıra
+    expect(decodeSuspend(encoded, reordered)).toBeNull();
+  });
+
+  it("EKRAN EKLENMİŞ (araya insert) order → decode temiz başlangıç döner", () => {
+    const st = bigState();
+    const encoded = encodeSuspend(st, ORDER);
+    const withInsert = [...ORDER.slice(0, 10), "yeni_ekran_araya", ...ORDER.slice(10)];
+    expect(decodeSuspend(encoded, withInsert)).toBeNull();
+  });
+
+  it("EKRAN SİLİNMİŞ order → decode temiz başlangıç döner", () => {
+    const st = bigState();
+    const encoded = encodeSuspend(st, ORDER);
+    const withDelete = ORDER.filter((_, i) => i !== 5);
+    expect(decodeSuspend(encoded, withDelete)).toBeNull();
+  });
+
+  it("SONA EKLENMİŞ (append-only) order → decode YİNE temiz başlangıç döner (bilinçli basitlik: " +
+      "append de fingerprint'i değiştirir, kayıp resume noktası yanlış atıftan güvenlidir)", () => {
+    const st = bigState();
+    const encoded = encodeSuspend(st, ORDER);
+    const withAppend = [...ORDER, "yeni_ekran_sonda"];
+    expect(decodeSuspend(encoded, withAppend)).toBeNull();
+  });
+
+  it("eski/sürüm-öncesi v2 zarfı (fingerprint alanı yok) çökmeden temiz başlangıç döner", () => {
+    // fp-öncesi düzen taklidi: 9 alan (fp YOK) + boş tail — güncel decoder 9. alanı fp bekler.
+    const preFingerprintRaw = "2|0||1|0|1:5:10:3||0|";
+    expect(() => decodeSuspend(preFingerprintRaw, ORDER)).not.toThrow();
+    expect(decodeSuspend(preFingerprintRaw, ORDER)).toBeNull();
+  });
+
+  it("order-dışı id'ler (yayın sonrası silinen ekran) tail'de KORUNUR — kayıpsızlık", () => {
+    const st = { visited: { hayalet: true }, results: { hayalet: { points: 5, max: 10, ok: false, answered: true } },
+                 history: [], vars: {}, ix: { hayalet: 7 }, inext: 8, cursorId: "hayalet" };
+    const out = decodeSuspend(encodeSuspend(st, ORDER), ORDER);
+    expect(out.visited.hayalet).toBe(true);
+    expect(out.results.hayalet).toEqual({ points: 5, max: 10, ok: false, answered: true });
+    expect(out.ix.hayalet).toBe(7);
+    expect(out.cursorId).toBe("hayalet");
+  });
+
+  it("bilinmeyen üst-düzey durum alanları da gidiş-dönüşten sağ çıkar (gelecek alanlar)", () => {
+    const st = { visited: {}, results: {}, history: [], yeniAlan: { x: 1 } };
+    const out = decodeSuspend(encodeSuspend(st, ORDER), ORDER);
+    expect(out.yeniAlan).toEqual({ x: 1 });
+  });
+
+  it("vars içindeki '|' karakteri formatı bozmaz (tail split-limit)", () => {
+    const st = { visited: {}, results: {}, history: [], vars: { ad: "a|b|c" } };
+    const out = decodeSuspend(encodeSuspend(st, ORDER), ORDER);
+    expect(out.vars.ad).toBe("a|b|c");
+  });
+
+  it("vars boşsa decode vars ÜRETMEZ → runtime COURSE varsayılanlarını kurabilir", () => {
+    const st = { visited: {}, results: {}, history: [], vars: {} };
+    const out = decodeSuspend(encodeSuspend(st, ORDER), ORDER);
+    expect(out.vars).toBeUndefined();
+  });
+
+  it("encodeSuspendFit: limit aşımında ÖNCE history düşer; vars ve ix korunur", () => {
+    const st = bigState();
+    // yapay dar limit → history düşmeli
+    const full = encodeSuspend(st, ORDER);
+    const fit = encodeSuspendFit(st, ORDER, full.length - 10);
+    expect(fit.historyDropped).toBe(true);
+    const out = decodeSuspend(fit.data, ORDER);
+    expect(out.history).toEqual([]);
+    expect(out.ix).toEqual(st.ix);          // v1 fallback ix'i atardı → kopya interaction bug'ı; v2 korur
+    expect(out.vars).toEqual(st.vars);
+    expect(fit.truncated).toBe(false);
+  });
+
+  it("encodeSuspendFit: history düştükten sonra bile sığmıyorsa truncated bayrağı kalkar", () => {
+    const st = bigState();
+    const fit = encodeSuspendFit(st, ORDER, 32);
+    expect(fit.truncated).toBe(true);
+    expect(decodeSuspend(fit.data, ORDER)).not.toBeNull();  // veri yine de çözülebilir
+  });
+
+  it("sınır sabitleri sürüme göre seçilir", () => {
+    expect(suspendLimit(false)).toBe(SUSPEND_LIMIT_12);
+    expect(suspendLimit(true)).toBe(SUSPEND_LIMIT_2004);
+    expect(SUSPEND_LIMIT_12).toBe(4096);
+  });
+});
+
+// --------------------------------------------------------------------------- //
+// S5 (2.2c) — yazma hatası / kırpma görünürlüğü (saf karar katmanı)
+// --------------------------------------------------------------------------- //
+describe("S5 suspend_data yazma görünürlüğü", () => {
+  it("başarısız sSet (mock API 'false' döner) uyarı yolunu tetikler", () => {
+    // sahte 1.2 API: suspend_data yazımını reddeder (SPM aşımı senaryosu)
+    const mockApi = { LMSSetValue: () => "false" };
+    const ok = setResultOk(mockApi.LMSSetValue("cmi.suspend_data", "x".repeat(5000)));
+    expect(ok).toBe(false);
+    const issues = suspendWriteIssues({ ok, size: 5000, limit: SUSPEND_LIMIT_12, truncated: false });
+    expect(issues).toEqual([{ kind: "write_failed", size: 5000, limit: 4096 }]);
+  });
+
+  it("başarılı yazım + kırpma yok → hiç uyarı üretilmez", () => {
+    const mockApi = { LMSSetValue: () => "true" };
+    const ok = setResultOk(mockApi.LMSSetValue("cmi.suspend_data", "kısa"));
+    expect(ok).toBe(true);
+    expect(suspendWriteIssues({ ok, size: 4, limit: SUSPEND_LIMIT_12, truncated: false })).toEqual([]);
+  });
+
+  it("kırpma (fit sığdıramadı) yazım başarılı olsa bile raporlanır", () => {
+    const issues = suspendWriteIssues({ ok: true, size: 4400, limit: 4096, truncated: true });
+    expect(issues).toEqual([{ kind: "truncated", size: 4400, limit: 4096 }]);
+  });
+
+  it("hem kırpma hem yazma hatası → iki ayrı uyarı", () => {
+    const kinds = suspendWriteIssues({ ok: false, size: 4400, limit: 4096, truncated: true }).map(i => i.kind);
+    expect(kinds).toEqual(["truncated", "write_failed"]);
+  });
+
+  it("belirsiz API dönüşleri (boş/undefined/true) başarısızlık SAYILMAZ — uyarı spam'i yok", () => {
+    expect(setResultOk("true")).toBe(true);
+    expect(setResultOk("")).toBe(true);
+    expect(setResultOk(undefined)).toBe(true);
+    expect(setResultOk(true)).toBe(true);
+    expect(setResultOk(false)).toBe(false);
+    expect(setResultOk("false")).toBe(false);
+  });
+});
+
+// --------------------------------------------------------------------------- //
+// S2 — cmi.objectives.* (hedef toplama + eleman üretimi)
+// --------------------------------------------------------------------------- //
+describe("S2 aggregateObjectives", () => {
+  const OBJ = ["o1", "o2", "o3"];
+  const MAP = { q1: ["o1"], q2: ["o1"], q3: ["o2"], q4: ["o2", "o3"] };
+
+  it("hedef başına doğru/toplam → scaled; sıra HER ZAMAN kurs hedef sırası", () => {
+    const res = {
+      q1: { points: 10, max: 10, ok: true, answered: true },
+      q2: { points: 0, max: 10, ok: false, answered: true },
+      q4: { points: 10, max: 10, ok: true, answered: true },
+    };
+    const out = aggregateObjectives(OBJ, MAP, res);
+    expect(out.map((a) => a.id)).toEqual(["o1", "o2", "o3"]);
+    expect(out[0]).toEqual({ id: "o1", correct: 1, total: 2, answered: 2, scaled: 0.5 });
+    expect(out[1]).toEqual({ id: "o2", correct: 1, total: 2, answered: 1, scaled: 0.5 });
+    expect(out[2]).toEqual({ id: "o3", correct: 1, total: 1, answered: 1, scaled: 1 });
+  });
+
+  it("çok-hedefli ekran her bağlı hedefte sayılır (q4 → o2 VE o3)", () => {
+    const out = aggregateObjectives(OBJ, MAP, {});
+    expect(out.find((a) => a.id === "o2").total).toBe(2);
+    expect(out.find((a) => a.id === "o3").total).toBe(1);
+  });
+
+  it("bağsız hedef kayıt ÜRETMEZ (politika: lint WARN'lık yazarlık hatası)", () => {
+    const out = aggregateObjectives(["o1", "yalniz"], { q1: ["o1"] }, {});
+    expect(out.map((a) => a.id)).toEqual(["o1"]);
+  });
+
+  it("hiç cevap yokken kayıtlar yine üretilir (answered=0, scaled=0)", () => {
+    const out = aggregateObjectives(OBJ, MAP, {});
+    expect(out).toHaveLength(3);
+    out.forEach((a) => { expect(a.answered).toBe(0); expect(a.scaled).toBe(0); });
+  });
+
+  it("boş girdiler güvenli: hedef yok / harita yok → boş dizi", () => {
+    expect(aggregateObjectives([], {}, {})).toEqual([]);
+    expect(aggregateObjectives(undefined, undefined, undefined)).toEqual([]);
+    expect(aggregateObjectives(["o1"], {}, {})).toEqual([]);
+  });
+
+  it("haritadaki bilinmeyen hedef id'si (kursta tanımsız) sessizce yok sayılır", () => {
+    const out = aggregateObjectives(["o1"], { q1: ["o1", "hayalet"] }, {});
+    expect(out.map((a) => a.id)).toEqual(["o1"]);
+  });
+});
+
+describe("S2 objectiveIndices — LMS pre-populate ile çarpışmasız deterministik indeks", () => {
+  it("boş LMS: kurs sırasına göre 0..n-1", () => {
+    expect(objectiveIndices([], ["o1", "o2", "o3"])).toEqual({ o1: 0, o2: 1, o3: 2 });
+  });
+
+  it("manifest'ten FARKLI sırada pre-populate edilmiş id kendi indeksini korur", () => {
+    expect(objectiveIndices(["o3", "o1"], ["o1", "o2", "o3"])).toEqual({ o1: 1, o2: 2, o3: 0 });
+  });
+
+  it("LMS'te alakasız kayıt varsa yeniler sona eklenir (üzerine yazılmaz)", () => {
+    expect(objectiveIndices(["lms_obj"], ["o1", "o2"])).toEqual({ o1: 1, o2: 2 });
+  });
+});
+
+describe("S2 objectiveElements — 1.2 ↔ 2004 sözlük/eleman farkları", () => {
+  const done = { id: "o1", correct: 2, total: 3, answered: 3, scaled: 2 / 3 };
+  const part = { id: "o1", correct: 1, total: 3, answered: 1, scaled: 1 / 3 };
+  const none = { id: "o1", correct: 0, total: 3, answered: 0, scaled: 0 };
+
+  it("1.2: id + score.raw/min/max (0-100) + status; id İLK", () => {
+    const kv = objectiveElements(done, 0, false, 0.6);
+    expect(kv[0]).toEqual(["cmi.objectives.0.id", "o1"]);
+    const o = Object.fromEntries(kv);
+    expect(o["cmi.objectives.0.score.raw"]).toBe("67");
+    expect(o["cmi.objectives.0.score.min"]).toBe("0");
+    expect(o["cmi.objectives.0.score.max"]).toBe("100");
+    expect(o["cmi.objectives.0.status"]).toBe("passed");
+    expect(o["cmi.objectives.0.score.scaled"]).toBeUndefined();
+    expect(o["cmi.objectives.0.success_status"]).toBeUndefined();
+  });
+
+  it("2004: id + score.scaled (0-1) + success_status + completion_status", () => {
+    const o = Object.fromEntries(objectiveElements(done, 2, true, 0.7));
+    expect(o["cmi.objectives.2.id"]).toBe("o1");
+    expect(o["cmi.objectives.2.score.scaled"]).toBe("0.6667");
+    expect(o["cmi.objectives.2.success_status"]).toBe("failed");   // 0.667 < 0.7
+    expect(o["cmi.objectives.2.completion_status"]).toBe("completed");
+    expect(o["cmi.objectives.2.score.raw"]).toBeUndefined();
+    expect(o["cmi.objectives.2.status"]).toBeUndefined();
+  });
+
+  it("kısmen cevaplanmış: 1.2 incomplete, 2004 unknown+incomplete; skor yazılır", () => {
+    const o12 = Object.fromEntries(objectiveElements(part, 0, false, 0.6));
+    expect(o12["cmi.objectives.0.status"]).toBe("incomplete");
+    expect(o12["cmi.objectives.0.score.raw"]).toBe("33");
+    const o04 = Object.fromEntries(objectiveElements(part, 0, true, 0.6));
+    expect(o04["cmi.objectives.0.success_status"]).toBe("unknown");
+    expect(o04["cmi.objectives.0.completion_status"]).toBe("incomplete");
+  });
+
+  it("hiç denenmemiş: skor YAZILMAZ; 1.2 'not attempted', 2004 unknown+'not attempted'", () => {
+    const kv12 = objectiveElements(none, 0, false, 0.6);
+    expect(Object.fromEntries(kv12)["cmi.objectives.0.status"]).toBe("not attempted");
+    expect(kv12.some(([k]) => k.indexOf(".score.") >= 0)).toBe(false);
+    const o04 = Object.fromEntries(objectiveElements(none, 0, true, 0.6));
+    expect(o04["cmi.objectives.0.success_status"]).toBe("unknown");
+    expect(o04["cmi.objectives.0.completion_status"]).toBe("not attempted");
+    expect(o04["cmi.objectives.0.score.scaled"]).toBeUndefined();
+  });
+
+  it("includeId=false: id çifti atlanır (LMS'te aynı indekste id zaten kayıtlı)", () => {
+    const kv = objectiveElements(done, 0, true, 0.6, false);
+    expect(kv.some(([k]) => k === "cmi.objectives.0.id")).toBe(false);
+    expect(kv.some(([k]) => k === "cmi.objectives.0.score.scaled")).toBe(true);
+  });
+
+  it("geçme eşiği tam sınırda geçer (scaled >= ratio)", () => {
+    const agg = { id: "o", correct: 3, total: 5, answered: 5, scaled: 0.6 };
+    expect(Object.fromEntries(objectiveElements(agg, 0, false, 0.6))["cmi.objectives.0.status"]).toBe("passed");
   });
 });

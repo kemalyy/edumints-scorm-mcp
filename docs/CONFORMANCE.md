@@ -39,6 +39,18 @@ XSD-valid.
 4. Verify the **registration** shows correct **completion status** and **score**.
 5. Repeat on a target LMS (Moodle: *Add an activity → SCORM package*).
 
+## Sürekli otomasyon (W9 P1, 2026-07-23)
+
+Yukarıdaki tek-seferlik doğrulama artık **her `master` push'unda otomatik tekrarlanıyor**:
+`.github/workflows/scorm-cloud-conformance.yml` (private repo) → `tools/scorm_cloud_ci_check.py` →
+`tools/scorm_cloud.py`. 4 kombinasyon (small/rich × 1.2/2004) her seferinde gerçek SCORM Cloud'a
+import edilir, 0-parser-uyarı + launchable doğrulanır, temizlenir. **Bu artık bir gate** (pip-audit
+gibi non-blocking değil) — herhangi bir kombinasyon başarısız olursa CI kırmızı olur.
+
+**Hâlâ manuel kalan (bilinçli sınır):** completion/score doğrulaması — SCORM Cloud API ile interaktif
+öğrenci oturumu (quiz cevaplama) simüle etmek bu otomasyonun kapsamında değil; elle launch edip
+tamamlayarak doğrulanmaya devam eder (bkz. aşağıdaki "SCORM Cloud / LMS test procedure").
+
 ## Results — SCORM Cloud (automated, 2026-06-05)
 
 Automated via SCORM Cloud REST API v2 (`/courses/importJobs/upload` → poll job → create
@@ -65,9 +77,18 @@ The SCORM Cloud parser initially flagged the 2004 packages with one warning —
 because the single-SCO manifest placed `imsss:controlMode flow/choice` on the leaf `<item>`. Fixed in
 `core/manifest.py` (no sequencing control mode on a single-SCO leaf); re-import now reports **0 warnings**.
 
-## Moodle (manual — fill in after running)
+## Diğer LMS'ler — manuel checklist (5-LMS matrisinin geri kalanı)
 
-| Package | SCORM version | Import | Launch | Completion | Score | Date | Notes |
-|---|---|---|---|---|---|---|---|
-| small.json | 1.2 | ☐ | ☐ | ☐ | ☐ |  |  |
-| rich.json | 2004 4th Ed | ☐ | ☐ | ☐ | ☐ |  |  |
+SCORM Cloud dışındaki bu 4 LMS, gerçek kurulum/hesap erişimi gerektirdiği için otomatikleştirilmedi
+(W9 P1 kararı, 2026-07-22) — elle doldurulacak bir checklist olarak burada duruyor.
+
+| LMS | Import | Launch | Completion | Score | Tarih | Not |
+|---|---|---|---|---|---|---|
+| Moodle | ☐ | ☐ | ☐ | ☐ | | |
+| Canvas | ☐ | ☐ | ☐ | ☐ | | |
+| Blackboard | ☐ | ☐ | ☐ | ☐ | | |
+| TalentLMS | ☐ | ☐ | ☐ | ☐ | | |
+| Docebo | ☐ | ☐ | ☐ | ☐ | | |
+
+Test paketi: `examples/small.en.json` (1.2) veya `build_from_spec` ile üretilen herhangi bir paket.
+Her LMS'in kendi "SCORM paketi yükle" akışını kullan (bkz. `docs/LMS-INTEGRATION.md`).

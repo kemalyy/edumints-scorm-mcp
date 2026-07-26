@@ -22,6 +22,9 @@ export const XAPI_EXT = {
   mastery: "https://edumints.com/xapi/ext/mastery",
   hintCost: "https://edumints.com/xapi/ext/hint-cost",
   hintIndex: "https://edumints.com/xapi/ext/hint-index",
+  suspendKind: "https://edumints.com/xapi/ext/suspend-kind",     // S5 — "truncated" | "write_failed"
+  suspendSize: "https://edumints.com/xapi/ext/suspend-size",     // S5 — payload karakter sayısı
+  suspendLimit: "https://edumints.com/xapi/ext/suspend-limit",   // S5 — hedef sürüm sınırı
 };
 
 export function verb(key) {
@@ -135,6 +138,15 @@ export function fromEngineEvent(event, payload = {}, ctx = {}) {
       return mk("experienced", "hint", result({
         extensions: { [XAPI_EXT.hintCost]: payload.cost || 0, [XAPI_EXT.hintIndex]: payload.index },
       }), "hint");
+    case "suspend.trouble":   // S5 — suspend_data yazılamadı/kırpıldı: LRS'te görünür iz bırak
+      return mk("experienced", "suspend_data", result({
+        success: false,
+        extensions: {
+          [XAPI_EXT.suspendKind]: payload.kind,
+          [XAPI_EXT.suspendSize]: payload.size,
+          [XAPI_EXT.suspendLimit]: payload.limit,
+        },
+      }), "suspend_data");
     case "lives.depleted":
       return mk("failed", null, result({ success: false, completion: true }), "game");
     case "finalize":

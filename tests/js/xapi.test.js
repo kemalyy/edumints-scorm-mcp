@@ -121,3 +121,15 @@ describe("normalizeActor", () => {
     expect(normalizeActor('{"name":"Bob"}').account.name).toBe("Bob");
   });
 });
+
+describe("S5 (2.2c) suspend.trouble olayı", () => {
+  it("suspend_data sorunu experienced ifadesine boyut/limit uzantılarıyla eşlenir", () => {
+    const s = fromEngineEvent("suspend.trouble", { kind: "write_failed", size: 5000, limit: 4096 }, CTX);
+    expect(s.verb.id).toBe(XAPI_VERBS.experienced);
+    expect(s.object.id).toBe(CTX.activityBase + "/suspend_data");
+    expect(s.result.success).toBe(false);
+    expect(s.result.extensions[XAPI_EXT.suspendKind]).toBe("write_failed");
+    expect(s.result.extensions[XAPI_EXT.suspendSize]).toBe(5000);
+    expect(s.result.extensions[XAPI_EXT.suspendLimit]).toBe(4096);
+  });
+});
