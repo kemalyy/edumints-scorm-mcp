@@ -40,6 +40,21 @@ class PreviewMeta(BaseModel):
     expires_at: datetime
 
 
+class DemoMeta(BaseModel):
+    """Kalıcı /demo/{slug} metadata (1.2). HTML diskte kalır (DATA_DIR/demos/{slug}.html);
+    yalnız metadata store'dadır — sahiplik, kota ve envanter artık .owner dosyasına değil buna
+    dayanır."""
+
+    slug: str
+    project_id: str
+    owner_key_id: str
+    title: str
+    language: str
+    size_bytes: int
+    created_at: datetime = Field(default_factory=utcnow)
+    updated_at: datetime = Field(default_factory=utcnow)
+
+
 class Feedback(BaseModel):
     id: str
     project_id: str
@@ -172,6 +187,16 @@ class Store(ABC):
     @abstractmethod
     async def get_preview(self, token: str) -> PreviewMeta | None: ...
 
+    # kalıcı demo linkleri (1.2)
+    @abstractmethod
+    async def upsert_demo(self, meta: "DemoMeta") -> None: ...
+    @abstractmethod
+    async def get_demo(self, slug: str) -> "DemoMeta | None": ...
+    @abstractmethod
+    async def list_demos_for_owner(self, owner_key_id: str) -> "list[DemoMeta]": ...
+    @abstractmethod
+    async def delete_demo(self, slug: str) -> None: ...
+
     # api anahtarları
     @abstractmethod
     async def get_key(self, raw_key: str) -> ApiKey | None: ...
@@ -266,8 +291,17 @@ class SqliteStore(Store):
                 id TEXT PRIMARY KEY, project_id TEXT NOT NULL, screen_id TEXT,
                 comment TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open', created_at TEXT NOT NULL);
             CREATE INDEX IF NOT EXISTS ix_feedback_project ON feedback(project_id);
+
+            CREATE TABLE IF NOT EXISTS demos(
+                slug TEXT PRIMARY KEY, project_id TEXT NOT NULL, owner_key_id TEXT NOT NULL,
+                title TEXT NOT NULL, language TEXT NOT NULL, size_bytes INTEGER NOT NULL,
+                created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+            CREATE INDEX IF NOT EXISTS ix_demos_owner ON demos(owner_key_id);
             """
         )
+        # CREATE TABLE IF NOT EXISTS zaten hem taze hem mevcut DB'lerde çalışır (1.2 öncesi
+        # veritabanlarında `demos` tablosu yoktu; ilk init() çağrısında burada oluşur — ayrı bir
+        # ALTER/migration adımı gerekmiyor çünkü yeni tablo, mevcut tabloya yeni kolon değil).
         # geriye dönük migration: eski api_keys tablosunda owner_principal yoksa ekle (nullable;
         # eski key'ler NULL kalır → principal=key.id ile aynen çalışır). SQLite ADD COLUMN güvenli.
         async with self._db.execute("PRAGMA table_info(api_keys)") as cur:
@@ -375,7 +409,12 @@ class SqliteStore(Store):
             (owner_key_id,),
         ) as cur:
             pk = await cur.fetchone()
-        return int(pr["s"]) + int(pk["s"])
+        async with self.db.execute(
+            "SELECT COALESCE(SUM(size_bytes),0) s FROM demos WHERE owner_key_id=?",
+            (owner_key_id,),
+        ) as cur:
+            dm = await cur.fetchone()
+        return int(pr["s"]) + int(pk["s"]) + int(dm["s"])
 
     # -- varlıklar (fs) --
     def _asset_path(self, project_id: str, asset_id: str) -> Path:
@@ -478,6 +517,40 @@ class SqliteStore(Store):
     async def delete_preview(self, token: str) -> None:
         async with self._wlock:
             await self.db.execute("DELETE FROM previews WHERE token=?", (token,))
+            await self.db.commit()
+
+    # -- kalıcı demo linkleri (1.2) --
+    async def upsert_demo(self, meta: DemoMeta) -> None:
+        # ON CONFLICT: republish (aynı slug) created_at'ı KORUR (SET listesinde yok); yalnız ilk
+        # yayınlamada INSERT'in created_at değeri kullanılır.
+        async with self._wlock:
+            await self.db.execute(
+                "INSERT INTO demos(slug,project_id,owner_key_id,title,language,size_bytes,"
+                "created_at,updated_at) VALUES(?,?,?,?,?,?,?,?) "
+                "ON CONFLICT(slug) DO UPDATE SET project_id=excluded.project_id,"
+                " owner_key_id=excluded.owner_key_id, title=excluded.title,"
+                " language=excluded.language, size_bytes=excluded.size_bytes,"
+                " updated_at=excluded.updated_at",
+                (meta.slug, meta.project_id, meta.owner_key_id, meta.title, meta.language,
+                 meta.size_bytes, meta.created_at.isoformat(), meta.updated_at.isoformat()),
+            )
+            await self.db.commit()
+
+    async def get_demo(self, slug: str) -> DemoMeta | None:
+        async with self.db.execute("SELECT * FROM demos WHERE slug=?", (slug,)) as cur:
+            row = await cur.fetchone()
+        return _row_to_demo(row) if row else None
+
+    async def list_demos_for_owner(self, owner_key_id: str) -> list[DemoMeta]:
+        async with self.db.execute(
+            "SELECT * FROM demos WHERE owner_key_id=? ORDER BY created_at DESC", (owner_key_id,)
+        ) as cur:
+            rows = await cur.fetchall()
+        return [_row_to_demo(r) for r in rows]
+
+    async def delete_demo(self, slug: str) -> None:
+        async with self._wlock:
+            await self.db.execute("DELETE FROM demos WHERE slug=?", (slug,))
             await self.db.commit()
 
     # -- feedback (preview annotation) --
@@ -643,6 +716,14 @@ def _row_to_pkg(row) -> PackageMeta:
         token=row["token"], rel_path=row["rel_path"], size_bytes=row["size_bytes"],
         scorm_version=row["scorm_version"], created_at=_dt(row["created_at"]),
         expires_at=_dt(row["expires_at"]),
+    )
+
+
+def _row_to_demo(row) -> DemoMeta:
+    return DemoMeta(
+        slug=row["slug"], project_id=row["project_id"], owner_key_id=row["owner_key_id"],
+        title=row["title"], language=row["language"], size_bytes=row["size_bytes"],
+        created_at=_dt(row["created_at"]), updated_at=_dt(row["updated_at"]),
     )
 
 

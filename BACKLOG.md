@@ -52,6 +52,24 @@ existing `body_html` and `*_asset_id` fields stay; new fields are optional.
 - **Proposal:** interpolate `{{asset:<id>}}` in `*_html` to the packaged asset's relative path at render time.
 - **Touches:** renderer. Medium.
 
+## Deferred from v1.6.0 final review (Minor — triaged, not blockers)
+
+All four were raised by independent review during v1.6.0 and consciously deferred with rationale;
+none affects correctness of served content.
+
+- **Weak-ETag `If-None-Match` comparison** — `server.py` `_if_none_match_hits` does exact-string
+  matching only. Behind a proxy that weakens ETags (e.g. nginx+gzip emits `W/"…"`), revalidation
+  returns 200 instead of 304 — never wrong content, just a missed cache win. Fix: RFC 9110 weak
+  comparison (strip `W/` prefix on both sides), ~3 lines + test.
+- **ETag hash memo** — `/demo` GET reads + sha256-hashes the full HTML on every request including
+  the 304 path. Correct and restart-safe; cost bounded by `max-age=300`. Fix: memoize by
+  `(path, mtime)` if demos grow to multi-MB or traffic rises.
+- **`estimate_suspend_size` is approximate** — the antislop WARN estimator mirrors the encoder's
+  cost model with authoring-time defaults; runtime var growth can exceed it. Docstring already
+  softened (v1.6.0); a headroom factor could be added if field reports show under-warning.
+- **Test file cosmetics** — `tests/test_scorm_runtime.py` S2 insertion consumed a section header /
+  blank lines around `test_s2_no_objectives_no_config_key`. Ruff-green; readability only.
+
 ## Already supported — do NOT re-add as gaps
 
 These were claimed as gaps but verified to already work:

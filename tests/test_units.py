@@ -362,14 +362,16 @@ def test_w3_game_rule_schema():
 
 
 def test_review_widget_only_in_preview():
-    # Faz 2: feedback annotation widget yalnız preview'da aktif (pakette gizli/çalışmaz)
+    # 1.1: feedback annotation widget artık mode'dan BAĞIMSIZ `review` bayrağına bağlı —
+    # review=False iken markup HTML'de hiç yok (gizli değil); review=True iken var.
     p = Project(id=new_project_id(), title="R")
     p.screens = [ContentSlide(id="c", title="C", body_html="<p>x</p>")]
-    prev = render_html(p, mode="preview", runtime_js="/*rt*/")
+    prev = render_html(p, mode="preview", runtime_js="/*rt*/", review=True)
     pkg = render_html(p, mode="package", runtime_js="/*rt*/")
     assert "window.__PREVIEW__ = true;" in prev
     assert "window.__PREVIEW__ = false;" in pkg
-    assert 'id="reviewFab"' in prev and 'id="reviewFab"' in pkg  # markup her ikisinde, JS gate ediyor
+    assert 'id="reviewFab"' in prev
+    assert 'id="reviewFab"' not in pkg  # paket her zaman review=False (varsayılan)
 
 
 def test_media_mimes_and_narration():
@@ -910,6 +912,47 @@ def test_w5b_build_from_spec_carries_xapi(tmp_path):
     assert p.xapi.mode == "explicit"
 
 
+# ---- S7 (2.3): CourseMetadata (LOM) modeli ----
+def test_s7_course_metadata_defaults_and_full():
+    from core.project import CourseMetadata
+    m = CourseMetadata()
+    assert m.description is None and m.keywords == [] and m.intended_audience is None
+    assert m.typical_learning_time is None
+    full = CourseMetadata(description="Açıklama", keywords=["a", "b"],
+                          intended_audience="Yeni başlayanlar", typical_learning_time="PT1H30M")
+    assert full.keywords == ["a", "b"] and full.typical_learning_time == "PT1H30M"
+
+
+@pytest.mark.parametrize("good", ["PT1H30M", "P1D", "PT45M", "P1Y2M3DT4H5M6S", "PT0.5S"])
+def test_s7_typical_learning_time_accepts_iso8601(good):
+    from core.project import CourseMetadata
+    assert CourseMetadata(typical_learning_time=good).typical_learning_time == good
+
+
+@pytest.mark.parametrize("bad", ["1h30m", "P", "PT", "90 minutes", "1:30", ""])
+def test_s7_typical_learning_time_rejects_non_iso8601(bad):
+    from core.project import CourseMetadata
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError):
+        CourseMetadata(typical_learning_time=bad)
+
+
+def test_s7_build_from_spec_carries_metadata():
+    # CourseSpec.metadata → Project.metadata aktarımı (build_from_spec, additive/opsiyonel)
+    from core.project import CourseSpec, CourseMetadata, Project
+    spec = CourseSpec(title="K", screens=[ContentSlide(id="c", title="A", body_html="<p>x</p>")],
+                      metadata={"description": "D", "keywords": ["k1"],
+                                "typical_learning_time": "PT20M"})
+    assert isinstance(spec.metadata, CourseMetadata) and spec.metadata.description == "D"
+    p = Project(id=new_project_id(), title="K", screens=list(spec.screens), metadata=spec.metadata)
+    assert p.metadata.keywords == ["k1"] and p.metadata.typical_learning_time == "PT20M"
+    # metadata verilmezse None (additive, geriye dönük uyumlu)
+    spec2 = CourseSpec(title="K2", screens=[ContentSlide(id="c", title="A", body_html="<p>x</p>")])
+    assert spec2.metadata is None
+    p2 = Project(id=new_project_id(), title="K2", screens=list(spec2.screens))
+    assert p2.metadata is None
+
+
 # ---- W6: oyun anti-slop kalite kapısı ----
 def test_w6_antislop_catches_structural_errors_and_pedagogical_warns():
     from core.project import GameScreen, AdaptivePracticeScreen
@@ -1287,7 +1330,7 @@ def test_w9_antislop_b3_default_feedback():
 
 
 def test_w10_theme_logo_alt_and_custom_fonts_fields():
-    from core.project import CustomFont, ThemeTokens
+    from core.project import ThemeTokens, CustomFont
 
     t = ThemeTokens()
     assert t.logo_alt is None
@@ -1347,7 +1390,7 @@ def test_w10_font_faces_empty_when_no_custom_fonts():
 
 
 def test_w10_font_faces_rendered_for_custom_fonts():
-    from core.project import AssetRef, CustomFont, ThemeTokens
+    from core.project import ThemeTokens, CustomFont, AssetRef
 
     theme = ThemeTokens(custom_fonts=[CustomFont(family="Acme Sans", asset_id="font1", weight=700,
                                                    style="italic")])
@@ -1366,7 +1409,7 @@ def test_w10_font_faces_rendered_for_custom_fonts():
 
 def test_w10_font_faces_skips_unresolved_asset():
     """asset_map'te bulunmayan bir asset_id sessizce atlanır (paket bozulmaz)."""
-    from core.project import CustomFont, ThemeTokens
+    from core.project import ThemeTokens, CustomFont
 
     theme = ThemeTokens(custom_fonts=[CustomFont(family="Ghost", asset_id="missing_asset")])
     p = Project(id=new_project_id(), title="K", theme=theme,
@@ -1836,3 +1879,96 @@ async def test_w12_publish_demo_invalid_slug_and_foreign_owner():
         (demos / "taken-slug.owner").write_text("someone-else", encoding="utf-8")
         with pytest.raises(MCPToolError, match="forbidden"):
             await c.call_tool("publish_demo", {"project_id": pid, "slug": "taken-slug"})
+
+
+# ---- S5 (2.2b): suspend_data boyut tahmini WARN ----
+def test_s5_lint_warns_on_suspend_size_risk_for_scorm12():
+    from core.antislop import estimate_suspend_size, lint_course
+
+    def big(n_screens: int, ver: str = "1.2") -> Project:
+        screens = []
+        for i in range(n_screens):
+            if i % 2:
+                screens.append(MCQScreen(id=f"q{i}", title=f"Soru {i}?", prompt_html="<p>?</p>",
+                                         options=[Choice(id="a", text_html="A", correct=True),
+                                                  Choice(id="b", text_html="B")]))
+            else:
+                screens.append(ContentSlide(id=f"c{i}", title=f"Neden {i} önemli?", body_html="<p>x</p>"))
+        return Project(id=new_project_id(), title="Büyük", scorm_version=ver, screens=screens)
+
+    # kabul senaryosu: 60 ekran / 30 puanlı — v2 kodlayıcı rahat sığdırır → WARN YOK
+    ok = big(60)
+    assert estimate_suspend_size(ok) < int(4096 * 0.9)
+    assert "suspend_size_risk" not in {i.code for i in lint_course(ok)}
+
+    # 500 ekran / 250 puanlı — tahmin sınıra dayanır → WARN (FAIL değil; runtime yine sığdırmaya çalışır)
+    risky = big(500)
+    issues = [i for i in lint_course(risky) if i.code == "suspend_size_risk"]
+    assert len(issues) == 1
+    assert issues[0].severity == "warn"
+    assert "4096" in issues[0].message
+
+    # aynı kurs 2004 hedefinde: sınır 64k → kural sessiz (yalnız 1.2 hedefi denetlenir)
+    assert "suspend_size_risk" not in {i.code for i in lint_course(big(500, ver="2004"))}
+
+
+# ---- S2 (2.4): kurs hedefleri — model + doğrulama + lint ----
+def _obj_screens():
+    return [
+        ContentSlide(id="c1", title="Neden hedefler?", body_html="<p>x</p>"),
+        MCQScreen(id="q1", title="Soru?", prompt_html="<p>?</p>", objective_ids=["o1"],
+                  options=[Choice(id="a", text_html="A", correct=True),
+                           Choice(id="b", text_html="B")]),
+    ]
+
+
+def test_s2_objective_id_must_be_machine_friendly():
+    from core.project import Objective
+    import pydantic
+
+    assert Objective(id="obj-1.a_B").id == "obj-1.a_B"
+    for bad in ("", "hedef bir", "türkçe-İd", "a" * 256):
+        with pytest.raises(pydantic.ValidationError):
+            Objective(id=bad)
+
+
+def test_s2_validator_rejects_unknown_objective_ref_and_duplicate_ids():
+    from core.project import Objective
+    from core.validator import validate_project
+
+    ok = Project(id=new_project_id(), title="T", objectives=[Objective(id="o1")],
+                 screens=_obj_screens())
+    assert validate_project(ok) == []
+
+    # bilinmeyen hedef referansı → sert hata (build bloklanır)
+    p = Project(id=new_project_id(), title="T", objectives=[Objective(id="baska")],
+                screens=_obj_screens())
+    errs = validate_project(p)
+    assert any("Bilinmeyen hedef" in e.message and "o1" in e.message for e in errs)
+
+    # hedefler hiç tanımlanmamışken referans da hata
+    p2 = Project(id=new_project_id(), title="T", screens=_obj_screens())
+    assert any("Bilinmeyen hedef" in e.message for e in validate_project(p2))
+
+    # yinelenen kurs hedef id'si → sert hata
+    p3 = Project(id=new_project_id(), title="T",
+                 objectives=[Objective(id="o1"), Objective(id="o1")], screens=_obj_screens())
+    assert any("Yinelenen hedef" in e.message for e in validate_project(p3))
+
+
+def test_s2_lint_warns_on_unbound_objective():
+    from core.antislop import lint_course
+    from core.project import Objective
+
+    # o1 bağlı, o2 bağsız → yalnız o2 için WARN
+    p = Project(id=new_project_id(), title="T",
+                objectives=[Objective(id="o1"), Objective(id="o2")], screens=_obj_screens())
+    issues = [i for i in lint_course(p) if i.code == "unbound_objective"]
+    assert len(issues) == 1
+    assert issues[0].severity == "warn" and "o2" in issues[0].message
+
+    # hepsi bağlıysa sessiz; hedef yoksa sessiz
+    p.screens[1].objective_ids = ["o1", "o2"]
+    assert "unbound_objective" not in {i.code for i in lint_course(p)}
+    p2 = Project(id=new_project_id(), title="T", screens=_obj_screens()[:1])
+    assert "unbound_objective" not in {i.code for i in lint_course(p2)}

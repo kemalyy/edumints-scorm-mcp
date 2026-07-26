@@ -38,8 +38,10 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install ruff
-        run: python -m pip install ruff
-      - name: Ruff (blocking — gerçek lint kapısı)
+        # Yerel geliştirme ortamıyla aynı sürüme sabit — ruff minor'ları
+        # varsayılan kural setini genişletip kapıyı deterministik olmaktan çıkarıyor.
+        run: python -m pip install 'ruff==0.15.16'
+      - name: Ruff (blocking lint gate)
         run: ruff check .
 
   js-test:
@@ -55,10 +57,48 @@ jobs:
       - name: Run engine tests (vitest)
         run: npm test
 
+  scorm-probe:
+    # S1/S3/S4 (+ S2 objectives) behavioural proof: renders a real course with Python, drives it in
+    # a real Chromium via Playwright, and asserts on exactly what the fake LMS API receives. This is
+    # the only gate that catches "wrong data reaches the LMS" bugs — pytest/vitest only check that
+    # the right strings are *produced*, not that the runtime *writes them* correctly.
+    # Blocking on purpose (unlike a11y-audit): a broken cmi.interactions/objectives write must fail CI.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install package (scorm-probe builds courses via `python3 -c` against this env)
+        run: pip install -q -e .
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install JS dev deps
+        run: npm ci
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run SCORM probe (blocking — no silent skip allowed)
+        run: |
+          set -euo pipefail
+          # scorm-probe.mjs itself exits 0 both on "all checks passed" AND on "environment
+          # unavailable" (missing browser/python) — by design, so a dev machine without Playwright
+          # doesn't fail. In CI that second case must never happen silently: we just installed
+          # Python + Chromium above, so any "atlandı (ortam)" (skipped: environment) line here means
+          # something is genuinely broken in the CI environment, not a benign local skip. Detect it
+          # and turn it into a loud, blocking failure instead of a silent green.
+          npm run scorm-probe 2>&1 | tee scorm-probe.log
+          if grep -q "SCORM probe atlandi (ortam)" scorm-probe.log; then
+            echo "::error::scorm-probe SKIPPED because of a missing environment dependency (browser/python) even though CI just installed both. Failing the job — a skip must never pass silently."
+            exit 1
+          fi
+          grep -q "SCORM probe: S1/S2/S3/S4 tum kontroller gecti" scorm-probe.log
+
   a11y-audit:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    continue-on-error: true  # non-blocking (kullanıcı kararı, 2026-07-22) — rapor eder, PR'ı kırmaz
+    continue-on-error: true  # non-blocking (user decision, 2026-07-22) — reports, doesn't fail the PR
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -75,7 +115,7 @@ jobs:
           wait "$GEN_PID" 2>/dev/null || true
           count=$(ls tests/a11y/fixtures/*.html 2>/dev/null | wc -l)
           echo "fixture count: $count"
-          if [ "$count" -eq 0 ]; then echo "::warning::a11y fixture üretimi başarısız, denetim boş geçecek"; fi
+          if [ "$count" -eq 0 ]; then echo "::warning::a11y fixture generation failed, audit will run empty"; fi
         shell: bash
       - uses: actions/setup-node@v4
         with:

@@ -23,6 +23,7 @@ import re
 from dataclasses import dataclass
 
 from .project import (
+    QUIZ_TYPES,
     AccordionScreen,
     AdaptivePracticeScreen,
     DecisionScenarioScreen,
@@ -66,6 +67,8 @@ def lint_course(project: Project) -> list[LintIssue]:
     issues += _lint_theme_logo_alt(project)
     issues += _lint_text_only_runs(project)
     issues += _lint_visual_poverty(project)
+    issues += _lint_suspend_size(project)
+    issues += _lint_unbound_objectives(project)
     return issues
 
 
@@ -386,6 +389,97 @@ def _lint_text_only_runs(project: Project) -> list[LintIssue]:
             run_len = 0
     flush(len(project.screens))
     return out
+
+
+# --- S5 (2.2b): suspend_data boyut tahmini (SCORM 1.2 — 4096 karakter SPM) -----
+# components/engine/scorm.js v2 kodlayıcısının maliyet modelinin yaklaşık üst-sınır aynası:
+# gerçek payload'dan BÜYÜK ya da eşit olacak şekilde tasarlanmıştır (yanlış-negatif WARN istemiyoruz),
+# ama kesin garanti DEĞİLDİR — runtime'daki değişken (vars) büyümesi ya da encoder'a eklenen yeni
+# sabit alanlar (örn. S5 order-fingerprint) tahmini aşabilir. Kodlayıcı değişirse burası elle
+# senkron kalmalı (encoder alan düzeni yorumu scorm.js'te).
+_SUSPEND_LIMIT_12 = 4096          # scorm.js SUSPEND_LIMIT_12 ile senkron
+_SUSPEND_WARN_RATIO = 0.9         # sınıra "yaklaşınca" da uyar (öğrenci verisi büyümeden önce)
+
+
+def _b36_len(n: int) -> int:
+    """n sayısının base36 gösteriminin uzunluğu (indeks genişliği)."""
+    n = max(0, int(n))
+    length = 1
+    while n >= 36:
+        n //= 36
+        length += 1
+    return length
+
+
+def estimate_suspend_size(project: Project) -> int:
+    """v2 kodlanmış suspend_data için yaklaşık üst-sınır tahmini (karakter, kesin garanti değil).
+
+    Varsayımlar (hepsi kötü-durum yönünde):
+    - her ekran ziyaret edilmiş, her ekran bir kez back-stack'te (history),
+    - her puanlı ekran cevaplanmış (results + interaction indeksi ix),
+    - tüm indeksler maksimum base36 genişliğinde,
+    - değişkenler tail JSON'da adı + değeriyle taşınır.
+
+    Runtime'daki var büyümesi (öğrenci ilerledikçe tail JSON şişer) ya da encoder zarfına eklenen
+    yeni sabit alanlar bu tahmini aşabilir — WARN eşiği bu yüzden %90'da (bkz. _SUSPEND_WARN_RATIO),
+    tam sınırda değil.
+    """
+    n = len(project.screens)
+    scored = [s for s in project.screens if s.type in QUIZ_TYPES]
+    iw = _b36_len(max(0, n - 1))                    # ekran indeksi genişliği
+    size = 16                                        # zarf: "2|" + ayraçlar + bayrak + inext
+    size += 11                                       # S5 order-fingerprint alanı: djb2 hash (≤7 taban36
+                                                       # hane) + "_" + uzunluk (≤2 hane) + ayraç "|"
+    size += iw                                       # cursor
+    size += (n + 3) // 4                             # visited hex bitfield
+    size += n * (iw + 1)                             # history: i36 + virgül
+    for s in scored:
+        digits = len(str(getattr(s, "points", 0) or 0))
+        size += iw + digits * 2 + 5                  # results: i36:puan:max:bayrak + virgül
+        size += iw * 2 + 2                           # ix: i36:n36 + virgül
+    if project.variables:
+        size += 8 + sum(len(v.name) + len(str(v.default)) + 8 for v in project.variables)
+    return size
+
+
+def _lint_suspend_size(project: Project) -> list[LintIssue]:
+    """WARN — 1.2 hedefinde tahmini suspend_data boyutu 4096 sınırına yaklaşıyor/aşıyor.
+
+    FAIL değil: tahmin kötü-durum üst sınırıdır ve runtime encodeSuspendFit history düşürerek
+    çoğu kursu yine sığdırır — ama yazar sınırı ÖNCEDEN bilmeli (kursu bölme / 2004'e geçme kararı)."""
+    if project.scorm_version != "1.2":
+        return []
+    est = estimate_suspend_size(project)
+    threshold = int(_SUSPEND_LIMIT_12 * _SUSPEND_WARN_RATIO)
+    if est < threshold:
+        return []
+    return [LintIssue(
+        "warn", "suspend_size_risk",
+        f"Tahmini suspend_data boyutu ~{est} karakter — SCORM 1.2 sınırı {_SUSPEND_LIMIT_12} "
+        f"(eşik {threshold}). Runtime sığdırmak için gezinme geçmişini düşürebilir; kursu bölmeyi "
+        "ya da scorm_version='2004' hedeflemeyi düşün "
+        f"({len(project.screens)} ekran, {sum(1 for s in project.screens if s.type in QUIZ_TYPES)} puanlı).",
+        "screens",
+    )]
+
+
+# --- S2 (2.4): bağsız kurs hedefi ------------------------------------------
+def _lint_unbound_objectives(project: Project) -> list[LintIssue]:
+    """WARN — hedef tanımlı ama HİÇBİR puanlı ekran ona bağlanmamış. Runtime politikası gereği
+    bağsız hedef için cmi.objectives kaydı YAZILMAZ (LMS'e boş/ölü hedef gitmez) — yani bu hedef
+    raporlarda hiç görünmeyecek; yazar ya bağlamayı unuttu ya da hedef gereksiz."""
+    if not project.objectives:
+        return []
+    bound = {oid for s in project.screens
+             for oid in (getattr(s, "objective_ids", None) or [])}
+    return [
+        LintIssue("warn", "unbound_objective",
+                  f"Hedef '{o.id}' hiçbir puanlı ekrana bağlanmamış (objective_ids) — bu hedef "
+                  "için LMS'e cmi.objectives kaydı yazılmayacak; bir quiz/oyun ekranına bağla "
+                  "ya da hedefi kaldır",
+                  f"objectives[{o.id}]")
+        for o in project.objectives if o.id not in bound
+    ]
 
 
 def _lint_visual_poverty(project: Project) -> list[LintIssue]:

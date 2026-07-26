@@ -28,6 +28,9 @@ isn't present, so a plain `pip install ".[dev]"` is enough to run CI-equivalent 
 - **No secrets** in code, tests, or docs. Never commit credentials, tokens, or private infrastructure
   details. `.env` is gitignored; only `.env.example` is tracked.
 - **Style.** `ruff` is used for linting (`ruff check .`). Match the surrounding code's idioms.
+- **Language.** Code, comments, commit messages, and `CHANGELOG.md` are written in English; `docs/`
+  and README files are multilingual, with `README.tr.md` treated as a first-class citizen alongside
+  `README.md`.
 
 ## Pull requests
 1. Branch from `main`, make your change with tests.

@@ -22,7 +22,7 @@ from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError as MCPToolError
 from fastmcp.server.dependencies import get_access_token, get_http_headers
 from starlette.requests import Request
-from starlette.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse
+from starlette.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, Response
 
 import components.renderer as renderer
 from auth import (
@@ -59,7 +59,7 @@ from core.project import (
     new_screen_id,
     utcnow,
 )
-from core.store import ApiKey, Feedback, create_store
+from core.store import ApiKey, DemoMeta, Feedback, create_store
 from core.validator import validate_project, validate_zip
 
 import secrets
@@ -94,6 +94,14 @@ class Settings:
         self.oauth_enabled = bool(self.logto_issuer and self.logto_jwks and self.mcp_audience)
         # W9 P0 — per-principal rate limit (dakika başına istek), basit in-process token bucket.
         self.rate_limit_per_min = int(os.environ.get("RATE_LIMIT_PER_MIN", "60"))
+        # 1.5 — /demo iframe politikası: varsayılan yalnız kendi origin'i (clickjacking'e karşı
+        # güvenli varsayılan); portal gibi bilinen bir domain'i açmak env ile yapılır.
+        # Bazı dotenv yükleyicileri çevreleyen tek tırnakları soyar ("'self'" → "self");
+        # CSP anahtar sözcükleri tırnaksız geçersiz olduğundan burada normalize edilir.
+        _fa = os.environ.get("DEMO_FRAME_ANCESTORS", "'self'")
+        self.demo_frame_ancestors = " ".join(
+            f"'{tok}'" if tok in ("self", "none") else tok for tok in _fa.split()
+        )
 
 
 SETTINGS = Settings()
@@ -349,8 +357,17 @@ async def _job_to_out(job, project: Project) -> BuildOut:
     return _build_out(job, None, None, project.scorm_version)
 
 
-async def _render_preview_html(p: Project) -> str:
-    """Tek-dosya self-contained önizleme HTML'i (persist YOK — preview ve demo paylaşır)."""
+async def _render_preview_html(
+    p: Project, *, review: bool = True, canonical_url: str | None = None
+) -> str:
+    """Tek-dosya self-contained önizleme HTML'i (persist YOK — preview ve demo paylaşır).
+
+    review (1.1) — mode="preview" ile bağımsız: /preview akışı (_build_preview) review=True
+    kullanır (review FAB gerçek token'lı yolda çalışır); publish_demo review=False geçer →
+    /demo HTML'inde review markup hiç yok (bkz. components/renderer.py docstring).
+
+    canonical_url (1.4) — yalnız publish_demo geçer (/demo/{slug}); og:url yalnız KALICI linkte
+    anlamlı, /preview TTL'li olduğundan hiç geçmez (varsayılan None → og:url basılmaz)."""
     asset_data: dict[str, tuple[str, bytes]] = {}
     for a in p.assets:
         try:
@@ -358,13 +375,14 @@ async def _render_preview_html(p: Project) -> str:
         except FileNotFoundError:
             pass
     return renderer.render_html(
-        p, mode="preview", runtime_js=renderer.load_runtime_js(), asset_data=asset_data
+        p, mode="preview", runtime_js=renderer.load_runtime_js(), asset_data=asset_data,
+        review=review, canonical_url=canonical_url,
     )
 
 
 async def _build_preview(p: Project) -> tuple[str, str]:
     """Önizleme render eder, diske + DB'ye TTL'li yazar. → (token, html)."""
-    html = await _render_preview_html(p)
+    html = await _render_preview_html(p, review=True)
     token = secrets.token_urlsafe(18)
     out = Path(SETTINGS.data_dir) / "previews" / f"{token}.html"
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -900,7 +918,9 @@ async def publish_demo(project_id: str, slug: str) -> dict:
 
     `preview`'dan farkı: TTL YOK — link süresiz yaşar (README/vitrin/portföy linkleri için).
     Upsert: aynı slug'a tekrar yayınlamak içeriği günceller (yalnız slug'ı ilk yayınlayan
-    sahip güncelleyebilir). slug: [a-z0-9-], 3-40 karakter."""
+    sahip güncelleyebilir). slug: [a-z0-9-], 3-40 karakter. Demo HTML boyutu sahibin depolama
+    kotasına dahildir (`enforce_size_quota`). Envanter için `list_demos`, kaldırmak için
+    `unpublish_demo`."""
     await SVC.ensure()
     try:
         owner = await _owner()
@@ -909,14 +929,93 @@ async def publish_demo(project_id: str, slug: str) -> dict:
         p = await _load(project_id, owner)
         demos = Path(SETTINGS.data_dir) / "demos"
         demos.mkdir(parents=True, exist_ok=True)
-        owner_file = demos / f"{slug}.owner"
-        if owner_file.exists() and owner_file.read_text(encoding="utf-8").strip() != owner.id:
-            raise ToolError("forbidden", f"'{slug}' başka bir sahibe ait")
-        html = await _render_preview_html(p)
+
+        # 1.2 — sahiplik artık store'daki demos tablosundan (DemoMeta). Eski (1.1 ve öncesi)
+        # yayınlar yalnız {slug}.owner dosyasına sahiplik yazıyordu, store'da satırı yok. Böyle bir
+        # slug'la karşılaşırsak dosyayı BİR KEZ onurlandırıp store satırını yazarak göç ettiriyoruz;
+        # bundan sonra bu slug için store tek gerçek kaynak olur (.owner dosyası artık okunmaz/yazılmaz).
+        existing = await SVC.store.get_demo(slug)
+        if existing is not None:
+            if existing.owner_key_id != owner.id:
+                raise ToolError("forbidden", f"'{slug}' başka bir sahibe ait")
+        else:
+            legacy_owner_file = demos / f"{slug}.owner"
+            if legacy_owner_file.exists():
+                legacy_owner = legacy_owner_file.read_text(encoding="utf-8").strip()
+                if legacy_owner != owner.id:
+                    raise ToolError("forbidden", f"'{slug}' başka bir sahibe ait")
+
+        # 1.1 — review=False: /demo kalıcı vitrin linki, review FAB'ı asla göstermez (id'ler hiç
+        # basılmaz). rToken() zaten yalnız /preview/{token} yolunu bildiği için burada bozuk çalışırdı.
+        # 1.4 — canonical_url: og:url için gerçek kalıcı /demo/{slug} adresi.
+        html = await _render_preview_html(
+            p, review=False, canonical_url=f"{SETTINGS.public_base_url}/demo/{slug}"
+        )
+        size_bytes = len(html.encode("utf-8"))
+        old_size = existing.size_bytes if existing is not None else 0
+        if size_bytes > old_size:
+            await enforce_size_quota(SVC.store, owner, size_bytes - old_size)
+
         (demos / f"{slug}.html").write_text(html, encoding="utf-8")
-        owner_file.write_text(owner.id, encoding="utf-8")
+        now = utcnow()
+        meta = DemoMeta(
+            slug=slug, project_id=p.id, owner_key_id=owner.id, title=p.title,
+            language=p.language, size_bytes=size_bytes,
+            created_at=existing.created_at if existing is not None else now,
+            updated_at=now,
+        )
+        await SVC.store.upsert_demo(meta)
         logger.info("event=demo_publish owner=%s project_id=%s slug=%s", owner.id, p.id, slug)
         return {"url": f"{SETTINGS.public_base_url}/demo/{slug}", "slug": slug}
+    except ToolError as e:
+        raise _wrap(e)
+
+
+@mcp.tool
+async def list_demos() -> dict:
+    """Sahibin yayınladığı KALICI demo linklerini listeler (`publish_demo` çıktıları)."""
+    await SVC.ensure()
+    try:
+        owner = await _owner()
+        items = await SVC.store.list_demos_for_owner(owner.id)
+        return {"demos": [
+            {"slug": d.slug, "project_id": d.project_id, "title": d.title,
+             "language": d.language, "size_bytes": d.size_bytes,
+             "created_at": d.created_at.isoformat(), "updated_at": d.updated_at.isoformat(),
+             "url": f"{SETTINGS.public_base_url}/demo/{d.slug}"}
+            for d in items
+        ]}
+    except ToolError as e:
+        raise _wrap(e)
+
+
+@mcp.tool
+async def unpublish_demo(slug: str) -> OkOut:
+    """KALICI demo linkini kaldırır: metadata + HTML silinir; sonrasında `/demo/{slug}` 404 döner.
+
+    Yalnız slug'ın sahibi kaldırabilir (store'dan doğrulanır; eski yalnız-.owner-dosyalı
+    yayınlarda dosyadan)."""
+    await SVC.ensure()
+    try:
+        owner = await _owner()
+        if not _DEMO_SLUG.match(slug or ""):
+            raise ToolError("invalid_slug", "slug küçük harf/rakam/tire, 3-40 karakter olmalı")
+        demos = Path(SETTINGS.data_dir) / "demos"
+        owner_file = demos / f"{slug}.owner"
+        meta = await SVC.store.get_demo(slug)
+        if meta is not None:
+            if meta.owner_key_id != owner.id:
+                raise ToolError("forbidden", f"'{slug}' başka bir sahibe ait")
+            await SVC.store.delete_demo(slug)
+        elif owner_file.exists():
+            if owner_file.read_text(encoding="utf-8").strip() != owner.id:
+                raise ToolError("forbidden", f"'{slug}' başka bir sahibe ait")
+        else:
+            raise ToolError("not_found", f"Demo bulunamadı: {slug}")
+        (demos / f"{slug}.html").unlink(missing_ok=True)
+        owner_file.unlink(missing_ok=True)
+        logger.info("event=demo_unpublish owner=%s slug=%s", owner.id, slug)
+        return OkOut(ok=True)
     except ToolError as e:
         raise _wrap(e)
 
@@ -992,6 +1091,8 @@ async def build_from_spec(spec: dict) -> BuildFromSpecOut:
             stage_width=spec.stage_width,
             stage_height=spec.stage_height,
             xapi=spec.xapi,
+            metadata=spec.metadata,
+            objectives=list(spec.objectives),
             screens=list(spec.screens),
             owner_key_id=owner.id,
         )
@@ -1355,9 +1456,36 @@ async def preview_route(request: Request):
     return HTMLResponse(path.read_text(encoding="utf-8"))
 
 
+# 1.3 — /demo TTL'siz kalıcı yayın olduğu için içerik-tabanlı ETag + orta ömürlü Cache-Control
+# uygundur (/preview TTL'li ve token başına değişken olduğundan bilerek dışarıda bırakıldı).
+_DEMO_CACHE_MAX_AGE = 300
+
+
+def _etag_for(data: bytes) -> str:
+    """İçerik hash'inden kararlı, tırnaklı ETag — restart'a dayanıklı (dosya sistemine değil
+    içeriğe bağlı); içerik değişmeden aynı kalır, republish sonrası değişir."""
+    return '"' + hashlib.sha256(data).hexdigest()[:32] + '"'
+
+
+def _if_none_match_hits(header_value: str | None, etag: str) -> bool:
+    if not header_value:
+        return False
+    if header_value.strip() == "*":
+        return True
+    return etag in {part.strip() for part in header_value.split(",")}
+
+
 @mcp.custom_route("/demo/{slug}", methods=["GET"])
 async def demo_route(request: Request):
-    """Kalıcı demo (publish_demo çıktısı). TTL yok; slug regex'i path-traversal'ı da engeller."""
+    """Kalıcı demo (publish_demo çıktısı). TTL yok; slug regex'i path-traversal'ı da engeller.
+
+    1.3 — ETag (içerik hash'i) + Cache-Control: public, max-age, must-revalidate; eşleşen
+    If-None-Match → 304 (boş gövde). /preview'a UYGULANMAZ (TTL'li/değişken).
+
+    1.5 — ?embed=1 SUNUCUDA ele alınmaz (query param görmezden gelinir, önbellek tek dosya kalır);
+    gömme davranışı istemci tarafında boot JS'in location.search okumasıyla uygulanır (bkz.
+    components/templates.py ENGINE_JS). Content-Security-Policy: frame-ancestors
+    DEMO_FRAME_ANCESTORS env'inden (varsayılan 'self')."""
     await SVC.ensure()
     slug = request.path_params["slug"]
     if not _DEMO_SLUG.match(slug or ""):
@@ -1365,7 +1493,16 @@ async def demo_route(request: Request):
     path = Path(SETTINGS.data_dir) / "demos" / f"{slug}.html"
     if not path.exists():
         return PlainTextResponse("not found", status_code=404)
-    return HTMLResponse(path.read_text(encoding="utf-8"))
+    data = path.read_bytes()
+    etag = _etag_for(data)
+    headers = {
+        "ETag": etag,
+        "Cache-Control": f"public, max-age={_DEMO_CACHE_MAX_AGE}, must-revalidate",
+        "Content-Security-Policy": f"frame-ancestors {SETTINGS.demo_frame_ancestors}",
+    }
+    if _if_none_match_hits(request.headers.get("if-none-match"), etag):
+        return Response(status_code=304, headers=headers)
+    return HTMLResponse(data.decode("utf-8"), headers=headers)
 
 
 @mcp.custom_route("/feedback", methods=["POST"])

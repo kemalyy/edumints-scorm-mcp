@@ -27,7 +27,7 @@ Tüm `*_html` alanlarının `nh3` kütüphanesi ile sanitize edildiği doğrulan
 *   **URI Şemaları:** `javascript:` şemasının engellendiği doğrulandı.
 *   **CSS Injection:** `expression()` gibi CSS tabanlı XSS denemelerinin etkisiz hale getirildiği doğrulandı.
 
-**Sonuç:** `nh3` yapılandırması (bkz. `components/renderer.py` içindeki allowlist) yalnızca güvenli bir HTML alt kümesine izin vermektedir.
+**Sonuç:** `nh3` yapılandırması CONTRACTS.md §1.3'e uygun olarak yalnızca güvenli bir HTML alt kümesine izin vermektedir.
 
 ### 3. Sır Tarama (Secret Scanning)
 Repo genelinde yaygın API anahtarı ve token desenleri tarandı.

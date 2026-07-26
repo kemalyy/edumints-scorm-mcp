@@ -5,11 +5,12 @@ Pydantic v2. Hem in-memory model, hem store serileştirmesi, hem tool girdi/çı
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Annotated, Literal, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from ulid import ULID
 
 # W3b/W4/W5 — kompozisyonel oyun + adaptif + telemetri (additive). game_primitives project'i import ETMEZ → döngü yok.
@@ -148,6 +149,35 @@ class ThemeTokens(BaseModel):
     custom_fonts: list[CustomFont] = Field(default_factory=list)
     background_pattern: Literal["none", "dots", "grid", "gradient"] = "none"
     custom_css: str | None = None
+
+
+# --------------------------------------------------------------------------- #
+# S2 (2.4) — kurs hedefleri (cmi.objectives.*)
+# --------------------------------------------------------------------------- #
+# Makine-dostu hedef id'si: CMIIdentifier (boşluksuz, sınırlı alfabe, ≤255) VE imsss objectiveID
+# (xs:anyURI) için aynı anda güvenli alt küme. Runtime bu id'yi cmi.objectives.n.id'ye AYNEN yazar
+# (sanitizeId no-op kalır) → manifest'teki imsss:objective/@objectiveID ile birebir eşleşir.
+_OBJECTIVE_ID_RE = re.compile(r"^[A-Za-z0-9_.-]{1,255}$")
+
+
+class Objective(BaseModel):
+    """S2 (2.4) — kurs düzeyinde öğrenme hedefi. Puanlı ekranlar `objective_ids` ile buna bağlanır;
+    runtime hedef başına doğru/toplam → cmi.objectives.n.* yazar (1.2: score.raw+status,
+    2004: score.scaled+success_status/completion_status). description/success_criteria yalnız
+    yazarlık/dokümantasyon içindir — pakete ekran metni olarak basılmaz."""
+    id: str
+    description: str | None = None
+    success_criteria: str | None = None
+
+    @field_validator("id")
+    @classmethod
+    def _validate_id(cls, v: str) -> str:
+        if not _OBJECTIVE_ID_RE.match(v):
+            raise ValueError(
+                "Objective.id makine-dostu olmalı: yalnız [A-Za-z0-9_.-], 1-255 karakter "
+                f"(alınan: {v!r}) — cmi.objectives.n.id ve imsss objectiveID'ye aynen yazılır"
+            )
+        return v
 
 
 # --------------------------------------------------------------------------- #
@@ -333,6 +363,7 @@ class MCQScreen(ScreenBase):
     multi_select: bool = False
     feedback: Feedback = Field(default_factory=Feedback)
     points: int = 10
+    objective_ids: list[str] = Field(default_factory=list)  # S2 (2.4) — kurs hedef(ler)ine bağ
 
 
 class TrueFalseScreen(ScreenBase):
@@ -341,6 +372,7 @@ class TrueFalseScreen(ScreenBase):
     correct: bool
     feedback: Feedback = Field(default_factory=Feedback)
     points: int = 10
+    objective_ids: list[str] = Field(default_factory=list)  # S2 (2.4) — kurs hedef(ler)ine bağ
 
 
 class FillBlankScreen(ScreenBase):
@@ -350,6 +382,7 @@ class FillBlankScreen(ScreenBase):
     case_sensitive: bool = False
     feedback: Feedback = Field(default_factory=Feedback)
     points: int = 10
+    objective_ids: list[str] = Field(default_factory=list)  # S2 (2.4) — kurs hedef(ler)ine bağ
 
 
 class DragDropScreen(ScreenBase):
@@ -359,6 +392,7 @@ class DragDropScreen(ScreenBase):
     targets: list[DropTarget] = Field(min_length=1)
     feedback: Feedback = Field(default_factory=Feedback)
     points: int = 10
+    objective_ids: list[str] = Field(default_factory=list)  # S2 (2.4) — kurs hedef(ler)ine bağ
 
 
 class HotspotScreen(ScreenBase):
@@ -369,6 +403,7 @@ class HotspotScreen(ScreenBase):
     regions: list[HotspotRegion] = Field(min_length=1)
     feedback: Feedback = Field(default_factory=Feedback)
     points: int = 10
+    objective_ids: list[str] = Field(default_factory=list)  # S2 (2.4) — kurs hedef(ler)ine bağ
 
 
 class BranchingScreen(ScreenBase):
@@ -449,6 +484,7 @@ class MatchingScreen(ScreenBase):
     pairs: list[MatchPair] = Field(min_length=2)
     feedback: Feedback = Field(default_factory=Feedback)
     points: int = 10
+    objective_ids: list[str] = Field(default_factory=list)  # S2 (2.4) — kurs hedef(ler)ine bağ
 
 
 class SortItem(BaseModel):
@@ -462,6 +498,7 @@ class SortingScreen(ScreenBase):
     items: list[SortItem] = Field(min_length=2)  # DOĞRU sıra (yazarın verdiği); runtime karıştırır
     feedback: Feedback = Field(default_factory=Feedback)
     points: int = 10
+    objective_ids: list[str] = Field(default_factory=list)  # S2 (2.4) — kurs hedef(ler)ine bağ
 
 
 class TimelineEvent(BaseModel):
@@ -509,6 +546,7 @@ class SimulationScreen(ScreenBase):
     prompt_html: str | None = None
     steps: list[SimStep] = Field(min_length=1)
     points: int = 10
+    objective_ids: list[str] = Field(default_factory=list)  # S2 (2.4) — kurs hedef(ler)ine bağ
     feedback: Feedback = Field(default_factory=Feedback)
 
 
@@ -545,6 +583,7 @@ class DecisionScenarioScreen(ScreenBase):
     start_node_id: str | None = None  # None → ilk düğüm
     pass_score: int | None = None  # None → skor > 0 geçer; verilirse skor ≥ pass_score geçer
     points: int = 20
+    objective_ids: list[str] = Field(default_factory=list)  # S2 (2.4) — kurs hedef(ler)ine bağ
     feedback: Feedback = Field(default_factory=Feedback)
 
 
@@ -565,6 +604,7 @@ class TermMatchRaceScreen(ScreenBase):
     pairs: list[TermPair] = Field(min_length=2)
     time_limit_sec: int = 60
     points: int = 15
+    objective_ids: list[str] = Field(default_factory=list)  # S2 (2.4) — kurs hedef(ler)ine bağ
     feedback: Feedback = Field(default_factory=Feedback)
 
 
@@ -585,6 +625,7 @@ class EscapeRoomScreen(ScreenBase):
     puzzles: list[Puzzle] = Field(min_length=1)
     lives: int = 3
     points: int = 20
+    objective_ids: list[str] = Field(default_factory=list)  # S2 (2.4) — kurs hedef(ler)ine bağ
     feedback: Feedback = Field(default_factory=Feedback)
 
 
@@ -605,6 +646,7 @@ class LabeledDiagramScreen(ScreenBase):
     image_alt: str | None = None  # W9 — WCAG alt text
     labels: list[DiagramLabel] = Field(min_length=2)
     points: int = 15
+    objective_ids: list[str] = Field(default_factory=list)  # S2 (2.4) — kurs hedef(ler)ine bağ
     feedback: Feedback = Field(default_factory=Feedback)
 
 
@@ -690,6 +732,7 @@ class GameScreen(ScreenBase):
     seed: str | None = None  # None → ekran id'sinden türetilir (üretilebilir oynanış)
     pass_score: int | None = None  # None → skor > 0 geçer; verilirse skor ≥ pass_score
     points: int = 25
+    objective_ids: list[str] = Field(default_factory=list)  # S2 (2.4) — kurs hedef(ler)ine bağ
     feedback: Feedback = Field(default_factory=Feedback)
 
 
@@ -718,6 +761,7 @@ class AdaptivePracticeScreen(ScreenBase):
     max_items: int = 0  # 0 → tüm öğeler birer kez; >0 → en çok bu kadar öğe sun
     mastery_stop: float | None = None  # BKT: ustalık ≥ bu olunca erken bitir (ops.)
     points: int = 20
+    objective_ids: list[str] = Field(default_factory=list)  # S2 (2.4) — kurs hedef(ler)ine bağ
     pass_ratio: float = 0.6  # doğru/cevaplanan ≥ bu → geçer
     seed: str | None = None  # None → ekran id'sinden türetilir
     feedback: Feedback = Field(default_factory=Feedback)
@@ -797,6 +841,41 @@ class GameLevel(BaseModel):
     min_points: int
 
 
+# S7 (2.3) — ISO 8601 süre biçimi (LOM `typicallearningtime/datetime`, ör. "PT1H30M", "P1D").
+# En az bir bileşen zorunlu ("P"/"PT" tek başına geçersiz); saniye ondalık olabilir.
+_ISO8601_DURATION_RE = re.compile(
+    r"^P(?!$)(?:\d+Y)?(?:\d+M)?(?:\d+D)?(?:T(?=\d)(?:\d+H)?(?:\d+M)?(?:\d+(?:\.\d+)?S)?)?$"
+)
+
+
+class CourseMetadata(BaseModel):
+    """S7 (2.3) — opsiyonel LOM (imsmd) meta verisi (CONTRACTS.md §2). Tamamı Optional/additive;
+    boş/None alan manifest'te ilgili LOM elemanı hiç basılmaz ("alan yoksa eleman yok").
+    title/language için ayrı alan YOK — bunlar zaten Project/CourseSpec'te zorunlu/varsayılı, LOM
+    general/title + general/language oradan türetilir.
+    intended_audience LOM'a HİÇ eşlenmez (imsmd:intendedenduserrole kapalı sözlük ister — serbest
+    metin zorla oraya konursa yanlış semantik olur); yalnız CourseSpec/Project'te taşınır (bkz.
+    core/manifest.py yorum notu)."""
+    description: str | None = None
+    keywords: list[str] = Field(default_factory=list)
+    intended_audience: str | None = None
+    # ISO 8601 süre string'i (ör. "PT1H30M") — LOM educational/typicalLearningTime/datetime.
+    typical_learning_time: str | None = None
+
+    @field_validator("typical_learning_time")
+    @classmethod
+    def _validate_typical_learning_time(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        v = v.strip()
+        if not _ISO8601_DURATION_RE.match(v):
+            raise ValueError(
+                "typical_learning_time ISO 8601 süre biçiminde olmalı, ör. 'PT1H30M', 'P1D' "
+                f"(alınan: {v!r})"
+            )
+        return v
+
+
 class Project(BaseModel):
     schema_version: str = "1.0"
     id: str
@@ -816,6 +895,8 @@ class Project(BaseModel):
     stage_width: int = 960   # Faz 9.1 — tasarım tuvali genişliği (px); 16:9 için 960×540
     stage_height: int = 540
     xapi: XapiConfig | None = None  # W5 — xAPI/cmi5 telemetri (kurs düzeyinde; varsayılan kapalı)
+    metadata: CourseMetadata | None = None  # S7 (2.3) — opsiyonel LOM (imsmd) meta verisi
+    objectives: list[Objective] = Field(default_factory=list)  # S2 (2.4) — cmi.objectives.* kaynağı
     screens: list[Screen] = Field(default_factory=list)
     assets: list[AssetRef] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=utcnow)
@@ -857,6 +938,8 @@ class CourseSpec(BaseModel):
     stage_width: int = 960   # Faz 9.1 — ayarlanabilir tuval ölçüsü (px)
     stage_height: int = 540
     xapi: XapiConfig | None = None  # W5 — xAPI/cmi5 telemetri (kurs düzeyinde; varsayılan kapalı)
+    metadata: CourseMetadata | None = None  # S7 (2.3) — opsiyonel LOM (imsmd) meta verisi
+    objectives: list[Objective] = Field(default_factory=list)  # S2 (2.4) — cmi.objectives.* kaynağı
     auto_tts: bool = False  # opt-in: narration_text dolu ekranlar için otomatik Piper TTS (Piper yoksa atlanır)
     tts_voice: str | None = None  # auto_tts ses modeli (boşsa varsayılan Türkçe)
     screens: list[Screen]

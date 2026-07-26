@@ -26,6 +26,7 @@ from core.project import (
     Choice,
     ContentSlide,
     MCQScreen,
+    Objective,
     Project,
     TrueFalseScreen,
     new_project_id,
@@ -122,6 +123,35 @@ def test_s4_finish_is_idempotent_and_pagehide_covered():
 
 
 # --------------------------------------------------------------------------- #
+# S5 — suspend_data kompakt kodlama köprüsü
+# --------------------------------------------------------------------------- #
+def test_s5_suspend_codec_in_bundle():
+    b = load_scorm_bundle()
+    for fn in ("encodeSuspend", "decodeSuspend", "encodeSuspendFit", "suspendLimit"):
+        assert fn in b, f"bundle eksik: {fn}"
+
+
+def test_s5_persist_and_restore_use_rt_codec():
+    """persist/restore mantığı templates.py'de KOPYALANMAZ — scorm.js codec'i çağrılır."""
+    html = render_html(_quiz_project(), mode="preview", runtime_js="/*rt*/")
+    assert "RT.encodeSuspendFit(state,order,lim)" in html
+    assert "RT.decodeSuspend(raw,order)" in html
+    assert "RT.suspendLimit" in html
+
+
+def test_s5_write_failure_visibility_wired():
+    """2.2c — yazma hatası/kırpma sessiz kalmaz: kontrol edilen yazım + konsol + xAPI izi."""
+    html = render_html(_quiz_project(), mode="preview", runtime_js="/*rt*/")
+    assert 'sSetChecked("cmi.suspend_data",json)' in html
+    assert "RT.suspendWriteIssues" in html
+    assert "RT.setResultOk" in html
+    assert 'console.warn("[scorm] suspend_data "' in html
+    assert 'XAPI.emit("suspend.trouble"' in html
+    # eski kontrolsüz yazım geri gelmesin
+    assert 'sSet("cmi.suspend_data",json)' not in html
+
+
+# --------------------------------------------------------------------------- #
 # S1 — interactions
 # --------------------------------------------------------------------------- #
 def test_s1_record_interaction_wired():
@@ -166,8 +196,49 @@ def test_s1_quiz_screen_title_exported_for_description():
 
 
 # --------------------------------------------------------------------------- #
-# Uçtan uca — üretilen ZIP
+# S2 — cmi.objectives.* köprüsü
 # --------------------------------------------------------------------------- #
+def _objective_project(ver: str = "1.2") -> Project:
+    p = _quiz_project(ver)
+    p.objectives = [Objective(id="o1", description="Temel kavramlar"), Objective(id="o2")]
+    p.screens[1].objective_ids = ["o1"]        # q1 → o1
+    p.screens[2].objective_ids = ["o1", "o2"]  # q2 → o1 + o2
+    return p
+
+
+def test_s2_objective_helpers_in_bundle():
+    b = load_scorm_bundle()
+    for fn in ("aggregateObjectives", "objectiveIndices", "objectiveElements"):
+        assert fn in b, f"bundle eksik: {fn}"
+
+
+def test_s2_write_objectives_wired_at_score_commit_lifecycle():
+    """writeObjectives evaluate() içinde, writeScore ile AYNI yaşam döngüsü noktasında."""
+    html = render_html(_objective_project(), mode="preview", runtime_js="/*rt*/")
+    assert "function writeObjectives" in html
+    assert "RT.aggregateObjectives(OBJ_IDS,OBJ_MAP,state.results)" in html
+    assert "RT.objectiveIndices(ex,ids)" in html
+    assert "RT.objectiveElements(a," in html
+    # evaluate: writeScore() hemen ardından writeObjectives()
+    assert html.index("writeScore();") < html.index("writeObjectives();") < html.index("var complete=isComplete()")
+
+
+def test_s2_config_serializes_objectives_and_bindings():
+    html = render_html(_objective_project(), mode="preview", runtime_js="/*rt*/")
+    cfg = json.loads(html.split("window.__COURSE__ = ", 1)[1].split(";\nwindow.__ASSETS__", 1)[0])
+    assert cfg["objectives"] == ["o1", "o2"]   # kurs hedef sırası (determinizm kaynağı)
+    by_id = {s["id"]: s for s in cfg["screens"]}
+    assert by_id["q1"]["objective_ids"] == ["o1"]
+    assert by_id["q2"]["objective_ids"] == ["o1", "o2"]
+    assert "objective_ids" not in by_id["c1"]  # puansız ekran bağ taşımaz
+
+
+def test_s2_no_objectives_no_config_key():
+    """Hedefsiz kursta ne config anahtarı ne çalışan yazım — additive sıfır maliyet."""
+    html = render_html(_quiz_project(), mode="preview", runtime_js="/*rt*/")
+    cfg = json.loads(html.split("window.__COURSE__ = ", 1)[1].split(";\nwindow.__ASSETS__", 1)[0])
+    assert "objectives" not in cfg
+    assert all("objective_ids" not in s for s in cfg["screens"])
 @pytest.mark.asyncio
 @pytest.mark.parametrize("ver,session_el,exit_el", [
     ("1.2", "cmi.core.session_time", "cmi.core.exit"),

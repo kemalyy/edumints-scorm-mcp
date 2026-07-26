@@ -9,7 +9,7 @@ render için Node 22 + hyperframes (npx).
 Kullanım:
   python tools/local_media.py tts --text "Merhaba" --out a.mp3 [--voice yol.onnx]
   python tools/local_media.py render --spec spec.json --out v.mp4 [--quality high]
-  ... --upload --project <proj_id> --key sk_... [--base-url http://localhost:8000]
+  ... --upload --project <proj_id> --key sk_... [--base-url https://scorm.edumints.com]
 """
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ def build_parser() -> argparse.ArgumentParser:
     common.add_argument("--upload", action="store_true")
     common.add_argument("--project")
     common.add_argument("--key")
-    common.add_argument("--base-url", default="http://localhost:8000")
+    common.add_argument("--base-url", default="https://scorm.edumints.com")
     t = sub.add_parser("tts", parents=[common])
     t.add_argument("--text", required=True)
     t.add_argument("--voice")
