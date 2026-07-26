@@ -49,7 +49,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
       - name: Install JS dev deps
@@ -72,7 +72,7 @@ jobs:
           python-version: "3.11"
       - name: Install package (scorm-probe builds courses via `python3 -c` against this env)
         run: pip install -q -e .
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
       - name: Install JS dev deps
@@ -117,7 +117,7 @@ jobs:
           echo "fixture count: $count"
           if [ "$count" -eq 0 ]; then echo "::warning::a11y fixture generation failed, audit will run empty"; fi
         shell: bash
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
       - name: Install JS dev deps
