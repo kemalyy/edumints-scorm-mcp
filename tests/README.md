@@ -28,7 +28,7 @@ npx @modelcontextprotocol/inspector
 #   (auth açıksa) Header: Authorization: Bearer <api_key>
 ```
 
-29 tool görünmeli (tam liste: `server.py` içindeki `@mcp.tool` tanımları).
+30 tool görünmeli (tam liste: `server.py` içindeki `@mcp.tool` tanımları).
 
 ## Yük testi (build yolu)
 
