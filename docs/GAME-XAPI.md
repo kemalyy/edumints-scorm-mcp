@@ -5,6 +5,10 @@
 **gözlemlenebilir** (choice/answer/hint/adaptive observe/finalize) bir statement olur → **stealth assessment**
 (Shute) verisi. Bu modül YALNIZ ifade KURAR; iletim (LRS) W5b'de. Varsayılan **kapalı** (mahremiyet + zero-load).
 
+> **cmi5 desteği KISMÎ**: yalnız launch parametreleri (endpoint/auth/actor/registration) okunur ve
+> `fetch` ile auth-token alınır. **cmi5.xml paketleme YOK**, **cmi5-tanımlı `initialized`/`terminated`
+> statement'ları YOK** — bkz. issue kemalyy/edumints-scorm-mcp#101 (migrasyon planı).
+
 ## İfade modeli
 xAPI ifadesi: `{ actor, verb, object, result?, context?, timestamp?, id? }`. **actor + timestamp DIŞARIDAN
 enjekte** edilir (deterministik — vitest'te sabit; runtime'da launch'tan/now). Standart **ADL fiil IRI'leri**:
@@ -53,7 +57,7 @@ Yayılan olaylar: bindGame → `choice.taken`, `hint.revealed`, `finalize`; bind
 ## Durum & sıradaki
 **W5a (done):** ifade modeli + builder + verb/uzantı sözlüğü + `XapiConfig` + vitest.
 **W5b (done):** runtime'a bağlandı — `parseLaunch`/`normalizeActor` (saf, vitest) + kurs-düzeyi `Project.xapi`/
-`CourseSpec.xapi` + course config serileştirme (yalnız açıkken) + `XAPI` forwarder (cmi5/explicit LRS, offline
-tampon, en-iyi-çaba POST) + bindGame/bindAdaptive emit'leri. Bundle yalnız game/adaptive **veya açık xAPI** varsa
+`CourseSpec.xapi` + course config serileştirme (yalnız açıkken) + `XAPI` forwarder (cmi5/explicit LRS, sayfa-içi
+bellek kuyruğu (yeniden yüklemede kaybolur), en-iyi-çaba POST) + bindGame/bindAdaptive emit'leri. Bundle yalnız game/adaptive **veya açık xAPI** varsa
 inline (`_uses_engine_bundle`). Örnek: `escape-cipher-game.tr.json` cmi5 açık. **159 Python + 99 vitest + ruff temiz.**
 **Sıradaki W6:** oyun anti-slop kapısı (içsel-bütünleşme/mekanik-hedef izomorfizmi + a11y sözleşmesi denetimi).

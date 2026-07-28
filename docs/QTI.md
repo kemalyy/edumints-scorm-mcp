@@ -38,7 +38,7 @@ standart `match_correct` şablonunu kullanır (taşınabilir, motor-bağımsız 
 
 ## Kullanım
 `export_qti(project_id)` → `{ project_id, count, items: [{ filename: "qti/<id>.xml", xml }] }`.
-Yazar quiz ekranlarını QTI olarak alıp dış sistemlere yükler. (23. MCP aracı.)
+Yazar quiz ekranlarını QTI olarak alıp dış sistemlere yükler. (MCP araçlarından biri.)
 
 ## Sınırlar & yol haritası
 - `fill_blank`: yalnız ilk kabul edilen cevap; eşanlamlı/çoklu cevap için QTI `mapResponse` ileride.

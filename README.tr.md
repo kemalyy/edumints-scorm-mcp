@@ -52,7 +52,7 @@ runtime köprüsü ve paketleme. Sonuç standartlara uygun bir SCORM paketi — 
 - **Kompozisyonel oyun motoru** — **`game`** ekranı mekanik primitifleri (skor/can/süre/ipucu) +
   bildirimsel `when olay if koşul then aksiyon` kurallarını + dallanan düğümleri besteler;
   **`adaptive_practice`** ekranı yeterliliği (Elo veya Bayesian Knowledge Tracing) tahmin edip zorluğu
-  öğrenciye kalibre eder. Opsiyonel **xAPI/cmi5** telemetri, **anti-slop kalite kapısı** (`lint_course`)
+  öğrenciye kalibre eder. Opsiyonel **xAPI** telemetri (cmi5: kısmî — launch algılama), **anti-slop kalite kapısı** (`lint_course`)
   ve oyun erişilebilirliği (WCAG 2.2.1). Hepsi deterministik — sunucuda LLM yok.
 - **Slayt-sahne oynatıcı** — her ekrana ölçeklenen sabit 16:9 sahne, player bar (oynat/seekbar/
   altyazı/menü/replay) ve seslendirmeyle senkron **zamanlanmış timeline akışı**. Bölümlere göre

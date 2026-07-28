@@ -49,7 +49,7 @@
   **可组合游戏**、**自适应练习**。
 - **可组合游戏引擎**——**`game`** 屏幕由机制原语（分数/生命/计时器/提示）+ 声明式
   `when 事件 if 条件 then 动作` 规则 + 分支节点组合而成；**`adaptive_practice`** 屏幕评估能力
-  （Elo 或 Bayesian Knowledge Tracing）以将难度校准到学习者。可选 **xAPI/cmi5** 遥测、**反劣质质量门**
+  （Elo 或 Bayesian Knowledge Tracing）以将难度校准到学习者。可选 **xAPI** 遥测（cmi5：部分支持 — 仅检测启动）、**反劣质质量门**
   （`lint_course`）以及游戏无障碍（WCAG 2.2.1）。全部确定性——服务器端无 LLM。参见
   `docs/GAME-ECD.md`、`docs/GAME-ADAPTIVE.md`。
 - **幻灯片式舞台播放器**——固定 16:9 舞台，可缩放适配任意屏幕；播放栏（播放/进度/字幕/菜单/重播），
