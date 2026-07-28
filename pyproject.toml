@@ -8,7 +8,7 @@ license = { text = "MIT" }
 authors = [{ name = "edumints" }]
 
 dependencies = [
-    "fastmcp>=2.0",          # FastMCP server (Streamable HTTP transport)
+    "fastmcp>=2.0,<4",       # FastMCP server (Streamable HTTP); <4: v4 = MCP 2026-07-28 alpha hattı, bilinçli geçiş gerekir
     "pydantic>=2.6",         # v1.x veri modeli / spec şemaları
     "aiosqlite>=0.20",       # event-loop'u bloklamayan SQLite (WAL)
     "nh3>=0.2",              # HTML sanitizasyonu (ammonia binding) — *_html beyaz liste
