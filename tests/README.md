@@ -9,7 +9,7 @@ pytest -q                      # tests/test_golden.py + tests/test_units.py
 
 - `test_golden.py` — DoD (definition of done): `examples/small.json` → `build_from_spec` → zip aç →
   `imsmanifest.xml` geçerli + `index.html` + scorm-again gömülü + quiz skorlama hook'u. Ayrıca
-  `rich.json` ile 10 ekran tipinin tamamı + asset paketleme; preview'in tek-dosya / harici bağımlısız olması.
+  `rich.json` ile (fixture'ın kapsadığı ekran tipleri: 10/28) + asset paketleme; preview'in tek-dosya / harici bağımlısız olması.
 - `test_units.py` — manifest well-formed (1.2/2004), SSRF blok listesi (private/CGNAT/ULA/metadata),
   https/userinfo reddi, data-URI çözme + boyut limiti, HTML sanitizasyon, fast-path + idempotency, kota.
 
@@ -28,8 +28,7 @@ npx @modelcontextprotocol/inspector
 #   (auth açıksa) Header: Authorization: Bearer <api_key>
 ```
 
-12 tool görünmeli: create_project, add_screen, update_screen, list_screens, remove_screen,
-set_theme, set_tracking, add_asset, preview, build_package, validate_package, build_from_spec.
+29 tool görünmeli (tam liste: `server.py` içindeki `@mcp.tool` tanımları).
 
 ## Yük testi (build yolu)
 

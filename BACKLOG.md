@@ -21,7 +21,7 @@ existing `body_html` and `*_asset_id` fields stay; new fields are optional.
 - **Touches:** `core/project.py` (model), `components/templates.py` + renderer (new block layout). Hot file.
 
 ### P2 — `reorder_screens` tool
-- **Gap (verified):** no reorder/move tool exists among the 23 tools. `add_screen` always appends;
+- **Gap (verified):** (resolved: `reorder_screens` shipped; count now 29). `add_screen` always appends;
   `update_screen` replaces in place by id. Authors can't reorder after the fact.
 - **Proposal:** `reorder_screens(project_id, screen_ids_in_order: list[str])` → validates the set
   matches existing screen ids, reorders `project.screens`.

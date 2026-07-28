@@ -52,7 +52,7 @@ runtime körpüsü və paketləmə. Nəticə standartlara uyğun SCORM paketidir
 - **Kompozisiyalı oyun mühərriki** — **`game`** ekranı mexanika primitivlərini (xal/can/taymer/ipucu) +
   bəyanedici `when hadisə if şərt then hərəkət` qaydalarını + budaqlanan node-ları birləşdirir;
   **`adaptive_practice`** ekranı bacarığı (Elo və ya Bayesian Knowledge Tracing) qiymətləndirib
-  çətinliyi öyrənənə kalibrləyir. Opsional **xAPI/cmi5** telemetriya, **anti-slop keyfiyyət qapısı**
+  çətinliyi öyrənənə kalibrləyir. Opsional **xAPI** telemetriya (cmi5: qismən — launch aşkarlanması), **anti-slop keyfiyyət qapısı**
   (`lint_course`) və oyun əlçatanlığı (WCAG 2.2.1). Hamısı deterministik — serverdə LLM yoxdur. Bax:
   `docs/GAME-ECD.md`, `docs/GAME-ADAPTIVE.md`.
 - **Slayd-səhnə pleyeri** — istənilən ekrana miqyaslanan sabit 16:9 səhnə, pleyer paneli

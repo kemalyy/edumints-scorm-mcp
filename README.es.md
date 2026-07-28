@@ -54,7 +54,7 @@ un paquete SCORM conforme a los estándares, sin dependencia de proveedor.
 - **Motor de juego componible** — la pantalla **`game`** compone primitivos de mecánica
   (puntos/vidas/temporizador/pistas) + reglas declarativas `when evento if condición then acción` +
   nodos ramificados; la pantalla **`adaptive_practice`** estima la competencia (Elo o Bayesian Knowledge
-  Tracing) para calibrar la dificultad al alumno. Telemetría **xAPI/cmi5** opcional, una **puerta de
+  Tracing) para calibrar la dificultad al alumno. Telemetría **xAPI** opcional (cmi5: parcial — detección de lanzamiento), una **puerta de
   calidad anti-slop** (`lint_course`) y accesibilidad del juego (WCAG 2.2.1). Todo determinista — sin
   LLM en el servidor. Véase `docs/GAME-ECD.md`, `docs/GAME-ADAPTIVE.md`.
 - **Reproductor de escenario tipo diapositiva** — escenario fijo 16:9 que se adapta a cualquier
