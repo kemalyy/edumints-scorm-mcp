@@ -1,0 +1,40 @@
+name: fastmcp-watch
+
+# #93 aktif bekleme: FastMCP 4 stable PyPI'a düştüğünde tracking issue'ya uyarı yorumu bırakır.
+# Pin (<4) bizi kazayla kırılmaktan koruyor; bu workflow haber verme tarafını kapatıyor.
+
+on:
+  schedule:
+    - cron: "0 8 * * 1" # her pazartesi 08:00 UTC
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check PyPI for a stable fastmcp v4
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          latest=$(curl -sf https://pypi.org/pypi/fastmcp/json | python3 -c '
+          import sys, json, re
+          d = json.load(sys.stdin)
+          vs = [v for v in d["releases"] if re.fullmatch(r"4\.\d+\.\d+", v) and d["releases"][v]]
+          vs.sort(key=lambda s: [int(x) for x in s.split(".")])
+          print(vs[-1] if vs else "")')
+          if [ -z "$latest" ]; then
+            echo "FastMCP 4 stable henüz yok — sorun değil."
+            exit 0
+          fi
+          marker="fastmcp-watch: v$latest"
+          if gh issue view 93 --repo "$REPO" --json comments --jq '.comments[].body' | grep -qF "$marker"; then
+            echo "v$latest zaten bildirilmiş."
+            exit 0
+          fi
+          gh issue comment 93 --repo "$REPO" --body "$marker stable olarak PyPI'da. #93 migrasyonu başlatılabilir: pini güncelle, tam suite (pytest+vitest+scorm-probe) + çift-dönem client doğrulaması. (otomatik uyarı — fastmcp-watch)"
