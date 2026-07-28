@@ -284,6 +284,35 @@ async def _validate_bearer(raw: str | None) -> tuple[ApiKey | None, list[str]]:
     return owner, list(getattr(at, "scopes", None) or [])
 
 
+def _www_authenticate_value() -> str:
+    """401 challenge değeri (#98 — MCP 2026-07-28 / RFC 9728).
+
+    OAuth açıkken metadata URL'si TAHMİN edilmez: RemoteAuthProvider'ın fiilen mount ettiği
+    yolla birebir aynı türetilir (mcp.server.auth.routes.build_resource_metadata_url —
+    RFC 9728 §3.1: /.well-known/oauth-protected-resource, host ile resource path'in ARASINA
+    girer; resource path = PUBLIC_BASE_URL'nin path'i + streamable_http_path, vars. /mcp).
+    API-key-only modda metadata endpoint'i yok → sade `Bearer`.
+    """
+    if not SETTINGS.oauth_enabled:
+        return "Bearer"
+    import fastmcp
+    from urllib.parse import urlparse
+
+    parsed = urlparse(SETTINGS.public_base_url)
+    base_path = "" if parsed.path in ("", "/") else parsed.path.rstrip("/")
+    resource_path = base_path + fastmcp.settings.streamable_http_path
+    url = f"{parsed.scheme}://{parsed.netloc}/.well-known/oauth-protected-resource{resource_path}"
+    return f'Bearer resource_metadata="{url}"'
+
+
+def _unauthorized() -> JSONResponse:
+    """Custom route 401'i — WWW-Authenticate ile (MCP endpoint'inde bunu RemoteAuthProvider yapar)."""
+    return JSONResponse(
+        {"error": "unauthorized"}, status_code=401,
+        headers={"WWW-Authenticate": _www_authenticate_value()},
+    )
+
+
 async def _load(project_id: str, owner: ApiKey) -> Project:
     p = await SVC.store.get_project(project_id, owner.id)
     if p is None:
@@ -1041,6 +1070,28 @@ async def build_package(project_id: str) -> BuildOut:
 
 
 @mcp.tool
+async def build_status(project_id: str) -> BuildOut:
+    """Projenin EN SON build job'unun durumunu döner (poll aracı, §3.1 — #94).
+
+    build_package/build_from_spec fast-path'i aşıp job_id+status döndüğünde bununla sorgula:
+    status="done" olunca download_url dolu döner. Store-backed okuma → restart sonrası da çalışır.
+    Yeni build TETİKLEMEZ (idempotent poll için build_package'ı yeniden çağırmak da güvenlidir)."""
+    await SVC.ensure()
+    try:
+        owner = await _owner()
+        p = await _load(project_id, owner)
+        job = await SVC.store.active_job_for_project(p.id)
+        if job is None:
+            raise ToolError(
+                "not_found",
+                f"Bu proje için build job yok: {project_id}. Önce build_package çağır.",
+            )
+        return await _job_to_out(job, p)
+    except ToolError as e:
+        raise _wrap(e)
+
+
+@mcp.tool
 async def validate_package(project_id: str) -> ValidateOut:
     """Proje + (varsa) son paketin manifest/yapı doğrulamasını yapar."""
     await SVC.ensure()
@@ -1294,7 +1345,7 @@ async def usage(request: Request) -> JSONResponse:
     await SVC.ensure()
     owner, scopes = await _validate_bearer(parse_bearer(dict(request.headers)))
     if owner is None:
-        return JSONResponse({"error": "unauthorized"}, status_code=401)
+        return _unauthorized()
     if "mcp" not in scopes:
         return JSONResponse({"error": "forbidden", "detail": "account not approved"}, status_code=403)
     tier = await SVC.store.get_or_create_principal(owner.id)
@@ -1319,7 +1370,7 @@ async def create_key(request: Request) -> JSONResponse:
     await SVC.ensure()
     owner, scopes = await _validate_bearer(parse_bearer(dict(request.headers)))
     if owner is None:
-        return JSONResponse({"error": "unauthorized"}, status_code=401)
+        return _unauthorized()
     if "mcp" not in scopes:
         return JSONResponse({"error": "forbidden", "detail": "account not approved"}, status_code=403)
     raw = "sk_" + secrets.token_urlsafe(32)
@@ -1340,7 +1391,7 @@ async def keys_list(request: Request) -> JSONResponse:
     await SVC.ensure()
     owner, scopes = await _validate_bearer(parse_bearer(dict(request.headers)))
     if owner is None:
-        return JSONResponse({"error": "unauthorized"}, status_code=401)
+        return _unauthorized()
     if "mcp" not in scopes:
         return JSONResponse({"error": "forbidden", "detail": "account not approved"}, status_code=403)
     keys = await SVC.store.list_keys_for_principal(owner.id)
@@ -1358,7 +1409,7 @@ async def keys_delete(request: Request) -> JSONResponse:
     await SVC.ensure()
     owner, scopes = await _validate_bearer(parse_bearer(dict(request.headers)))
     if owner is None:
-        return JSONResponse({"error": "unauthorized"}, status_code=401)
+        return _unauthorized()
     if "mcp" not in scopes:
         return JSONResponse({"error": "forbidden", "detail": "account not approved"}, status_code=403)
     kid = request.path_params["key_id"]
@@ -1382,7 +1433,7 @@ async def projects_list(request: Request) -> JSONResponse:
     await SVC.ensure()
     owner, scopes = await _validate_bearer(parse_bearer(dict(request.headers)))
     if owner is None:
-        return JSONResponse({"error": "unauthorized"}, status_code=401)
+        return _unauthorized()
     if "mcp" not in scopes:
         return JSONResponse({"error": "forbidden", "detail": "account not approved"}, status_code=403)
     out = []

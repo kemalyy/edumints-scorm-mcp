@@ -3,6 +3,26 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Added — build_status tool (#94)
+- New `build_status(project_id)` MCP tool (30th tool): polls the newest build job for a project
+  after `build_package`/`build_from_spec` returned `job_id`+`status` past the fast-path window.
+  Ownership-checked like every other tool; the read is store-backed (`active_job_for_project`,
+  newest job) so polling keeps working across server restarts. Returns `BuildOut` — `download_url`
+  and `size` are populated only when `status="done"`; a project with no build job at all raises a
+  clear `not_found` ToolError. Never triggers a new build.
+
+### Added — WWW-Authenticate on custom-route 401s (#98)
+- The five bare-JSON 401 responses of the custom Starlette routes (`GET /usage`, `POST /keys`,
+  `GET /keys`, `DELETE /keys/{key_id}`, `GET /projects`) now carry a `WWW-Authenticate` header per
+  the MCP 2026-07-28 authorization spec (RFC 9728). With OAuth enabled the challenge points at the
+  protected-resource metadata URL exactly as RemoteAuthProvider mounts it
+  (`/.well-known/oauth-protected-resource` inserted between host and resource path, resource path =
+  `PUBLIC_BASE_URL` path + `/mcp` — derived, not guessed; a test cross-checks against the SDK's
+  `build_resource_metadata_url`). In API-key-only mode the header is a plain `Bearer`. 200 paths
+  are unchanged.
+
 ## [1.6.0] — 2026-07-26
 
 Demo surface hardening + SCORM contract completion + evidence & process. The permanent `/demo`
