@@ -15,13 +15,13 @@
 
 ## Live demos
 
-Three complete courses — three audiences, three visual identities — built entirely with this server
+Four complete courses — four audiences, four visual identities — built entirely with this server
 and served from a live deploy. **Click any screenshot to launch.**
 
-| [Be a Password Hero!](https://scorm.edumints.com/demo/password-hero) | [Spot the Phish](https://scorm.edumints.com/demo/spot-the-phish) | [The Ad Hominem Argument](https://scorm.edumints.com/demo/ad-hominem) |
-|:---:|:---:|:---:|
-| [![Password Hero demo](docs/assets/demo-password-hero.png)](https://scorm.edumints.com/demo/password-hero) | [![Spot the Phish demo](docs/assets/demo-spot-the-phish.png)](https://scorm.edumints.com/demo/spot-the-phish) | [![Ad Hominem demo](docs/assets/demo-ad-hominem.png)](https://scorm.edumints.com/demo/ad-hominem) |
-| Ages 9–13 · internet safety · `style-playful` + custom brand | Corporate onboarding · email security · `style-minimal` + corporate brand | Graduate level · argumentation theory · `style-premium` |
+| [Be a Password Hero!](https://scorm.edumints.com/demo/password-hero) | [Spot the Phish](https://scorm.edumints.com/demo/spot-the-phish) | [The Ad Hominem Argument](https://scorm.edumints.com/demo/ad-hominem) | [Grafik Dedektifi](https://scorm.edumints.com/demo/grafik-dedektifi) |
+|:---:|:---:|:---:|:---:|
+| [![Password Hero demo](docs/assets/demo-password-hero.png)](https://scorm.edumints.com/demo/password-hero) | [![Spot the Phish demo](docs/assets/demo-spot-the-phish.png)](https://scorm.edumints.com/demo/spot-the-phish) | [![Ad Hominem demo](docs/assets/demo-ad-hominem.png)](https://scorm.edumints.com/demo/ad-hominem) | [![Grafik Dedektifi demo](docs/assets/demo-grafik-dedektifi.png)](https://scorm.edumints.com/demo/grafik-dedektifi) |
+| Ages 9–13 · internet safety · `style-playful` + custom brand | Corporate onboarding · email security · `style-minimal` + corporate brand | Graduate level · argumentation theory · `style-premium` | Turkish · data literacy · inquiry-based (5E) · evidence-bound assessment |
 
 Each demo features a narrative thread, realistic artifact-mockup SVGs, flag-hunting simulations,
 before/after comparisons, timelines, a case game, and adaptive feedback — with question-level SCORM

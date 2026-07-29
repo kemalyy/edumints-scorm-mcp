@@ -7,13 +7,13 @@
 
 ## 在线演示
 
-三门完整课程——三个级别，三种视觉风格——完全用本服务器构建，并通过一个在线部署提供。
+四门完整课程——四个级别，四种视觉风格——完全用本服务器构建，并通过一个在线部署提供。
 **点击任意截图即可启动。**
 
-| [Be a Password Hero!](https://scorm.edumints.com/demo/password-hero) | [Spot the Phish](https://scorm.edumints.com/demo/spot-the-phish) | [The Ad Hominem Argument](https://scorm.edumints.com/demo/ad-hominem) |
-|:---:|:---:|:---:|
-| [![Password Hero 演示](docs/assets/demo-password-hero.png)](https://scorm.edumints.com/demo/password-hero) | [![Spot the Phish 演示](docs/assets/demo-spot-the-phish.png)](https://scorm.edumints.com/demo/spot-the-phish) | [![Ad Hominem 演示](docs/assets/demo-ad-hominem.png)](https://scorm.edumints.com/demo/ad-hominem) |
-| 9–13 岁 · 网络安全 · `style-playful` + 定制品牌 | 企业新员工培训 · 邮件安全 · `style-minimal` + 企业品牌 | 研究生 · 论证理论 · `style-premium` |
+| [Be a Password Hero!](https://scorm.edumints.com/demo/password-hero) | [Spot the Phish](https://scorm.edumints.com/demo/spot-the-phish) | [The Ad Hominem Argument](https://scorm.edumints.com/demo/ad-hominem) | [Grafik Dedektifi](https://scorm.edumints.com/demo/grafik-dedektifi) |
+|:---:|:---:|:---:|:---:|
+| [![Password Hero 演示](docs/assets/demo-password-hero.png)](https://scorm.edumints.com/demo/password-hero) | [![Spot the Phish 演示](docs/assets/demo-spot-the-phish.png)](https://scorm.edumints.com/demo/spot-the-phish) | [![Ad Hominem 演示](docs/assets/demo-ad-hominem.png)](https://scorm.edumints.com/demo/ad-hominem) | [![Grafik Dedektifi 演示](docs/assets/demo-grafik-dedektifi.png)](https://scorm.edumints.com/demo/grafik-dedektifi) |
+| 9–13 岁 · 网络安全 · `style-playful` + 定制品牌 | 企业新员工培训 · 邮件安全 · `style-minimal` + 企业品牌 | 研究生 · 论证理论 · `style-premium` | 土耳其语 · 数据素养 · 探究式学习（5E）· 证据关联评估 |
 
 每个演示都包含：叙事主线、逼真的仿真物件 SVG、找旗标模拟、前后对比、时间线、案例游戏与自适应
 反馈——底层还有按题目粒度的 SCORM 报告。

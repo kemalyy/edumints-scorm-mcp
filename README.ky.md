@@ -7,13 +7,13 @@
 
 ## Жандуу демолор
 
-Үч толук курс — үч деңгээл, үч визуалдык идентификация — толугу менен ушул сервер менен курулган
+Төрт толук курс — төрт деңгээл, төрт визуалдык идентификация — толугу менен ушул сервер менен курулган
 жана жандуу деплойдон берилет. **Иштетүү үчүн каалаган скриншотко басыңыз.**
 
-| [Be a Password Hero!](https://scorm.edumints.com/demo/password-hero) | [Spot the Phish](https://scorm.edumints.com/demo/spot-the-phish) | [The Ad Hominem Argument](https://scorm.edumints.com/demo/ad-hominem) |
-|:---:|:---:|:---:|
-| [![Password Hero демосу](docs/assets/demo-password-hero.png)](https://scorm.edumints.com/demo/password-hero) | [![Spot the Phish демосу](docs/assets/demo-spot-the-phish.png)](https://scorm.edumints.com/demo/spot-the-phish) | [![Ad Hominem демосу](docs/assets/demo-ad-hominem.png)](https://scorm.edumints.com/demo/ad-hominem) |
-| 9–13 жаш · интернет коопсуздугу · `style-playful` + өздүк бренд | Корпоративдик адаптация · электрондук почта коопсуздугу · `style-minimal` + корпоративдик бренд | Магистратура · аргументация теориясы · `style-premium` |
+| [Be a Password Hero!](https://scorm.edumints.com/demo/password-hero) | [Spot the Phish](https://scorm.edumints.com/demo/spot-the-phish) | [The Ad Hominem Argument](https://scorm.edumints.com/demo/ad-hominem) | [Grafik Dedektifi](https://scorm.edumints.com/demo/grafik-dedektifi) |
+|:---:|:---:|:---:|:---:|
+| [![Password Hero демосу](docs/assets/demo-password-hero.png)](https://scorm.edumints.com/demo/password-hero) | [![Spot the Phish демосу](docs/assets/demo-spot-the-phish.png)](https://scorm.edumints.com/demo/spot-the-phish) | [![Ad Hominem демосу](docs/assets/demo-ad-hominem.png)](https://scorm.edumints.com/demo/ad-hominem) | [![Grafik Dedektifi демосу](docs/assets/demo-grafik-dedektifi.png)](https://scorm.edumints.com/demo/grafik-dedektifi) |
+| 9–13 жаш · интернет коопсуздугу · `style-playful` + өздүк бренд | Корпоративдик адаптация · электрондук почта коопсуздугу · `style-minimal` + корпоративдик бренд | Магистратура · аргументация теориясы · `style-premium` | Түркчө · маалымат сабаттуулугу · изилдөөгө негизделген (5E) · далилге байланган баалоо |
 
 Ар бир демо: баяндоо сабы, реалисттик артефакт-мокап SVG'лери, желек-табуу симуляциялары,
 мурун/кийин салыштыруулары, убакыт сызыктары, кейс-оюн жана адаптивдүү пикир билдирүү — астында
