@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.kemalyy/edumints-scorm-mcp",
   "title": "edumints SCORM MCP",
-  "description": "Compiles interactive, standards-conformant e-learning courses: structured spec in, self-contained SCORM 1.2/2004 zip out (XSD + SCORM Cloud verified). 30 tools, 28 screen types, quality lint gate, permanent shareable demos. No LLM on the server.",
+  "description": "Compiles structured specs into SCORM 1.2/2004 e-learning packages. 30 tools, quality gate, no LLM.",
   "version": "1.6.0",
   "websiteUrl": "https://mcp.edumints.com",
   "repository": {
