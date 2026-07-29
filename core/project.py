@@ -984,6 +984,8 @@ class BuildOut(BaseModel):
     size: int | None = None
     scorm_version: str
     error: str | None = None
+    # SP-5 — bloklamayan artifact uyarıları (ör. schema_unavailable); additive, danışsal.
+    warnings: list[str] = Field(default_factory=list)
 
 
 class ValidationError(BaseModel):
@@ -1003,6 +1005,8 @@ class BuildFromSpecOut(BaseModel):
     job_id: str
     status: Literal["queued", "running", "done", "error"]
     download_url: str | None = None
+    # SP-5 — bloklamayan artifact uyarıları (ör. schema_unavailable); additive, danışsal.
+    warnings: list[str] = Field(default_factory=list)
 
 
 # AddAssetOut = AssetRef (CONTRACTS.md §3)
