@@ -1977,3 +1977,19 @@ def test_s2_lint_warns_on_unbound_objective():
     assert "unbound_objective" not in {i.code for i in lint_course(p)}
     p2 = Project(id=new_project_id(), title="T", screens=_obj_screens()[:1])
     assert "unbound_objective" not in {i.code for i in lint_course(p2)}
+
+
+def test_item_media_centered_in_wide_columns_by_css():
+    """Bug (2026-07-29): .item-media display:block + margin:'var(--space-3) 0' — görsel geniş
+    ekranda kolonundan darsa (block + width:auto) SOLA yapışır (canlı ölçüm: sol 341px /
+    sağ 659px). Yatay margin 'auto' olmadan blok görselin ortalanması mümkün değil; dar
+    ekranda genişlik dolu olduğundan auto etkisizdir (mobil davranış değişmez)."""
+    from components.templates import BASE_CSS
+    import re
+
+    m = re.search(r"\.item-media\{[^}]*\}", BASE_CSS)
+    assert m, ".item-media kuralı BASE_CSS'te bulunamadı"
+    rule = m.group(0)
+    assert re.search(r"margin:[^;}]*auto", rule), (
+        ".item-media yatay margin'i auto olmalı (geniş ekranda ortalama): " + rule
+    )

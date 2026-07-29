@@ -266,11 +266,13 @@ body[data-bg="grid"]{background-image:linear-gradient(color-mix(in srgb,var(--c-
 .split.text-first{flex-direction:row}
 .split.media-first{flex-direction:row-reverse}
 .full-media{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden;
-  margin:var(--space-3) 0}
+  margin:var(--space-3) auto}
 .full-media .media{max-height:100%;width:auto;max-width:100%;height:auto;object-fit:contain}
-/* P1/P3/P4 — akış içi (item/blok) görseller: doğal akar, max-width'e sığar, makul tavan */
+/* P1/P3/P4 — akış içi (item/blok) görseller: doğal akar, max-width'e sığar, makul tavan.
+   Yatay margin auto: display:block görsel geniş ekranda kolonundan darsa sola yapışıyordu
+   (2026-07-29 raporu, ölçüm 341/659px); dar ekranda genişlik zaten dolu olduğundan etkisiz. */
 .item-media{display:block;max-width:100%;width:auto;height:auto;max-height:340px;object-fit:contain;
-  border-radius:var(--r-md);box-shadow:var(--e1);margin:var(--space-3) 0}
+  border-radius:var(--r-md);box-shadow:var(--e1);margin:var(--space-3) auto}
 .content-blocks{flex:1;min-height:0}
 .content-blocks figure.block-media{margin:0}
 .content-blocks figcaption{font-size:13px;color:var(--c-muted);text-align:center;margin-top:var(--space-2)}
