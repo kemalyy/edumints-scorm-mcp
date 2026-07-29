@@ -7,13 +7,13 @@
 
 ## Живые демо
 
-Три полных курса — три уровня, три визуальных стиля — созданы полностью с помощью этого
+Четыре полных курса — четыре уровня, четыре визуальных стиля — созданы полностью с помощью этого
 сервера и опубликованы в живом развёртывании. **Нажмите на любой скриншот, чтобы запустить.**
 
-| [Be a Password Hero!](https://scorm.edumints.com/demo/password-hero) | [Spot the Phish](https://scorm.edumints.com/demo/spot-the-phish) | [The Ad Hominem Argument](https://scorm.edumints.com/demo/ad-hominem) |
-|:---:|:---:|:---:|
-| [![Демо Password Hero](docs/assets/demo-password-hero.png)](https://scorm.edumints.com/demo/password-hero) | [![Демо Spot the Phish](docs/assets/demo-spot-the-phish.png)](https://scorm.edumints.com/demo/spot-the-phish) | [![Демо Ad Hominem](docs/assets/demo-ad-hominem.png)](https://scorm.edumints.com/demo/ad-hominem) |
-| 9–13 лет · безопасность в интернете · `style-playful` + собственный бренд | Онбординг для компаний · безопасность почты · `style-minimal` + корпоративный бренд | Магистратура · теория аргументации · `style-premium` |
+| [Be a Password Hero!](https://scorm.edumints.com/demo/password-hero) | [Spot the Phish](https://scorm.edumints.com/demo/spot-the-phish) | [The Ad Hominem Argument](https://scorm.edumints.com/demo/ad-hominem) | [Grafik Dedektifi](https://scorm.edumints.com/demo/grafik-dedektifi) |
+|:---:|:---:|:---:|:---:|
+| [![Демо Password Hero](docs/assets/demo-password-hero.png)](https://scorm.edumints.com/demo/password-hero) | [![Демо Spot the Phish](docs/assets/demo-spot-the-phish.png)](https://scorm.edumints.com/demo/spot-the-phish) | [![Демо Ad Hominem](docs/assets/demo-ad-hominem.png)](https://scorm.edumints.com/demo/ad-hominem) | [![Демо Grafik Dedektifi](docs/assets/demo-grafik-dedektifi.png)](https://scorm.edumints.com/demo/grafik-dedektifi) |
+| 9–13 лет · безопасность в интернете · `style-playful` + собственный бренд | Онбординг для компаний · безопасность почты · `style-minimal` + корпоративный бренд | Магистратура · теория аргументации · `style-premium` | Турецкий · грамотность данных · исследовательский подход (5E) · оценивание на основе доказательств |
 
 Каждое демо: сюжетная линия, реалистичные SVG-макеты артефактов, симуляции поиска флагов,
 сравнения до/после, временные шкалы, игра по кейсам и адаптивная обратная связь — с отчётностью

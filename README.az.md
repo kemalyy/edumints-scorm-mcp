@@ -7,13 +7,13 @@
 
 ## Canlı demolar
 
-Üç tam kurs — üç səviyyə, üç vizual kimlik — tamamilə bu server ilə qurulub və canlı
+Dörd tam kurs — dörd səviyyə, dörd vizual kimlik — tamamilə bu server ilə qurulub və canlı
 yerləşdirmədən təqdim olunur. **Başlatmaq üçün istənilən ekran görüntüsünə klik edin.**
 
-| [Be a Password Hero!](https://scorm.edumints.com/demo/password-hero) | [Spot the Phish](https://scorm.edumints.com/demo/spot-the-phish) | [The Ad Hominem Argument](https://scorm.edumints.com/demo/ad-hominem) |
-|:---:|:---:|:---:|
-| [![Password Hero demosu](docs/assets/demo-password-hero.png)](https://scorm.edumints.com/demo/password-hero) | [![Spot the Phish demosu](docs/assets/demo-spot-the-phish.png)](https://scorm.edumints.com/demo/spot-the-phish) | [![Ad Hominem demosu](docs/assets/demo-ad-hominem.png)](https://scorm.edumints.com/demo/ad-hominem) |
-| 9–13 yaş · internet təhlükəsizliyi · `style-playful` + fərdi brend | Korporativ adaptasiya · e-poçt təhlükəsizliyi · `style-minimal` + korporativ brend | Magistratura · arqumentasiya nəzəriyyəsi · `style-premium` |
+| [Be a Password Hero!](https://scorm.edumints.com/demo/password-hero) | [Spot the Phish](https://scorm.edumints.com/demo/spot-the-phish) | [The Ad Hominem Argument](https://scorm.edumints.com/demo/ad-hominem) | [Grafik Dedektifi](https://scorm.edumints.com/demo/grafik-dedektifi) |
+|:---:|:---:|:---:|:---:|
+| [![Password Hero demosu](docs/assets/demo-password-hero.png)](https://scorm.edumints.com/demo/password-hero) | [![Spot the Phish demosu](docs/assets/demo-spot-the-phish.png)](https://scorm.edumints.com/demo/spot-the-phish) | [![Ad Hominem demosu](docs/assets/demo-ad-hominem.png)](https://scorm.edumints.com/demo/ad-hominem) | [![Grafik Dedektifi demosu](docs/assets/demo-grafik-dedektifi.png)](https://scorm.edumints.com/demo/grafik-dedektifi) |
+| 9–13 yaş · internet təhlükəsizliyi · `style-playful` + fərdi brend | Korporativ adaptasiya · e-poçt təhlükəsizliyi · `style-minimal` + korporativ brend | Magistratura · arqumentasiya nəzəriyyəsi · `style-premium` | Türk dili · data savadlılığı · kəşfə əsaslanan (5E) · dəlilə bağlı qiymətləndirmə |
 
 Hər demo: povest xətti, realistik artefakt-maket SVG-ləri, bayraq-tapma simulyasiyaları,
 əvvəl/sonra müqayisələri, zaman xəttləri, keys oyunu və adaptiv rəy — altında sual səviyyəli
