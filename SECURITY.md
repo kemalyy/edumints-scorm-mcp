@@ -25,6 +25,30 @@ This is a self-hostable server. When you deploy it, **you** are responsible for 
   tune them for your environment.
 - **Auth:** the server supports API-key and OAuth flows; protect your endpoint and rotate keys.
 
+## Provenance: what is (and is not) an official artifact
+
+Official artifacts of this project are **only**:
+
+- Source code in **https://github.com/kemalyy/edumints-scorm-mcp** (and the authoring skill at
+  **https://github.com/kemalyy/edumints-scorm-skill**).
+- The container image **`ghcr.io/kemalyy/edumints-scorm-mcp`**, published exclusively by this
+  repository's `release.yml` workflow from tagged releases. Image attestation (signed provenance)
+  is planned.
+- The hosted service at **https://scorm.edumints.com** (MCP endpoint `/mcp`) with its account
+  portal **https://mcp.edumints.com**.
+
+We publish **no PyPI or npm packages today**. Treat any package on any registry claiming to be
+this project as an impostor unless the README explicitly says otherwise.
+
+## Reporting lookalike repos and impostor packages
+
+Cloned/renamed repositories, re-uploaded zips, typosquatted packages or domains that impersonate
+this project are a supply-chain risk to users. We have previously had a lookalike repository
+removed through the platform's impersonation/takedown process and will pursue the same route
+again. If you spot one, report it via the channels above (a public issue is fine for lookalikes
+when no vulnerability details are involved) — include the URL and, if possible, what it copies.
+
 ## Supported versions
 
-This project is pre-1.0; security fixes target the latest `main`.
+Security fixes target the latest tagged release (currently the 1.x line) and `main`. Older tags
+receive no backports; please upgrade to the latest release.
