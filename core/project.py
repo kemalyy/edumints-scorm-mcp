@@ -364,6 +364,9 @@ class MCQScreen(ScreenBase):
     feedback: Feedback = Field(default_factory=Feedback)
     points: int = 10
     objective_ids: list[str] = Field(default_factory=list)  # S2 (2.4) — kurs hedef(ler)ine bağ
+    # E1 (#110) — K1 kanıt bağı: cevabın türetildiği kurs-içi kanıt-kaynağı ekran id'leri.
+    # Varsa OTORİTER (sarkan id = SERT hata); boşsa lint zayıf heuristikle bakar (antislop E1).
+    evidence_screen_ids: list[str] = Field(default_factory=list)
 
 
 class TrueFalseScreen(ScreenBase):
@@ -373,6 +376,9 @@ class TrueFalseScreen(ScreenBase):
     feedback: Feedback = Field(default_factory=Feedback)
     points: int = 10
     objective_ids: list[str] = Field(default_factory=list)  # S2 (2.4) — kurs hedef(ler)ine bağ
+    # E1 (#110) — K1 kanıt bağı: cevabın türetildiği kurs-içi kanıt-kaynağı ekran id'leri.
+    # Varsa OTORİTER (sarkan id = SERT hata); boşsa lint zayıf heuristikle bakar (antislop E1).
+    evidence_screen_ids: list[str] = Field(default_factory=list)
 
 
 class FillBlankScreen(ScreenBase):
@@ -383,6 +389,9 @@ class FillBlankScreen(ScreenBase):
     feedback: Feedback = Field(default_factory=Feedback)
     points: int = 10
     objective_ids: list[str] = Field(default_factory=list)  # S2 (2.4) — kurs hedef(ler)ine bağ
+    # E1 (#110) — K1 kanıt bağı: cevabın türetildiği kurs-içi kanıt-kaynağı ekran id'leri.
+    # Varsa OTORİTER (sarkan id = SERT hata); boşsa lint zayıf heuristikle bakar (antislop E1).
+    evidence_screen_ids: list[str] = Field(default_factory=list)
 
 
 class DragDropScreen(ScreenBase):
@@ -393,6 +402,9 @@ class DragDropScreen(ScreenBase):
     feedback: Feedback = Field(default_factory=Feedback)
     points: int = 10
     objective_ids: list[str] = Field(default_factory=list)  # S2 (2.4) — kurs hedef(ler)ine bağ
+    # E1 (#110) — K1 kanıt bağı: cevabın türetildiği kurs-içi kanıt-kaynağı ekran id'leri.
+    # Varsa OTORİTER (sarkan id = SERT hata); boşsa lint zayıf heuristikle bakar (antislop E1).
+    evidence_screen_ids: list[str] = Field(default_factory=list)
 
 
 class HotspotScreen(ScreenBase):
@@ -404,6 +416,9 @@ class HotspotScreen(ScreenBase):
     feedback: Feedback = Field(default_factory=Feedback)
     points: int = 10
     objective_ids: list[str] = Field(default_factory=list)  # S2 (2.4) — kurs hedef(ler)ine bağ
+    # E1 (#110) — K1 kanıt bağı: cevabın türetildiği kurs-içi kanıt-kaynağı ekran id'leri.
+    # Varsa OTORİTER (sarkan id = SERT hata); boşsa lint zayıf heuristikle bakar (antislop E1).
+    evidence_screen_ids: list[str] = Field(default_factory=list)
 
 
 class BranchingScreen(ScreenBase):
@@ -485,6 +500,9 @@ class MatchingScreen(ScreenBase):
     feedback: Feedback = Field(default_factory=Feedback)
     points: int = 10
     objective_ids: list[str] = Field(default_factory=list)  # S2 (2.4) — kurs hedef(ler)ine bağ
+    # E1 (#110) — K1 kanıt bağı: cevabın türetildiği kurs-içi kanıt-kaynağı ekran id'leri.
+    # Varsa OTORİTER (sarkan id = SERT hata); boşsa lint zayıf heuristikle bakar (antislop E1).
+    evidence_screen_ids: list[str] = Field(default_factory=list)
 
 
 class SortItem(BaseModel):
@@ -499,6 +517,9 @@ class SortingScreen(ScreenBase):
     feedback: Feedback = Field(default_factory=Feedback)
     points: int = 10
     objective_ids: list[str] = Field(default_factory=list)  # S2 (2.4) — kurs hedef(ler)ine bağ
+    # E1 (#110) — K1 kanıt bağı: cevabın türetildiği kurs-içi kanıt-kaynağı ekran id'leri.
+    # Varsa OTORİTER (sarkan id = SERT hata); boşsa lint zayıf heuristikle bakar (antislop E1).
+    evidence_screen_ids: list[str] = Field(default_factory=list)
 
 
 class TimelineEvent(BaseModel):
@@ -547,6 +568,9 @@ class SimulationScreen(ScreenBase):
     steps: list[SimStep] = Field(min_length=1)
     points: int = 10
     objective_ids: list[str] = Field(default_factory=list)  # S2 (2.4) — kurs hedef(ler)ine bağ
+    # E1 (#110) — K1 kanıt bağı: cevabın türetildiği kurs-içi kanıt-kaynağı ekran id'leri.
+    # Varsa OTORİTER (sarkan id = SERT hata); boşsa lint zayıf heuristikle bakar (antislop E1).
+    evidence_screen_ids: list[str] = Field(default_factory=list)
     feedback: Feedback = Field(default_factory=Feedback)
 
 
@@ -584,6 +608,9 @@ class DecisionScenarioScreen(ScreenBase):
     pass_score: int | None = None  # None → skor > 0 geçer; verilirse skor ≥ pass_score geçer
     points: int = 20
     objective_ids: list[str] = Field(default_factory=list)  # S2 (2.4) — kurs hedef(ler)ine bağ
+    # E1 (#110) — K1 kanıt bağı: cevabın türetildiği kurs-içi kanıt-kaynağı ekran id'leri.
+    # Varsa OTORİTER (sarkan id = SERT hata); boşsa lint zayıf heuristikle bakar (antislop E1).
+    evidence_screen_ids: list[str] = Field(default_factory=list)
     feedback: Feedback = Field(default_factory=Feedback)
 
 
@@ -605,6 +632,9 @@ class TermMatchRaceScreen(ScreenBase):
     time_limit_sec: int = 60
     points: int = 15
     objective_ids: list[str] = Field(default_factory=list)  # S2 (2.4) — kurs hedef(ler)ine bağ
+    # E1 (#110) — K1 kanıt bağı: cevabın türetildiği kurs-içi kanıt-kaynağı ekran id'leri.
+    # Varsa OTORİTER (sarkan id = SERT hata); boşsa lint zayıf heuristikle bakar (antislop E1).
+    evidence_screen_ids: list[str] = Field(default_factory=list)
     feedback: Feedback = Field(default_factory=Feedback)
 
 
@@ -626,6 +656,9 @@ class EscapeRoomScreen(ScreenBase):
     lives: int = 3
     points: int = 20
     objective_ids: list[str] = Field(default_factory=list)  # S2 (2.4) — kurs hedef(ler)ine bağ
+    # E1 (#110) — K1 kanıt bağı: cevabın türetildiği kurs-içi kanıt-kaynağı ekran id'leri.
+    # Varsa OTORİTER (sarkan id = SERT hata); boşsa lint zayıf heuristikle bakar (antislop E1).
+    evidence_screen_ids: list[str] = Field(default_factory=list)
     feedback: Feedback = Field(default_factory=Feedback)
 
 
@@ -647,6 +680,9 @@ class LabeledDiagramScreen(ScreenBase):
     labels: list[DiagramLabel] = Field(min_length=2)
     points: int = 15
     objective_ids: list[str] = Field(default_factory=list)  # S2 (2.4) — kurs hedef(ler)ine bağ
+    # E1 (#110) — K1 kanıt bağı: cevabın türetildiği kurs-içi kanıt-kaynağı ekran id'leri.
+    # Varsa OTORİTER (sarkan id = SERT hata); boşsa lint zayıf heuristikle bakar (antislop E1).
+    evidence_screen_ids: list[str] = Field(default_factory=list)
     feedback: Feedback = Field(default_factory=Feedback)
 
 
@@ -733,6 +769,9 @@ class GameScreen(ScreenBase):
     pass_score: int | None = None  # None → skor > 0 geçer; verilirse skor ≥ pass_score
     points: int = 25
     objective_ids: list[str] = Field(default_factory=list)  # S2 (2.4) — kurs hedef(ler)ine bağ
+    # E1 (#110) — K1 kanıt bağı: cevabın türetildiği kurs-içi kanıt-kaynağı ekran id'leri.
+    # Varsa OTORİTER (sarkan id = SERT hata); boşsa lint zayıf heuristikle bakar (antislop E1).
+    evidence_screen_ids: list[str] = Field(default_factory=list)
     feedback: Feedback = Field(default_factory=Feedback)
 
 
@@ -762,6 +801,9 @@ class AdaptivePracticeScreen(ScreenBase):
     mastery_stop: float | None = None  # BKT: ustalık ≥ bu olunca erken bitir (ops.)
     points: int = 20
     objective_ids: list[str] = Field(default_factory=list)  # S2 (2.4) — kurs hedef(ler)ine bağ
+    # E1 (#110) — K1 kanıt bağı: cevabın türetildiği kurs-içi kanıt-kaynağı ekran id'leri.
+    # Varsa OTORİTER (sarkan id = SERT hata); boşsa lint zayıf heuristikle bakar (antislop E1).
+    evidence_screen_ids: list[str] = Field(default_factory=list)
     pass_ratio: float = 0.6  # doğru/cevaplanan ≥ bu → geçer
     seed: str | None = None  # None → ekran id'sinden türetilir
     feedback: Feedback = Field(default_factory=Feedback)
@@ -897,6 +939,9 @@ class Project(BaseModel):
     xapi: XapiConfig | None = None  # W5 — xAPI/cmi5 telemetri (kurs düzeyinde; varsayılan kapalı)
     metadata: CourseMetadata | None = None  # S7 (2.3) — opsiyonel LOM (imsmd) meta verisi
     objectives: list[Objective] = Field(default_factory=list)  # S2 (2.4) — cmi.objectives.* kaynağı
+    # E1 (#110) — beyan-temelli: kursun türetildiği kaynak dokümanın madde/başlık sayısı.
+    # Lint `source_item_parity` (1:1 kopya kokusu) yalnız beyan varsa çalışır; None = denetim yok.
+    source_item_count: int | None = Field(default=None, ge=1)
     screens: list[Screen] = Field(default_factory=list)
     assets: list[AssetRef] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=utcnow)
@@ -940,6 +985,8 @@ class CourseSpec(BaseModel):
     xapi: XapiConfig | None = None  # W5 — xAPI/cmi5 telemetri (kurs düzeyinde; varsayılan kapalı)
     metadata: CourseMetadata | None = None  # S7 (2.3) — opsiyonel LOM (imsmd) meta verisi
     objectives: list[Objective] = Field(default_factory=list)  # S2 (2.4) — cmi.objectives.* kaynağı
+    # E1 (#110) — beyan-temelli kaynak-doküman madde sayısı (Project.source_item_count'a taşınır).
+    source_item_count: int | None = Field(default=None, ge=1)
     auto_tts: bool = False  # opt-in: narration_text dolu ekranlar için otomatik Piper TTS (Piper yoksa atlanır)
     tts_voice: str | None = None  # auto_tts ses modeli (boşsa varsayılan Türkçe)
     screens: list[Screen]

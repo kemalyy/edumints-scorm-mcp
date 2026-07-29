@@ -997,12 +997,17 @@ def test_w6_antislop_errors_block_validate_project():
 
 
 def test_w6_clean_game_passes_lint():
-    from core.project import GameScreen
+    from core.project import GameScreen, ContentSlide, ContentBlock
     from core.antislop import lint_course
     # ulaşılabilir + gerçek (farklı) seçimler + skor aksiyonlu + ceza seçiminde gerekçe + gerçek feedback
     # (feedback şema varsayılanında bırakılırsa W9 P1 B3 kuralı ("default_feedback") tetiklenir —
     # burada gerçekçi bir feedback veriyoruz çünkü bu test "temiz" bir kursu temsil etmeli).
+    # E1 (#110): skorlu oyun artık açık kanıt beyanı ister (K1/T1) → artefaktlı kanıt ekranı +
+    # evidence_screen_ids beyanı olmadan "temiz kurs" sayılmaz.
+    ev = ContentSlide(id="vaka", title="Vaka artefaktı: kararların dayandığı kanıt",
+                      blocks=[ContentBlock(asset_id="a1", caption="İncelenen vaka ekran görüntüsü")])
     g = GameScreen(id="g", title="Temiz", mechanics={"score": {"id": "sc"}, "lives": {"id": "lv", "start": 3}},
+        evidence_screen_ids=["vaka"],
         feedback={"correct_html": "Kazandın — kararların skor mekaniğine gerçekten bağlıydı.",
                   "incorrect_html": "Canların bitti — hangi seçimlerin can kaybettirdiğini tekrar incele."},
         nodes=[
@@ -1012,7 +1017,7 @@ def test_w6_clean_game_passes_lint():
                  "on_choose": [{"do": "lives.lose", "n": 1}]}]},
             {"id": "n2", "content_html": "<p>y</p>", "choices": [{"id": "c", "text_html": "Bitir", "to": None}]},
         ])
-    p = Project(id=new_project_id(), title="K", screens=[g])
+    p = Project(id=new_project_id(), title="K", screens=[ev, g])
     assert lint_course(p) == []
 
 

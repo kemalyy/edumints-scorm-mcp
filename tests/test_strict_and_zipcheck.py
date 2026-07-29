@@ -56,6 +56,8 @@ def test_strict_promoted_codes_is_curated_set():
     assert STRICT_PROMOTED_CODES == frozenset({
         "penalty_without_rationale", "text_only_run", "visual_poverty",
         "missing_alt_text", "decorative_score",
+        # E1 (#110) — kanıt-bağlama tabanları (K1/K2/T1): varsayılanda WARN, strict'te blok
+        "unbound_scored_question", "evidence_target_not_evidentiary",
     })
 
 
