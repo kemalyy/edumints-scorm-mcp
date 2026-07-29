@@ -24,7 +24,9 @@ from .project import (
 SUSPEND_DATA_LIMIT_12 = 4096  # SCORM 1.2 char sınırı
 
 
-def validate_project(project: Project) -> list[ValidationError]:
+def validate_project(project: Project, *, strict: bool = False) -> list[ValidationError]:
+    """strict (SP-5, opt-in): anti-slop'un küratörlü WARN kümesi de bloklar (bkz. antislop.
+    STRICT_PROMOTED_CODES). Varsayılan False → davranış değişmedi."""
     errors: list[ValidationError] = []
 
     if not project.screens:
@@ -139,9 +141,12 @@ def validate_project(project: Project) -> list[ValidationError]:
 
     # W6 — oyun anti-slop kapısı: YAPISAL bug'lar (ulaşılamaz düğüm, sahte seçim) build'i bloklar.
     # Pedagojik kokular (süs skor, bedava ipucu, dar zorluk) WARN'dur → lint_course aracı (build'i bloklamaz).
+    # SP-5: strict modda terfi eden WARN'lar mesajda [strict:<kod>] öneki taşır — çağıran hangi
+    # kuralın yalnız strict'te blokladığını ayırt edebilsin (aksiyon alınabilir hata yükü).
     from .antislop import lint_errors
-    for li in lint_errors(project):
-        errors.append(ValidationError(code="validation_error", message=li.message, path=li.path))
+    for li in lint_errors(project, strict=strict):
+        msg = li.message if li.severity == "error" else f"[strict:{li.code}] {li.message}"
+        errors.append(ValidationError(code="validation_error", message=msg, path=li.path))
     return errors
 
 

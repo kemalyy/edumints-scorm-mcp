@@ -22,9 +22,17 @@ from pathlib import Path
 
 from .manifest import build_manifest
 from .project import Project, new_job_id, new_package_id, utcnow
+from .schema_validate import SCHEMA_UNAVAILABLE
 from .store import BuildJob, PackageMeta, Store
+from .validator import validate_zip
 
 RUNTIME_REL = "runtime/scorm-again.min.js"
+
+_ARTIFACT_WARN_CAP = 512  # in-process uyarı defteri sınırı (job başına küçük string listesi)
+
+
+class ArtifactValidationError(Exception):
+    """SP-5 (B1 delta) — üretilen zip yapısal doğrulamadan geçemedi; build başarısız sayılır."""
 
 
 class Packager:
@@ -46,6 +54,9 @@ class Packager:
         self.executor = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="build")
         self._tasks: dict[str, asyncio.Task] = {}
         self._cleaner_task: asyncio.Task | None = None
+        # SP-5 — job başına bloklamayan artifact uyarıları (ör. schema_unavailable). Bilinçli
+        # olarak in-process (DB şeması değişmedi): danışsaldır, restart sonrası kaybolması kabul.
+        self._artifact_warnings: dict[str, list[str]] = {}
 
     # ----------------------------------------------------------------- #
     # Public API (§12.3)
@@ -94,6 +105,10 @@ class Packager:
     def download_url(self, token: str) -> str:
         return f"{self.public_base_url}/files/{token}"
 
+    def artifact_warnings(self, job_id: str) -> list[str]:
+        """Job'un bloklamayan artifact uyarıları (SP-5; in-process, restart sonrası boş)."""
+        return list(self._artifact_warnings.get(job_id, []))
+
     async def start_ttl_cleaner(self, interval_sec: int = 3600) -> None:
         # Testlerde başlatma: sonsuz arka-plan task'i event-loop teardown'ında pending kalıp
         # pytest'i askıda bırakabiliyor (CI hang). conftest SCORM_NO_TTL_CLEANER=1 set eder.
@@ -118,6 +133,24 @@ class Packager:
             meta = await loop.run_in_executor(
                 self.executor, self.build_sync, project, assets
             )
+            # SP-5 (B1 delta) — artifact kapısı: zip'i BAŞARI işaretlemeden önce doğrula.
+            # Doğrulama noktası bilinçli olarak job tamamlanması (_run): hem fast-path hem async
+            # yol buradan geçer → build_status/download hiçbir zaman doğrulanmamış zip göremez.
+            # Bloklayan hata → paket kaydedilmez, bozuk dosya silinir, job "error" olur.
+            # schema_unavailable BLOKLAMAZ; yanıtta uyarı olarak taşınır (artifact_warnings).
+            zip_path = self.data_dir / meta.rel_path
+            zerrs = await loop.run_in_executor(
+                self.executor, validate_zip, str(zip_path), meta.scorm_version
+            )
+            if len(self._artifact_warnings) >= _ARTIFACT_WARN_CAP:
+                self._artifact_warnings.pop(next(iter(self._artifact_warnings)))
+            self._artifact_warnings[job.id] = [
+                e.message for e in zerrs if e.code == SCHEMA_UNAVAILABLE
+            ]
+            blocking = [e for e in zerrs if e.code != SCHEMA_UNAVAILABLE]
+            if blocking:
+                zip_path.unlink(missing_ok=True)
+                raise ArtifactValidationError("; ".join(e.message for e in blocking[:5]))
             await self.store.put_package(meta)
             job.status = "done"
             job.package_id = meta.id

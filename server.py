@@ -81,6 +81,9 @@ class Settings:
         self.max_projects_per_key = int(os.environ.get("MAX_PROJECTS_PER_KEY", "100"))
         self.max_asset_mb = int(os.environ.get("MAX_ASSET_MB", "25"))
         self.build_workers = int(os.environ.get("BUILD_WORKERS", "8"))
+        # SP-5 — ANTISLOP_STRICT=1: sunucu genelinde strict anti-slop VARSAYILANI (tool'ların
+        # strict parametresi verilmediğinde geçerli; açık strict=True/False her zaman kazanır).
+        self.antislop_strict = os.environ.get("ANTISLOP_STRICT", "0") in ("1", "true", "yes")
         self.scorm_default_version = os.environ.get("SCORM_DEFAULT_VERSION", "1.2")
         self.preview_ttl_min = int(os.environ.get("PREVIEW_TTL_MIN", "60"))
         self.auth_enabled = os.environ.get("SCORM_AUTH_ENABLED", "1") not in ("0", "false", "")
@@ -178,6 +181,11 @@ _RATE_LIMITER = RateLimiter(capacity=SETTINGS.rate_limit_per_min, refill_per_sec
 # --------------------------------------------------------------------------- #
 def _wrap(err: ToolError) -> MCPToolError:
     return MCPToolError(f"{err.code}: {err.message}")
+
+
+def _effective_strict(strict: bool | None) -> bool:
+    """SP-5 — strict=None: sunucu varsayılanı (ANTISLOP_STRICT, Settings); açık değer kazanır."""
+    return SETTINGS.antislop_strict if strict is None else strict
 
 
 async def _owner_resolve() -> ApiKey:
@@ -375,7 +383,15 @@ def _build_out(job, pkg_token: str | None, size: int | None, scorm_version: str)
     return BuildOut(
         job_id=job.id, status=job.status, download_url=url, size=size,
         scorm_version=scorm_version, error=job.error,
+        warnings=SVC.packager.artifact_warnings(job.id),  # SP-5 — schema_unavailable vb.
     )
+
+
+def _raise_if_artifact_invalid(job) -> None:
+    """SP-5 (B1 delta) — fast-path'te artifact doğrulama hatası sert ToolError olur (job zaten
+    'error' işaretli; async yolda aynı hata build_status.error'dan görünür)."""
+    if job.status == "error" and (job.error or "").startswith("ArtifactValidationError"):
+        raise ToolError("build_error", job.error)
 
 
 async def _job_to_out(job, project: Project) -> BuildOut:
@@ -540,21 +556,29 @@ async def list_screens(project_id: str) -> ListScreensOut:
 
 
 @mcp.tool
-async def lint_course(project_id: str) -> dict:
+async def lint_course(project_id: str, strict: bool | None = None) -> dict:
     """W6 oyun anti-slop kalite kapısı: game/adaptive_practice ekranlarını araştırma-temelli
     deterministik kurallarla denetler (içsel-bütünleşme, anlamlı seçim, scaffolding dengesi, adaptif
     anlam, a11y). İki şiddet: 'error' (yapısal bug — build'i de bloklar) ve 'warn' (pedagojik koku —
-    danışsal, build'i bloklamaz). Yazar bunu yayından ÖNCE çalıştırıp slop'u temizler. Sunucuda LLM YOK."""
+    danışsal, build'i bloklamaz). Yazar bunu yayından ÖNCE çalıştırıp slop'u temizler. Sunucuda LLM YOK.
+
+    SP-5 strict (opt-in): strict=True (ya da sunucuda ANTISLOP_STRICT=1 varsayılanı) küratörlü WARN
+    kümesini (STRICT_PROMOTED_CODES) raporda 'error' şiddetine terfi ettirir — build'i strict
+    build_package/build_from_spec'in bloklayacağı kümenin aynısı. strict=False her zaman eski davranış."""
     await SVC.ensure()
     try:
-        from core.antislop import lint_course as _lint
+        from core.antislop import STRICT_PROMOTED_CODES, lint_course as _lint
         owner = await _owner()
         p = await _load(project_id, owner)
+        strict_on = _effective_strict(strict)
         issues = _lint(p)
-        items = [{"severity": i.severity, "code": i.code, "message": i.message, "path": i.path}
-                 for i in issues]
+        items = []
+        for i in issues:
+            sev = "error" if (strict_on and i.code in STRICT_PROMOTED_CODES) else i.severity
+            items.append({"severity": sev, "code": i.code, "message": i.message, "path": i.path})
         return {
             "project_id": project_id,
+            "strict": strict_on,
             "error_count": sum(1 for i in items if i["severity"] == "error"),
             "warn_count": sum(1 for i in items if i["severity"] == "warn"),
             "clean": len(items) == 0,
@@ -1050,18 +1074,21 @@ async def unpublish_demo(slug: str) -> OkOut:
 
 
 @mcp.tool
-async def build_package(project_id: str) -> BuildOut:
-    """Build job tetikler (fast-path §3.1): küçük kurs senkron döner, uzun ise job_id+poll."""
+async def build_package(project_id: str, strict: bool | None = None) -> BuildOut:
+    """Build job tetikler (fast-path §3.1): küçük kurs senkron döner, uzun ise job_id+poll.
+    strict (SP-5, opt-in): küratörlü anti-slop WARN kümesi de build'i bloklar; None → sunucu
+    varsayılanı (ANTISLOP_STRICT). Varsayılan davranış değişmedi."""
     await SVC.ensure()
     try:
         owner = await _owner()
         p = await _load(project_id, owner)
-        errs = validate_project(p)
+        errs = validate_project(p, strict=_effective_strict(strict))
         if errs:
             raise ToolError("validation_error", "; ".join(e.message for e in errs[:5]))
         job = await SVC.packager.submit(p)
         timeout = float(os.environ.get("BUILD_SYNC_TIMEOUT_SEC", "4"))
         job = await SVC.packager.wait(job.id, timeout=timeout)
+        _raise_if_artifact_invalid(job)
         out = await _job_to_out(job, p)
         logger.info("event=package_build owner=%s project_id=%s status=%s", owner.id, project_id, out.status)
         return out
@@ -1115,9 +1142,11 @@ async def validate_package(project_id: str) -> ValidateOut:
 
 
 @mcp.tool
-async def build_from_spec(spec: dict) -> BuildFromSpecOut:
+async def build_from_spec(spec: dict, strict: bool | None = None) -> BuildFromSpecOut:
     """Tüm kursu tek JSON spec ile inşa eder (token-verimli, ÖNERİLİR). Fast-path §3.1.
-    `spec`: CourseSpec JSON nesnesi (title, screens[…], theme, tracking, …). Sunucu doğrular."""
+    `spec`: CourseSpec JSON nesnesi (title, screens[…], theme, tracking, …). Sunucu doğrular.
+    strict (SP-5, opt-in): küratörlü anti-slop WARN kümesi de build'i bloklar; None → sunucu
+    varsayılanı (ANTISLOP_STRICT). Varsayılan davranış değişmedi."""
     await SVC.ensure()
     try:
         spec = _parse_spec(spec)
@@ -1193,15 +1222,17 @@ async def build_from_spec(spec: dict) -> BuildFromSpecOut:
         await SVC.store.create_project(p)
         logger.info("event=project_create owner=%s project_id=%s title=%r source=build_from_spec", owner.id, p.id, spec.title)
 
-        errs = validate_project(p)
+        errs = validate_project(p, strict=_effective_strict(strict))
         if errs:
             raise ToolError("validation_error", "; ".join(e.message for e in errs[:5]))
         job = await SVC.packager.submit(p)
         timeout = float(os.environ.get("BUILD_SYNC_TIMEOUT_SEC", "4"))
         job = await SVC.packager.wait(job.id, timeout=timeout)
+        _raise_if_artifact_invalid(job)
         out = await _job_to_out(job, p)
         return BuildFromSpecOut(
-            project_id=p.id, job_id=job.id, status=job.status, download_url=out.download_url
+            project_id=p.id, job_id=job.id, status=job.status, download_url=out.download_url,
+            warnings=out.warnings,
         )
     except ToolError as e:
         raise _wrap(e)

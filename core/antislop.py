@@ -41,6 +41,20 @@ from .project import (
 _SCORE_DOS = {"score.correct", "score.wrong", "score.add"}
 _PENALTY_DOS = {"lives.lose", "score.wrong"}
 
+# SP-5 (B4-strict) — opt-in strict modda bloklamaya TERFİ eden küratörlü WARN kodları.
+# Seçim gerekçesi (BACKLOG SP-5): metin duvarı + görsel yoksulluk + eksik alt-text + süs skor +
+# sahte-seçim-komşusu kural. Not: `fake_choice`in kendisi zaten ERROR (her modda bloklar);
+# "fake-choice-adjacent" için en yakın gerçek WARN kuralı `penalty_without_rationale`dir
+# (olumsuz sonuçlu seçimin gerekçesizliği — anlamlı-seçim ilkesinin danışsal yarısı).
+# Varsayılan davranış DEĞİŞMEZ: bu küme yalnız lint_errors(strict=True)'da devreye girer.
+STRICT_PROMOTED_CODES = frozenset({
+    "penalty_without_rationale",
+    "text_only_run",
+    "visual_poverty",
+    "missing_alt_text",
+    "decorative_score",
+})
+
 
 @dataclass
 class LintIssue:
@@ -72,9 +86,13 @@ def lint_course(project: Project) -> list[LintIssue]:
     return issues
 
 
-def lint_errors(project: Project) -> list[LintIssue]:
-    """Yalnız ERROR şiddeti (validate_project bunları sert hata olarak ekler)."""
-    return [i for i in lint_course(project) if i.severity == "error"]
+def lint_errors(project: Project, strict: bool = False) -> list[LintIssue]:
+    """Build'i bloklayan issue'lar. Varsayılan: yalnız ERROR şiddeti (davranış değişmedi).
+    strict=True (SP-5): küratörlü WARN kümesi (STRICT_PROMOTED_CODES) de bloklamaya terfi eder."""
+    issues = lint_course(project)
+    if strict:
+        return [i for i in issues if i.severity == "error" or i.code in STRICT_PROMOTED_CODES]
+    return [i for i in issues if i.severity == "error"]
 
 
 # --- game --------------------------------------------------------------------

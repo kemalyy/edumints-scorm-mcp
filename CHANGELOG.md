@@ -5,6 +5,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — opt-in strict anti-slop mode (SP-5 / B4-strict)
+- New optional `strict` parameter on `lint_course`, `build_package` and `build_from_spec`
+  (`bool | None`, default `None` = server default). When strict is on, a curated set of advisory
+  WARN rules is promoted to blocking: `penalty_without_rationale` (the fake-choice-adjacent rule —
+  `fake_choice` itself is already error tier), `text_only_run`, `visual_poverty`,
+  `missing_alt_text` and `decorative_score` (`core/antislop.py` `STRICT_PROMOTED_CODES`).
+  `lint_course(strict=True)` reports these as `error` severity in the counts/issues (plus a
+  `strict` flag in the output); strict builds refuse the course with the existing
+  `validation_error` ToolError, each promoted message prefixed `[strict:<code>]` for an actionable
+  payload. `ANTISLOP_STRICT=1` flips the server-wide default to strict; an explicit
+  `strict=True/False` always wins. Default behavior is unchanged — regression tests prove a
+  warn-laden course still builds non-strict (`tests/test_strict_and_zipcheck.py`).
+
+### Added — build-time artifact zip validation (SP-5 / B1 delta)
+- The packager now runs `core/validator.validate_zip` on the produced zip *before* marking a build
+  job done. The gate lives at job completion (`Packager._run`) — the single point both the
+  fast-path and the async path go through — so `build_status`/download can never serve an
+  unvalidated package. On structural errors the package is not registered, the corrupt zip is
+  deleted from disk and the job fails (`ArtifactValidationError`); in the fast-path the failure
+  additionally surfaces as a hard `ToolError("build_error", ...)`. `schema_unavailable` stays
+  non-blocking and rides the response in a new additive `warnings: list[str]` field on
+  `BuildOut`/`BuildFromSpecOut` (in-process, advisory — empty after a server restart).
+
 ### Added — build_status tool (#94)
 - New `build_status(project_id)` MCP tool (30th tool): polls the newest build job for a project
   after `build_package`/`build_from_spec` returned `job_id`+`status` past the fast-path window.
