@@ -1225,6 +1225,58 @@ def _r_adaptive_practice(s) -> str:
     )
 
 
+def _r_worked_example(s) -> str:
+    """F1 (#112) — çözümlü örnek. TÜM içerik statik HTML'de (deterministik); fading yalnız
+    `hidden` + aria-expanded'lı reveal butonlarıyla kurulur, açma mantığı bindWorkedExample
+    (templates.py — küçük, saf DOM toggle). Skor YOK: config'e puan/feedback yazılmaz.
+    Öz-açıklama alanı poll deseni — serbest metin, hiçbir LMS alanına yazılmaz."""
+    sid = _attr(s.id or "we")
+    head = f'<h2 class="screen-title">{_text(s.title)}</h2>'
+    if s.intro_html:
+        head += f'<div class="rich prompt">{sanitize(s.intro_html)}</div>'
+    steps = ""
+    for i, st in enumerate(s.steps):
+        art = ""
+        if st.artifact_asset_id:
+            cap = f'<figcaption>{_text(st.artifact_caption)}</figcaption>' if st.artifact_caption else ""
+            art = (f'<figure class="we-artifact">'
+                   f'{_media(st.artifact_asset_id, "item-media", st.artifact_caption or "")}{cap}</figure>')
+        action = f'<div class="we-action rich">{sanitize(st.action_html)}</div>'
+        if s.fading == "partial":
+            rid = f"we-{sid}-r{i}"
+            rationale = (
+                f'<button class="we-reveal btn btn-ghost" type="button" aria-expanded="false"'
+                f' aria-controls="{rid}">{_text(_T("we_show_rationale"))}</button>'
+                f'<div class="we-rationale rich" id="{rid}" hidden>{sanitize(st.rationale_html)}</div>'
+            )
+        else:
+            rationale = f'<div class="we-rationale rich">{sanitize(st.rationale_html)}</div>'
+        body = f"{action}{art}{rationale}"
+        if s.fading == "problem_only":
+            bid = f"we-{sid}-b{i}"
+            body = (
+                f'<button class="we-reveal btn btn-ghost" type="button" aria-expanded="false"'
+                f' aria-controls="{bid}">{_text(_T("we_show_step", n=i + 1))}</button>'
+                f'<div class="we-step-body" id="{bid}" hidden>{body}</div>'
+            )
+        steps += (
+            f'<li class="we-step ui-card" data-step="{i}">'
+            f'<div class="we-step-head"><span class="we-num">{i + 1}</span>'
+            f'<span class="we-step-label">{_text(_T("we_step", n=i + 1))}</span></div>{body}</li>'
+        )
+    selfexp = ""
+    if s.self_explanation_prompt_html:
+        selfexp = (
+            f'<div class="we-selfexp">'
+            f'<div class="rich">{sanitize(s.self_explanation_prompt_html)}</div>'
+            f'<textarea class="we-selfexp-text" rows="3" aria-label="{_attr(_T("we_selfexp_label"))}"'
+            f' placeholder="{_attr(_T("we_selfexp_placeholder"))}"></textarea>'
+            f'<span class="we-unscored ui-chip">{_text(_T("we_unscored"))}</span></div>'
+        )
+    return (f'{head}<ol class="we-steps" data-worked-example data-fading="{s.fading}">'
+            f'{steps}</ol>{selfexp}')
+
+
 def _render_unknown(s) -> str:
     return f'<h2 class="screen-title">{_text(getattr(s, "title", "?"))}</h2>'
 
@@ -1268,6 +1320,7 @@ _SCREEN_DISPATCH = {
     ScreenType.image_compare: _r_image_compare,
     ScreenType.game: _r_game,
     ScreenType.adaptive_practice: _r_adaptive_practice,
+    ScreenType.worked_example: _r_worked_example,
 }
 
 

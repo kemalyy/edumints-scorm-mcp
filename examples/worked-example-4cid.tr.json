@@ -1,0 +1,108 @@
+{
+  "title": "SQL ile Yönetici Raporu: Tam Görev Eğitimi",
+  "description": "4C/ID mikrokursu — worked_example fikstürü (F1 #112): 3 fading düzeyi + kanıt bağı",
+  "scorm_version": "2004",
+  "language": "tr",
+  "theme": "default",
+  "tracking": { "completion_rule": "viewed_all_and_passed", "passing_score": 70 },
+  "screens": [
+    {
+      "type": "title_slide",
+      "id": "t1",
+      "title": "SQL ile Yönetici Raporu",
+      "subtitle": "9 dk · ilk dakikadan itibaren BÜTÜN görev"
+    },
+    {
+      "type": "worked_example",
+      "id": "ornek_sinif1",
+      "title": "Çözümlü örnek: 'Mart'ta İzmir satışları?'",
+      "fading": "full",
+      "intro_html": "<p>Görev sınıfı 1 — tam görev, tam destek: uzmanın çözümünü adım adım, gerekçeleriyle izle.</p>",
+      "steps": [
+        {
+          "action_html": "<p><b>Soruyu çevir:</b> tablo = satislar; satırlar = ay='Mart' VE sehir='İzmir'; sütunlar = tarih, tutar.</p>",
+          "rationale_html": "<p>Yönetici sorusu üç parçaya çevrilmeden sorgu kurulamaz: FROM (hangi tablo), WHERE (hangi satırlar), SELECT (hangi sütunlar) — sözdiziminden önce gelir.</p>"
+        },
+        {
+          "action_html": "<p><b>Kur:</b> <code>SELECT tarih, tutar FROM satislar WHERE ay='Mart' AND sehir='İzmir';</code></p>",
+          "rationale_html": "<p>İki koşul birden gerektiği için AND: yalnız ay filtresi İzmir dışını da getirir, yalnız şehir filtresi diğer ayları da getirir.</p>"
+        },
+        {
+          "action_html": "<p><b>Doğrula:</b> dönen satır sayısı mantıklı mı? Mart ≈ 30 gün → yüzlerce satır beklenir.</p>",
+          "rationale_html": "<p>0 satır = büyük olasılıkla filtre hatası (yazım/büyük-küçük harf); beklenti kurmak hatayı sorgu çalıştığı anda yakalatır.</p>",
+          "artifact_asset_id": "sql_cikti",
+          "artifact_caption": "Sorgu çıktısı: Mart/İzmir satırları (tarih, tutar) — satır sayısı beklentiyle uyumlu"
+        }
+      ]
+    },
+    {
+      "type": "worked_example",
+      "id": "tamamlama_sinif2",
+      "title": "Görev sınıfı 2: 'Şehir başına Mart toplamı?' — gerekçeyi önce sen kur",
+      "fading": "partial",
+      "intro_html": "<p>Destek azaldı: eylemler açık, her adımın gerekçesini önce KENDİN kur, sonra uzmanınkiyle karşılaştır.</p>",
+      "steps": [
+        {
+          "action_html": "<p><b>Soruyu çevir:</b> şehir BAŞINA toplam → yeni öğe: gruplama (GROUP BY sehir) + toplam (SUM(tutar)).</p>",
+          "rationale_html": "<p>'Başına' kelimesi her zaman gruplamaya işaret eder: satır satır liste değil, grup başına TEK özet satırı istenmektedir.</p>"
+        },
+        {
+          "action_html": "<p><b>Kur:</b> <code>SELECT sehir, SUM(tutar) FROM satislar WHERE ay='Mart' GROUP BY sehir;</code></p>",
+          "rationale_html": "<p>WHERE gruplamadan ÖNCE çalışır: önce Mart satırları süzülür, sonra kalan satırlar şehre göre gruplanır — sıra ters olsaydı diğer aylar toplama karışırdı.</p>"
+        }
+      ],
+      "self_explanation_prompt_html": "<p>Kendi cümlelerinle: <b>GROUP BY</b> bu soruda neden zorunlu? WHERE tek başına neden yetmez?</p>"
+    },
+    {
+      "type": "worked_example",
+      "id": "iskelet_sinif3",
+      "title": "Görev sınıfı 3: 'Ürün başına Nisan toplamı?' — önce kendin çöz",
+      "fading": "problem_only",
+      "intro_html": "<p>Destek sıfıra iniyor: yalnız problem açık. Her adımı ÖNCE kendin kur, sonra uzman adımını açıp karşılaştır.</p>",
+      "steps": [
+        {
+          "action_html": "<p><b>Soruyu çevir:</b> tablo = satislar; satırlar = ay='Nisan'; çıktı = urun + SUM(tutar), GROUP BY urun.</p>",
+          "rationale_html": "<p>'Ürün başına toplam' = sınıf-2'deki desenle aynı çeviri, yalnız gruplama anahtarı değişti (sehir → urun).</p>"
+        },
+        {
+          "action_html": "<p><b>Kur:</b> <code>SELECT urun, SUM(tutar) FROM satislar WHERE ay='Nisan' GROUP BY urun;</code></p>",
+          "rationale_html": "<p>Desen taşıma: süz (WHERE) → grupla (GROUP BY) → özetle (SUM). Yeni soru, yeni sözdizimi değil — aynı desenin yeni bağlanışı.</p>",
+          "artifact_asset_id": "sql_cikti",
+          "artifact_caption": "Uzman çözümünün çıktısı: ürün başına tek özet satırı (grup başına bir satır beklentisi)"
+        }
+      ],
+      "self_explanation_prompt_html": "<p>Adımları açmadan önce kendi çözümünü buraya yaz; sonra uzman çözümüyle farklarını not et.</p>"
+    },
+    {
+      "type": "mcq",
+      "id": "q_rapor_bagimsiz",
+      "title": "Skorlu tam görev: yeni yönetici sorusu",
+      "points": 50,
+      "evidence_screen_ids": ["ornek_sinif1", "tamamlama_sinif2", "iskelet_sinif3"],
+      "prompt_html": "<p>Yönetici soruyor: <i>\"Mayıs'ta şehir başına ortalama satış nedir?\"</i> Doğru sorgu hangisi?</p>",
+      "options": [
+        { "id": "a", "text_html": "<code>SELECT sehir, AVG(tutar) FROM satislar WHERE ay='Mayıs' GROUP BY sehir;</code>", "correct": true },
+        { "id": "b", "text_html": "<code>SELECT sehir, tutar FROM satislar WHERE ay='Mayıs';</code>" },
+        { "id": "c", "text_html": "<code>SELECT AVG(tutar) FROM satislar GROUP BY ay='Mayıs';</code>" }
+      ],
+      "feedback": {
+        "correct_html": "<p>Doğru — süz→grupla→özetle desenini yeni soruya taşıdın; 'başına' gruplamayı, 'ortalama' AVG'yi seçtirdi.</p>",
+        "incorrect_html": "<p>'Şehir BAŞINA ortalama' iki öğe ister: AVG + GROUP BY. Sınıf-1 çözümlü örneğinin çeviri adımına ve sınıf-2'de kurduğun gerekçeye geri dön.</p>"
+      }
+    },
+    {
+      "type": "summary",
+      "id": "ozet",
+      "title": "Desen sende: süz → grupla → özetle",
+      "show_score": true,
+      "show_completion": true
+    }
+  ],
+  "assets": [
+    {
+      "id": "sql_cikti",
+      "filename": "sql-cikti.png",
+      "source": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+    }
+  ]
+}

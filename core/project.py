@@ -304,6 +304,7 @@ class ScreenType(str, Enum):
     image_compare = "image_compare"  # Faz 14 — önce/sonra sürüklenebilir görsel karşılaştırma (içerik)
     game = "game"  # W3b — kompozisyonel oyun: mekanik primitif (score/lives/timer/hint) + kural + dallanan düğüm
     adaptive_practice = "adaptive_practice"  # W4b — adaptif pratik: yeterlilik tahmini (Elo/BKT) → ZPD zorluk seçimi
+    worked_example = "worked_example"  # F1 (#112) — çözümlü örnek: adım (eylem+gerekçe+artefakt) + fading; skorsuz kanıt kaynağı
 
 
 class ScreenBase(BaseModel):
@@ -809,6 +810,35 @@ class AdaptivePracticeScreen(ScreenBase):
     feedback: Feedback = Field(default_factory=Feedback)
 
 
+class WEStep(BaseModel):
+    """F1 (#112) — çözümlü örnek adımı: eylem (NE yapıldı) + gerekçe (NEDEN öyle yapıldı) +
+    ops. artefakt (ekran görüntüsü/kod çıktısı/diyagram). Gerekçe zorunlu alan: çözümlü örneğin
+    öğretici gücü adımın 'neden'inde (self-explanation etkisi — Renkl); boş gerekçe lint'te
+    `step_without_rationale` WARN üretir (core/antislop.py)."""
+    action_html: str
+    rationale_html: str
+    artifact_asset_id: str | None = None
+    artifact_caption: str | None = None  # figcaption + alt-text kaynağı (ContentBlock.caption paraleli)
+
+
+class WorkedExampleScreen(ScreenBase):
+    """F1 (#112) — çözümlü örnek (worked example): yazarlı-gösterim primitifi. Adım listesi
+    (her adım eylem + gerekçe + ops. artefakt) + soluklaştırma (fading) düzeyi:
+      - "full": tam çözümlü — her şey açık (4cid `gorev_tam_destek`)
+      - "partial": tamamlama — eylemler açık, gerekçeler adım başına REVEAL butonu ardında
+        (öğrenen önce kendi gerekçesini kurar, sonra karşılaştırır)
+      - "problem_only": yalnız iskelet — problem (intro) açık, her adımın gövdesi tek tek açılır
+    Gömülü öz-açıklama istemi (`self_explanation_prompt_html`) SKORSUZ serbest-metin alanı
+    render eder (poll deseni — LMS skoruna asla yazılmaz). PUAN ALANI YOK: bu ekran skorlanamaz
+    — kanıt/öğretim ekranıdır (E1 kanıt-kaynağı; QUIZ_TYPES dışı, Z2/Z3: destekli örneği
+    puanlamak desteği ölçer)."""
+    type: Literal[ScreenType.worked_example] = ScreenType.worked_example
+    intro_html: str | None = None
+    steps: list[WEStep] = Field(min_length=2)
+    fading: Literal["full", "partial", "problem_only"] = "full"
+    self_explanation_prompt_html: str | None = None
+
+
 Screen = Annotated[
     Union[
         TitleSlide,
@@ -839,6 +869,7 @@ Screen = Annotated[
         ImageCompareScreen,
         GameScreen,
         AdaptivePracticeScreen,
+        WorkedExampleScreen,
     ],
     Field(discriminator="type"),
 ]
