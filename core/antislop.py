@@ -38,6 +38,7 @@ from .project import (
     TabsScreen,
     TimelineScreen,
     VideoScreen,
+    WorkedExampleScreen,
 )
 
 _SCORE_DOS = {"score.correct", "score.wrong", "score.add"}
@@ -81,6 +82,8 @@ def lint_course(project: Project) -> list[LintIssue]:
             issues += _lint_game(s, path)
         elif isinstance(s, AdaptivePracticeScreen):
             issues += _lint_adaptive(s, path)
+        elif isinstance(s, WorkedExampleScreen):
+            issues += _lint_worked_example(s, path)
         issues += _lint_missing_alt(s, path)
         issues += _lint_generic_title(s, path)
         issues += _lint_list_items(s, path)
@@ -210,6 +213,21 @@ def _lint_adaptive(s: AdaptivePracticeScreen, path: str) -> list[LintIssue]:
     return out
 
 
+# --- worked_example (F1 #112) ------------------------------------------------
+def _lint_worked_example(s: WorkedExampleScreen, path: str) -> list[LintIssue]:
+    """WARN: gerekçesiz adım — çözümlü örneğin öğretici gücü adımın 'neden'inde (self-explanation
+    etkisi); yalnız eylem listelemek tarif kartıdır, çözümlü örnek değil. Şemayı kırmaz (WARN)."""
+    out: list[LintIssue] = []
+    for i, st in enumerate(s.steps):
+        if not (st.rationale_html or "").strip():
+            out.append(LintIssue("warn", "step_without_rationale",
+                                 f"Çözümlü örnek adımı {i} gerekçe (rationale_html) içermiyor — "
+                                 "her adım NEDEN öyle yapıldığını göstermeli; gerekçesiz adım "
+                                 "listesi tarif kartıdır, çözümlü örnek değil",
+                                 f"{path}.steps[{i}]"))
+    return out
+
+
 # --- erişilebilirlik: eksik alt-text (W9 P0) ------------------------------
 def _lint_missing_alt(s, path: str) -> list[LintIssue]:
     """Görsel taşıyan alanlarda alt-text eksikse WARN (yapıyı bozmaz, danışsal)."""
@@ -248,6 +266,11 @@ def _lint_missing_alt(s, path: str) -> list[LintIssue]:
         for i, c in enumerate(s.cards):
             check(c.front_asset_id, c.front_alt, f"{path}.cards[{i}].front_asset_id")
             check(c.back_asset_id, c.back_alt, f"{path}.cards[{i}].back_asset_id")
+    elif isinstance(s, WorkedExampleScreen):
+        # F1 (#112) — artefakt görseli için artifact_caption hem figcaption hem alt-text kaynağı
+        # (renderer ContentBlock.caption paraleli); boşsa alt-text boşluğu.
+        for i, st in enumerate(s.steps):
+            check(st.artifact_asset_id, st.artifact_caption, f"{path}.steps[{i}]")
     else:
         media_asset_id = getattr(s, "media_asset_id", None)
         if media_asset_id:
@@ -382,6 +405,10 @@ def _has_visual(s) -> bool:
         return any(c.front_asset_id or c.back_asset_id for c in s.cards)
     if isinstance(s, (GameScreen, DecisionScenarioScreen)):
         return any(n.image_asset_id for n in s.nodes)
+    if isinstance(s, WorkedExampleScreen):
+        # F1 (#112) — _INHERENTLY_VISUAL_TYPES üyesi DEĞİL: artefakt opsiyonel (metin-adımlı
+        # çözümlü örnek meşru ama görsel sayılmaz); artefaktlı adım varsa görsel taşır.
+        return any(st.artifact_asset_id for st in s.steps)
     if getattr(s, "media_asset_id", None):
         return True
     for b in getattr(s, "blocks", None) or []:
@@ -560,6 +587,10 @@ _EVIDENCE_CONTENT_TYPES = {
     ScreenType.timeline,
     ScreenType.data_chart,
     ScreenType.image_compare,
+    # F1 (#112) — çözümlü örnek K1 tür 1/4'ün EN doğrudan taşıyıcısı: adımların eylem+gerekçe
+    # çifti artefaktın kendisidir (görsel şart değil) → koşulsuz kanıt-taşıyabilir. Şema zaten
+    # ≥2 adım + zorunlu gerekçe ister; boş gerekçe ayrıca step_without_rationale WARN'ı üretir.
+    ScreenType.worked_example,
 }
 
 

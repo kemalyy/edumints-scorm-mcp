@@ -527,6 +527,29 @@ body[data-bg="grid"]{background-image:linear-gradient(color-mix(in srgb,var(--c-
 .poll-reflection{margin-top:var(--space-3);padding:var(--space-3) var(--space-4);
   border-left:3px solid var(--c-primary);background:var(--c-surface);border-radius:0 var(--r-sm) var(--r-sm) 0}
 
+/* worked_example (F1 #112) — RTL-güvenli: logical property'ler */
+.we-steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-4)}
+.we-step{padding:var(--space-4)}
+.we-step-head{display:flex;align-items:center;gap:var(--space-3);margin-bottom:var(--space-2)}
+.we-num{flex:0 0 28px;height:28px;border-radius:50%;background:var(--c-primary);color:var(--c-primary-contrast);
+  font-weight:var(--w-strong);font-size:13px;display:grid;place-items:center}
+.we-step-label{font-weight:var(--w-strong);font-size:14px;color:var(--c-muted)}
+.we-rationale{margin-top:var(--space-2);padding:var(--space-2) var(--space-4);font-size:14px;
+  border-inline-start:3px solid var(--c-accent);background:var(--c-surface-alt);
+  border-radius:var(--r-sm)}
+.we-rationale:not([hidden]){animation:pop .3s cubic-bezier(.4,0,.2,1)}
+.we-step-body:not([hidden]){animation:pop .3s cubic-bezier(.4,0,.2,1)}
+@media(prefers-reduced-motion:reduce){.we-rationale:not([hidden]),.we-step-body:not([hidden]){animation:none}}
+.we-artifact{margin:var(--space-3) 0;text-align:center}
+.we-artifact figcaption{color:var(--c-muted);font-size:13px;margin-top:var(--space-2)}
+.we-reveal{margin-top:var(--space-2);min-height:44px}
+.we-reveal[aria-expanded="true"]{color:var(--c-primary)}
+.we-selfexp{margin-top:var(--space-5);display:flex;flex-direction:column;gap:var(--space-2);
+  align-items:flex-start}
+.we-selfexp-text{width:100%;padding:var(--space-3);border:1.5px solid var(--c-border);border-radius:var(--r-md);
+  background:var(--c-bg);color:var(--c-text);font-family:inherit;font-size:15px}
+.we-unscored{color:var(--c-muted)}
+
 /* image_compare (Faz 14) */
 .img-compare-wrap{margin:0;text-align:center}
 .img-compare{position:relative;display:inline-block;max-width:100%;user-select:none;line-height:0}
@@ -1303,6 +1326,7 @@ sections.forEach(function(el){
   else if(t==="escape_room"){ bindEscape(el,s); }
   else if(t==="labeled_diagram"){ bindLabeledDiagram(el,s); }
   else if(t==="poll"){ bindPoll(el); }
+  else if(t==="worked_example"){ bindWorkedExample(el); }
   else if(t==="image_compare"){ bindImageCompare(el); }
   else if(t==="game"){ bindGame(el,s); }
   else if(t==="adaptive_practice"){ bindAdaptive(el,s); }
@@ -1780,6 +1804,18 @@ function bindPoll(el){
       setTimeout(function(){ o.classList.remove("poll-nudge"); },600); return; }
     poll.querySelectorAll(".poll-opts input, .poll-text").forEach(function(i){ i.disabled=true; });
     btn.disabled=true; if(refl) refl.hidden=false;
+  });
+}
+// F1 (#112) — çözümlü örnek: fading reveal butonları (aria-expanded toggle; klavye = native buton).
+// Skora/LMS'e HİÇBİR yazma yok — öz-açıklama alanı dahil (poll gibi skorsuz).
+function bindWorkedExample(el){
+  el.querySelectorAll(".we-reveal").forEach(function(b){
+    b.addEventListener("click",function(){
+      var t=document.getElementById(b.getAttribute("aria-controls")); if(!t) return;
+      var open=b.getAttribute("aria-expanded")==="true";
+      b.setAttribute("aria-expanded", open?"false":"true");
+      t.hidden=open;
+    });
   });
 }
 // Faz 14 — önce/sonra görsel karşılaştırma (sürüklenebilir slider)

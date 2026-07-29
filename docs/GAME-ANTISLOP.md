@@ -27,6 +27,11 @@ olmadan şablon çoğaltmak **slop'u ölçeklendirir**.
 | `few_items` | WARN | ölçüm güvenilirliği | < 4 öğe → tahminci kalibre olamadan biter |
 | `item_without_explanation` | WARN | aktif geri bildirim | öğede `explain_html` yok → pasif doğru/yanlış |
 
+### worked_example (F1 #112)
+| kod | şiddet | ilke | denetim |
+|---|---|---|---|
+| `step_without_rationale` | WARN | öz-açıklama etkisi (Renkl) | adımda `rationale_html` boş → gerekçesiz adım listesi tarif kartıdır, çözümlü örnek değil |
+
 > **İçsel-bütünleşme (anti-slop #1):** mekanik, öğrenme hedefinin izomorfu olmalı. `decorative_score`
 > ve `fake_choice` "çikolata kaplı brokoli"yi (mekanik↔hedef ayrışması) deterministik proxy'lerle yakalar.
 > Tam izomorfizm otomatik kanıtlanamaz; bu kurallar en yaygın slop kalıplarını eler.

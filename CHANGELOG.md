@@ -5,6 +5,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — `worked_example` screen type (F1 / #112)
+- New 29th screen type `worked_example`: the authored-demonstration primitive (expert solution
+  as a step list — each step is an **action + rationale + optional artifact** triple). Unlocks
+  the `4cid` pedagogy pack (`requires_platform: [worked_example]`) and carries the most direct
+  form of K1 type-1 evidence.
+- **Fading levels** (`fading`, progressive disclosure of support): `full` (everything visible,
+  fully worked), `partial` (actions visible, each step's *rationale* behind a per-step reveal
+  button — learner constructs their own rationale first), `problem_only` (only the problem
+  statement (`intro_html`) visible; each step body revealed on demand — skeleton).
+- **Embedded UNSCORED self-explanation prompt** (`self_explanation_prompt_html`): renders a
+  free-text area that is never written to any LMS field (poll pattern) — verified by test.
+- **Not scorable by design**: no `points` field, not in `QUIZ_TYPES` (scoring a supported
+  example measures the support, not the learner — Z2/Z3).
+- **Lint integration**: added to the E1 evidentiary set (`_EVIDENCE_CONTENT_TYPES` —
+  unconditionally evidence-carrying; scored questions may bind to it via `evidence_screen_ids`);
+  counts as visual for the visual-budget rules only when a step carries an artifact (not in
+  `_INHERENTLY_VISUAL_TYPES` — artifacts are optional); `artifact_caption` doubles as alt text
+  (missing → `missing_alt_text` WARN); new WARN `step_without_rationale` for blank rationales.
+- a11y/i18n: native-button reveals with `aria-expanded`/`aria-controls`, `prefers-reduced-motion`
+  respected, RTL-safe logical CSS properties, all shell strings via the i18n table (tr/en).
+- Fixture course `examples/worked-example-4cid.tr.json` (4C/ID mini course, all three fading
+  levels, explicit evidence binding — lint-clean) + `tests/test_worked_example.py`.
+
 ### Added — evidence-binding lint checks (E1 / #110)
 - `lint_course` now enforces the Layer-1 evidence rules from the authoring skill
   (`references/core/evidence-binding.md` K1–K3, `alignment.md` H3, `scoring-timing.md` Z1/Z3,

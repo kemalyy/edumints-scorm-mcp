@@ -1317,6 +1317,8 @@ _SCREEN_TYPE_DESC: dict[str, str] = {
             "then aksiyon' kuralları + dallanan içerik düğümleri (case_sim / escape_room şablonları).",
     "adaptive_practice": "Adaptif pratik — yeterlilik tahmini (Elo/BKT) ile her cevaptan sonra ZPD/akış "
                          "hedefine en yakın zorlukta sıradaki öğeyi seçer (öğrenciye kalibre).",
+    "worked_example": "Çözümlü örnek — adım listesi (eylem + gerekçe + ops. artefakt) + soluklaştırma "
+                      "(full/partial/problem_only) + skorsuz öz-açıklama istemi; E1 kanıt kaynağı.",
 }
 
 _THEME_DESC: dict[str, str] = {

@@ -1,6 +1,6 @@
 # Ekran Tipleri (Screen Types)
 
-`edumints-scorm-mcp` içerisinde tanımlı 28 ekran tipi bulunmaktadır. Her ekran tipi `core/project.py` içerisindeki modellerden türetilmiştir.
+`edumints-scorm-mcp` içerisinde tanımlı 29 ekran tipi bulunmaktadır. Her ekran tipi `core/project.py` içerisindeki modellerden türetilmiştir.
 
 ## Ortak Alanlar (Base Fields)
 
@@ -424,6 +424,55 @@ Ayrıntı: `docs/GAME-ADAPTIVE.md`. **SUNUCUDA LLM YOK** — seçim deterministi
 
 **`AdaptiveItem`:** `id`, `prompt_html`, `options` (`list[Choice]`, en az 2), `difficulty`
 (logit ölçeği), ops. `skill` (BKT beceri), `explain_html`.
+
+## 29. Çözümlü Örnek (worked_example)
+
+Yazarlı-gösterim primitifi (F1 #112): uzman çözümü adım adım, her adım **eylem + gerekçe +
+ops. artefakt** üçlüsüyle gösterilir. `fading` ile destek soluklaştırılır (4C/ID ve
+Rosenshine-DI paketlerinin motoru — `rosenshine-di`/`4cid` skill paketleri bu tipe gereksinir):
+
+- `full` — tam çözümlü: her şey açık (görev sınıfı 1 / tam destek).
+- `partial` — tamamlama: eylemler açık, her adımın **gerekçesi** reveal butonu ardında
+  (öğrenen önce kendi gerekçesini kurar, sonra karşılaştırır).
+- `problem_only` — yalnız iskelet: problem (`intro_html`) açık, her adımın gövdesi tek tek açılır.
+
+**Skorlanmaz** — `points` alanı YOK (destekli örneği puanlamak desteği ölçer, Z2/Z3); E1
+kanıt-bağlama denetiminde **koşulsuz kanıt-taşıyabilir** ekrandır (K1 tür 1: skorlu sorular
+`evidence_screen_ids` ile buna bağlanabilir). Öz-açıklama alanı SKORSUZ serbest metindir —
+hiçbir LMS alanına yazılmaz. Artefaktlı adım görsel-bütçe sayımına girer; `artifact_caption`
+hem `figcaption` hem alt-text kaynağıdır (boşsa `missing_alt_text` WARN). Boş `rationale_html`
+`step_without_rationale` WARN üretir.
+
+**Model:** `WorkedExampleScreen`
+
+| Alan | Tip | Zorunlu mu? | Açıklama |
+| :--- | :--- | :---: | :--- |
+| `steps` | `list[WEStep]` | Evet | Çözüm adımları (en az 2). |
+| `fading` | `str` | Hayır | `full` (vars.), `partial`, `problem_only`. |
+| `intro_html` | `str` | Hayır | Problem/görev tanımı (her düzeyde açık kalır). |
+| `self_explanation_prompt_html` | `str` | Hayır | SKORSUZ öz-açıklama istemi (+ serbest metin alanı). |
+
+**`WEStep`:** `action_html` (NE yapıldı), `rationale_html` (NEDEN — zorunlu),
+ops. `artifact_asset_id` + `artifact_caption` (ekran görüntüsü/kod çıktısı/diyagram).
+
+**Örnek:** `examples/worked-example-4cid.tr.json` (3 fading düzeyi + kanıt bağı, lint-temiz).
+
+```json
+{
+  "type": "worked_example",
+  "title": "Çözümlü örnek: 'Mart'ta İzmir satışları?'",
+  "fading": "partial",
+  "intro_html": "<p>Görev: yönetici sorusunu SQL'e çevir.</p>",
+  "steps": [
+    { "action_html": "<p>Soruyu üç parçaya çevir (FROM/WHERE/SELECT).</p>",
+      "rationale_html": "<p>Çeviri sözdiziminden önce gelir.</p>" },
+    { "action_html": "<p><code>SELECT tarih, tutar FROM satislar WHERE ...;</code></p>",
+      "rationale_html": "<p>İki koşul birden gerekli → AND.</p>",
+      "artifact_asset_id": "cikti1", "artifact_caption": "Sorgu çıktısı" }
+  ],
+  "self_explanation_prompt_html": "<p>AND neden zorunlu? Kendi cümlelerinle açıkla.</p>"
+}
+```
 
 ---
 

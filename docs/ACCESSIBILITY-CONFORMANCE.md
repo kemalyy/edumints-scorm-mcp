@@ -9,7 +9,7 @@ tool** — the self-contained SCORM 1.2 / 2004 HTML packages rendered from
 `components/templates.py` + `components/renderer.py`. It does **not** cover the MCP server API,
 the admin/portal UI, or any LMS that hosts the packages.
 
-"Conformance" here means: for each of the 28 screen types the player can render, we state —
+"Conformance" here means: for each of the 29 screen types the player can render, we state —
 grounded in the actual shipped code, not intent — whether the produced markup and runtime
 behavior support the relevant WCAG 2.2 AA criteria. This is a **partial conformance
 statement** (in WCAG terms, "partially conforms"): most screen types support keyboard and
@@ -37,7 +37,7 @@ Player-wide behaviors verified in code:
   This player-level timer has **no extend/disable control** (unlike `game` screens) — see
   Section 3.
 
-## 2. Conformance matrix — 28 screen types
+## 2. Conformance matrix — 29 screen types
 
 Column meanings:
 - **Keyboard** — 2.1.1 Keyboard, 2.4.7 Focus Visible: fully operable without a mouse.
@@ -78,6 +78,7 @@ Status values: **Supports** / **Partial** / **Does not support** / **N/A**.
 | 26 | `image_compare` | Supports | Partial | Supports | N/A¹ | Slider is a native `<input type="range">` with `aria-label` (keyboard-operable); before/after image alts are author-supplied. |
 | 27 | `game` | Supports | Supports | Supports | **Supports** | Choices are `<button>`s; HUD is `role="status" aria-live`; hints are text; timer has visible **+30 s extend** and **disable (∞)** buttons, and `core/validator.py` rejects builds where the timer allows neither (`allow_extend`/`allow_disable`). |
 | 28 | `adaptive_practice` | Supports | Supports | Supports | N/A¹ | Option `<button>`s; mastery HUD is a live region. |
+| 29 | `worked_example` | Supports | Supports | Supports | N/A¹ | Fading reveals are native `<button>`s with `aria-expanded`/`aria-controls`; reveal animation disabled under reduced motion; artifact alt comes from `artifact_caption` (linted); self-explanation textarea has an `aria-label`. |
 
 ¹ **N/A only while no `timer_sec` is set.** Any screen type can carry an author-set
 countdown (`timer_sec`), which is announced via the `aria-live` timer HUD but **cannot be
