@@ -7,8 +7,10 @@ on:
     tags: ["v*"]
 
 permissions:
-  contents: write   # release oluşturma
-  packages: write   # GHCR push
+  contents: write     # release oluşturma
+  packages: write     # GHCR push
+  id-token: write     # imaj attestation'ı (SP-9 — köken kanıtı)
+  attestations: write # imaj attestation'ı
 
 jobs:
   publish-image:
@@ -40,6 +42,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: İmajı derle ve yayınla (amd64 + arm64)
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -50,6 +53,15 @@ jobs:
             ghcr.io/${{ github.repository }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # SP-9 — köken kanıtı: imaj sahte bir kopyayla karıştırılamasın.
+      # Doğrulama: gh attestation verify oci://ghcr.io/kemalyy/edumints-scorm-mcp:<tag> -R kemalyy/edumints-scorm-mcp
+      - name: İmaj provenance attestation'ı
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-name: ghcr.io/${{ github.repository }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
 
   github-release:
     runs-on: ubuntu-latest

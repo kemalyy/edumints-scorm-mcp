@@ -1,0 +1,67 @@
+name: clone-scan
+
+# SP-9 — aylık klon/typosquat taraması. E4 vakasının (README-swap zararlı klonu, hesapla
+# birlikte kaldırıldı) tekrarını erken yakalamak için: GitHub'da ad/açıklama klonları,
+# PyPI/npm'de ad gaspı. Bulgu varsa issue açar/yorumlar; temizse sessizce biter.
+
+on:
+  schedule:
+    - cron: "0 7 3 * *" # her ayın 3'ü, 07:00 UTC
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Tara ve raporla
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          findings=""
+
+          # 1) GitHub: aynı/benzer adlı yabancı repolar (fork'lar hariç bizim org dışı)
+          hits=$(gh api "search/repositories?q=edumints-scorm-mcp+in:name&per_page=30" \
+            --jq '.items[] | select(.full_name | startswith("kemalyy/") | not) | select(.fork | not) | .full_name' || true)
+          if [ -n "$hits" ]; then
+            findings="${findings}GitHub ad klonları:\n${hits}\n\n"
+          fi
+
+          # 2) PyPI: biz PyPI'a yayınlamıyoruz — adın var olması gasp demektir
+          #    (SP-9(d) savunma rezervasyonu yapıldığında bu kontrol "bizim mi" diye güncellenecek)
+          for name in edumints-scorm-mcp edumints_scorm_mcp scorm-mcp-edumints; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" "https://pypi.org/pypi/${name}/json")
+            if [ "$code" = "200" ]; then
+              findings="${findings}PyPI adı dolu: ${name} (biz yayınlamıyoruz!)\n"
+            fi
+          done
+
+          # 3) npm: aynı mantık
+          for name in edumints-scorm-mcp scorm-mcp-edumints; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" "https://registry.npmjs.org/${name}")
+            if [ "$code" = "200" ]; then
+              findings="${findings}npm adı dolu: ${name} (biz yayınlamıyoruz!)\n"
+            fi
+          done
+
+          if [ -z "$findings" ]; then
+            echo "Temiz — bulgu yok."
+            exit 0
+          fi
+
+          echo "BULGU:"
+          printf "%b" "$findings"
+          title="Klon/typosquat taraması: bulgu var"
+          body=$(printf "Aylık otomatik tarama bulgu döndürdü:\n\n\`\`\`\n%b\`\`\`\n\nDelil-önce prosedürü: docs/research/2026-07-28-copycat-repo-evidence.md şablonunu izle (API metadata topla, şüpheli binary İNDİRME), sonra GitHub report-abuse / PyPI-npm abuse kanalı." "$findings")
+          existing=$(gh issue list --repo "$REPO" --state open --search "$title in:title" --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$REPO" --body "$body"
+          else
+            gh issue create --repo "$REPO" --title "$title" --body "$body" --label security 2>/dev/null \
+              || gh issue create --repo "$REPO" --title "$title" --body "$body"
+          fi
