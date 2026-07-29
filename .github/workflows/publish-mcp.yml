@@ -1,0 +1,36 @@
+name: Publish to MCP Registry
+
+# SP-3 — resmî MCP Registry kaydı (io.github.kemalyy namespace, OIDC ile).
+# Tag push'unda sürümü server.json'a yazar ve yayınlar; elle de tetiklenebilir.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      id-token: write # OIDC — io.github.kemalyy namespace yetkisi
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tag'de sürümü server.json'a yaz
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          jq --arg v "$VERSION" '.version = $v' server.json > server.tmp && mv server.tmp server.json
+
+      - name: mcp-publisher indir
+        run: |
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+
+      - name: Registry'ye kimlik doğrula (OIDC)
+        run: ./mcp-publisher login github-oidc
+
+      - name: Yayınla
+        run: ./mcp-publisher publish
