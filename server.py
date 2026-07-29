@@ -567,7 +567,8 @@ async def lint_course(project_id: str, strict: bool | None = None) -> dict:
     build_package/build_from_spec'in bloklayacağı kümenin aynısı. strict=False her zaman eski davranış."""
     await SVC.ensure()
     try:
-        from core.antislop import STRICT_PROMOTED_CODES, lint_course as _lint
+        from core.antislop import (STRICT_PROMOTED_CODES, evidence_binding_coverage,
+                                   lint_course as _lint)
         owner = await _owner()
         p = await _load(project_id, owner)
         strict_on = _effective_strict(strict)
@@ -582,6 +583,9 @@ async def lint_course(project_id: str, strict: bool | None = None) -> dict:
             "error_count": sum(1 for i in items if i["severity"] == "error"),
             "warn_count": sum(1 for i in items if i["severity"] == "warn"),
             "clean": len(items) == 0,
+            # E1 (#110) — açık `evidence_screen_ids` beyanı olan skorlu ekran oranı (0..1).
+            # Heuristik/törensel bağ SAYILMAZ: oran lint yeşilken düşüyorsa denetim sürükleniyor.
+            "evidence_binding_coverage": round(evidence_binding_coverage(p), 3),
             "issues": items,
         }
     except ToolError as e:
@@ -1173,6 +1177,7 @@ async def build_from_spec(spec: dict, strict: bool | None = None) -> BuildFromSp
             xapi=spec.xapi,
             metadata=spec.metadata,
             objectives=list(spec.objectives),
+            source_item_count=spec.source_item_count,  # E1 (#110)
             screens=list(spec.screens),
             owner_key_id=owner.id,
         )

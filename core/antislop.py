@@ -31,11 +31,13 @@ from .project import (
     GameScreen,
     HotspotScreen,
     LabeledDiagramScreen,
+    LottieScreen,
     Project,
     ScreenType,
     SimulationScreen,
     TabsScreen,
     TimelineScreen,
+    VideoScreen,
 )
 
 _SCORE_DOS = {"score.correct", "score.wrong", "score.add"}
@@ -47,12 +49,18 @@ _PENALTY_DOS = {"lives.lose", "score.wrong"}
 # "fake-choice-adjacent" için en yakın gerçek WARN kuralı `penalty_without_rationale`dir
 # (olumsuz sonuçlu seçimin gerekçesizliği — anlamlı-seçim ilkesinin danışsal yarısı).
 # Varsayılan davranış DEĞİŞMEZ: bu küme yalnız lint_errors(strict=True)'da devreye girer.
+# E1 (#110): `unbound_scored_question` + `evidence_target_not_evidentiary` (K1/K2/T1 tabanları)
+# eklendi — sert şartlar ama mevcut kursları kırmamak için varsayılanda WARN kalırlar (Değişmez
+# kural: geriye uyumluluk), strict'te bloklarlar. Strict'te YALNIZ açık `evidence_screen_ids`
+# beyanı geçer — heuristik aday keşfi hiçbir modda denetimi susturmaz.
 STRICT_PROMOTED_CODES = frozenset({
     "penalty_without_rationale",
     "text_only_run",
     "visual_poverty",
     "missing_alt_text",
     "decorative_score",
+    "unbound_scored_question",
+    "evidence_target_not_evidentiary",
 })
 
 
@@ -83,6 +91,9 @@ def lint_course(project: Project) -> list[LintIssue]:
     issues += _lint_visual_poverty(project)
     issues += _lint_suspend_size(project)
     issues += _lint_unbound_objectives(project)
+    issues += _lint_evidence_binding(project)
+    issues += _lint_scored_over_objectives(project)
+    issues += _lint_source_parity(project)
     return issues
 
 
@@ -500,21 +511,222 @@ def _lint_unbound_objectives(project: Project) -> list[LintIssue]:
     ]
 
 
+def _is_teaching_visual(s) -> bool:
+    """E1 (#110) — görsel-yoksulluk ÖĞRETEN artefakta bağlanır: süs görseli sayılmaz.
+    Çıplak `video` dış varlık kabıdır (K1: dış medya kanıt sayılır YALNIZ içeriği spec'ten
+    doğrulanabiliyorsa — caption/narration_text); prompt'suz `lottie` salt dekor animasyondur.
+    Kalan her şey `_has_visual` ile aynı (hotspot/data_chart/image_compare... doğası gereği öğretir)."""
+    if isinstance(s, VideoScreen):
+        return bool((s.caption or "").strip() or (s.narration_text or "").strip())
+    if isinstance(s, LottieScreen):
+        return bool((s.prompt_html or "").strip())
+    return _has_visual(s)
+
+
 def _lint_visual_poverty(project: Project) -> list[LintIssue]:
     """Kural 2 (W11) — visual_poverty: ekran sayısı ≥8 VE görsel ekran oranı <%25 WARN. Kısa
-    kurslar (<8) muaf — mikro kurslarda oran gürültülü."""
+    kurslar (<8) muaf — mikro kurslarda oran gürültülü.
+    E1 (#110): oran ÖĞRETEN görselle hesaplanır (`_is_teaching_visual`) — süs sayılmaz."""
     screens = project.screens
     total = len(screens)
     if total < 8:
         return []
-    visual_count = sum(1 for s in screens if _has_visual(s))
+    visual_count = sum(1 for s in screens if _is_teaching_visual(s))
     share = visual_count / total
     if share < 0.25:
         return [LintIssue(
             "warn", "visual_poverty",
-            f"Kursta {total} ekranın yalnızca %{share * 100:.1f}'i görsel taşıyor (<%25) — görsel "
-            "yoksulluk: content_slide'lara blok görseli, quiz'lere hotspot/image_compare, "
-            "istatistiklere data_chart ekle",
+            f"Kursta {total} ekranın yalnızca %{share * 100:.1f}'i ÖĞRETEN görsel taşıyor (<%25; "
+            "süs görseli — caption'sız video, prompt'suz lottie — sayılmaz): content_slide'lara "
+            "blok görseli, quiz'lere hotspot/image_compare, istatistiklere data_chart ekle",
             "screens",
         )]
     return []
+
+
+# --- E1 (#110): kanıt bağlama denetimleri (Katman-1: K1–K3, H3, Z1/Z3, T1) ---
+# Yöntem bağımsızlığı: bu denetimler kanıtın VARLIĞINA bakar, kurs akışındaki SIRASINA/fazına
+# ASLA bakmaz ("önce öğret sonra sor" dayatması YOK — sıra seçilen öğretim yönteminin işidir;
+# dallanan/adaptif kursta ekran indeksi ≠ sunum sırası, koşullu kanıt ekranı geç indeksli olabilir).
+
+# Kanıt-TAŞIYABİLİR içerik tipleri (K1 tür 1/2/4/6'nın ekran izdüşümü). Ek koşullular
+# _is_evidentiary_target'ta: content_slide artefakt (blocks/media) taşımalı — düz iddia metni
+# kanıt hedefi olamaz; video/lottie spec'ten doğrulanabilir içerik taşımalı; skorlu tipler
+# YALNIZ formatifken (points=0, puana yazmıyor) kanıt olabilir (K1 tür 3/5, Z3).
+_EVIDENCE_CONTENT_TYPES = {
+    ScreenType.accordion,
+    ScreenType.tabs,
+    ScreenType.flashcards,
+    ScreenType.timeline,
+    ScreenType.data_chart,
+    ScreenType.image_compare,
+}
+
+
+def _is_scored(s, project: Project) -> bool:
+    """Z1 — summatif (skorlu) ekran: `points` > 0 YA DA `on_correct` ile puan değişkenine yazan.
+    points=0 + puana yazmayan = formatif (deneme-güvenli), kanıt şartı uygulanmaz (Z3)."""
+    if s.type not in QUIZ_TYPES:
+        return False
+    if (getattr(s, "points", 0) or 0) > 0:
+        return True
+    if project.points_var:
+        return any(a.var == project.points_var for a in (getattr(s, "on_correct", None) or []))
+    return False
+
+
+def _is_evidentiary_target(s, project: Project) -> bool:
+    """Ekran kanıt hedefi olarak TAŞIYABİLİR mi? (K1 türlerinin ekran-taksonomisi izdüşümü.)
+
+    Kanıt-taşıyabilir:
+    - accordion / tabs / flashcards / timeline — etkileşimin bizzat gösterdiği olgu (K1 tür 2)
+    - data_chart / image_compare — veri görseli / yan-yana karşılaştırma (K1 tür 6)
+    - content_slide YALNIZ artefakt taşıyorsa (blocks ya da media_asset_id) — vaka dosyası /
+      çözümlü örnek görseli (K1 tür 1/4); düz iddia-metni slaytı kanıt hedefi OLAMAZ (bağ
+      törenselleşir: en yakın ekrana işaret et → alan dolu → denetim geçer → öğrenme yine yok)
+    - video / lottie YALNIZ içeriği spec'ten doğrulanabiliyorsa (caption/narration_text ya da
+      prompt_html) — "videoda anlatılıyordur" varsayımı kanıt değildir (K1 dış-medya şartı)
+    - quiz/oyun tipleri YALNIZ formatifken (points=0, puana yazmıyor) — deneme çıktısı /
+      başarısız deneme + kanonik çözüm (K1 tür 3/5, Z3)
+    Kanıt-taşıyamaz: title_slide, summary, results_breakdown, poll, branching, SKORLU her ekran."""
+    if s.type in _EVIDENCE_CONTENT_TYPES:
+        return True
+    if s.type == ScreenType.content_slide:
+        return bool(getattr(s, "blocks", None) or getattr(s, "media_asset_id", None))
+    if isinstance(s, (VideoScreen, LottieScreen)):
+        return _is_teaching_visual(s)
+    return s.type in QUIZ_TYPES and not _is_scored(s, project)
+
+
+def _explicit_evidence_ok(s, project: Project, by_id: dict) -> bool:
+    """Açık beyan geçerli mi: ≥1 id çözülüyor + kendisi değil + hedef kanıt-taşıyabilir."""
+    return any(
+        eid in by_id and eid != (s.id or "") and _is_evidentiary_target(by_id[eid], project)
+        for eid in (getattr(s, "evidence_screen_ids", None) or [])
+    )
+
+
+def evidence_binding_coverage(project: Project) -> float:
+    """E1 (#110) — açık-beyan kapsam metriği: geçerli `evidence_screen_ids` bağı olan skorlu
+    ekran / toplam skorlu ekran. Törensel bağ (sarkan id, kanıt-taşıyamaz hedef) SAYILMAZ —
+    metrik şişmesin; heuristik aday keşfi de sayılmaz (yalnız açık beyan). Skorlu ekran yoksa
+    vakum: 1.0. Oran lint yeşilken düşüyorsa denetim sürükleniyor demektir."""
+    scored = [s for s in project.screens if _is_scored(s, project)]
+    if not scored:
+        return 1.0
+    by_id = {s.id: s for s in project.screens if s.id}
+    return sum(1 for s in scored if _explicit_evidence_ok(s, project, by_id)) / len(scored)
+
+
+def _evidence_candidates(s, project: Project) -> list[str]:
+    """Heuristik ADAY keşfi — yalnız WARN mesajına öneri yazar, denetimi ASLA susturmaz
+    (aksi halde alan hiç doldurulmaz ve denetim "yakında artefaktımsı ekran var mı"ya geriler).
+    Kanallar (ikisi de sıra-bağımsız): (a) aynı hedefe bağlı formatif ekran (K1 tür 5),
+    (b) aynı `section`'daki kanıt-taşıyabilir ekran."""
+    cands: list[str] = []
+    oids = set(getattr(s, "objective_ids", None) or [])
+    for t in project.screens:
+        if t is s or not t.id:
+            continue
+        shared_obj = bool(
+            oids and t.type in QUIZ_TYPES and not _is_scored(t, project)
+            and oids & set(getattr(t, "objective_ids", None) or [])
+        )
+        same_section = bool(
+            s.section and t.section == s.section and _is_evidentiary_target(t, project)
+        )
+        if shared_obj or same_section:
+            cands.append(t.id)
+    return cands[:3]
+
+
+def _lint_evidence_binding(project: Project) -> list[LintIssue]:
+    """K1–K3 / T1 — skorlanan her sorunun kurs-içi kanıt kaynağı VAR olmalı.
+
+    Bağın beyanı (tasarım kararı, revize c): tek geçerli bağ AÇIK `evidence_screen_ids` beyanıdır.
+    1. Alan doluysa: sarkan/öz referans ERROR (`evidence_screen_missing` — bilinmeyen
+       objective_ids ile aynı sınıf sert hata; alan kullanılmadıkça tetiklenmez → geriye uyumlu);
+       çözülen ama kanıt-TAŞIYAMAZ hedef WARN `evidence_target_not_evidentiary` (strict'te
+       bloklar) — bağ törensel olamaz.
+    2. Alan boşsa: HER ZAMAN WARN `unbound_scored_question` (strict'te bloklar). Heuristik aday
+       keşfi yalnız mesaja öneri ekler — hiçbir modda denetimi geçirmez.
+    """
+    out: list[LintIssue] = []
+    screens = project.screens
+    by_id = {s.id: s for s in screens if s.id}
+    for i, s in enumerate(screens):
+        if not _is_scored(s, project):
+            continue
+        path = f"screens[{i}]"
+        ev = getattr(s, "evidence_screen_ids", None) or []
+        if ev:
+            for eid in ev:
+                if eid not in by_id:
+                    out.append(LintIssue("error", "evidence_screen_missing",
+                                         f"Kanıt referansı sarkıyor: '{eid}' kursta yok (K1 — kanıt "
+                                         "kaynağı kursun KENDİSİNİN ürettiği bir ekran olmalı)",
+                                         f"{path}.evidence_screen_ids"))
+                elif s.id and eid == s.id:
+                    out.append(LintIssue("error", "evidence_screen_missing",
+                                         f"Kanıt referansı ekranın kendisi: '{eid}' — soru kendi "
+                                         "kendinin kanıtı olamaz (K2: cevabı ÜRETEN ayrı bir kaynak göster)",
+                                         f"{path}.evidence_screen_ids"))
+                elif not _is_evidentiary_target(by_id[eid], project):
+                    out.append(LintIssue("warn", "evidence_target_not_evidentiary",
+                                         f"Kanıt hedefi '{eid}' kanıt taşıyamaz (tip: {by_id[eid].type}) "
+                                         "— düz iddia metni / kapak / özet / skorlu ekran cevabı ÜRETMEZ "
+                                         "(K1). Hedef bir gösterim/artefakt ekranı olmalı: bloklu/görselli "
+                                         "content_slide, accordion/tabs/flashcards/timeline, data_chart, "
+                                         "image_compare, caption'lı video ya da formatif (points:0) deneme.",
+                                         f"{path}.evidence_screen_ids"))
+            continue  # alan beyan edilmiş: bulgular yukarıda; unbound AYRICA verilmez
+        cands = _evidence_candidates(s, project)
+        hint = (f" Muhtemel adaylar (beyan edilmemiş): {', '.join(cands)} — uygunsa "
+                "`evidence_screen_ids` ile beyan et." if cands else "")
+        out.append(LintIssue("warn", "unbound_scored_question",
+                             f"Skorlanan soru '{s.id or i}' kurs-içi bir kanıt kaynağına bağlı değil "
+                             "(K1/T1). K2 denetimi: 'kursu hiç görmemiş ama alanı bilen biri bunu zaten "
+                             "cevaplayabilir mi?' Evet ise bu öğretim değil ankettir. K3 — bağla ya da at: "
+                             "cevabı üreten ekranı `evidence_screen_ids` ile beyan et, kanıt ekranı ekle, "
+                             f"soruyu points:0 yap ya da sil.{hint}",
+                             path))
+    return out
+
+
+def _lint_scored_over_objectives(project: Project) -> list[LintIssue]:
+    """H3 — `skorlanan ekran sayısı > hedef sayısı + 1` → WARN (fail DEĞİL: summatif sınav
+    kursları hedef başına çok soruyu meşru içerebilir; gerekçe pre-flight'a yazılır). Hedef
+    beyan edilmemişse eşik uygulanamaz (H3 beyana bağlıdır) — denetim sessiz kalır."""
+    if not project.objectives:
+        return []
+    scored = sum(1 for s in project.screens if _is_scored(s, project))
+    limit = len(project.objectives) + 1
+    if scored <= limit:
+        return []
+    return [LintIssue(
+        "warn", "scored_over_objectives",
+        f"Skorlanan ekran sayısı ({scored}) hedef sayısı + 1'i ({limit}) aşıyor (H3) — ya fazla "
+        "soruları hedefe eşle/at (H1: hedefsiz ölçme yasak) ya da bilinçli sınav-kursu gerekçesini "
+        "pre-flight'a tek cümle yaz",
+        "screens",
+    )]
+
+
+def _lint_source_parity(project: Project) -> list[LintIssue]:
+    """E1 (#110) — kaynak-doküman madde sayısı ≈ ekran sayısı → 1:1 kopya kokusu (WARN).
+    Beyan-temelli: yazar/iş-akışı `source_item_count` beyan etmedikçe denetim yok (geriye uyumlu).
+    Eşik: |ekran − madde| ≤ max(1, %10) VE madde ≥ 5 (mikro kaynakta oran gürültülü)."""
+    src = project.source_item_count
+    if not src or src < 5:
+        return []
+    total = len(project.screens)
+    tolerance = max(1, round(src * 0.1))
+    if abs(total - src) > tolerance:
+        return []
+    return [LintIssue(
+        "warn", "source_item_parity",
+        f"Ekran sayısı ({total}) kaynak dokümanın madde sayısına ({src}) ≈ eşit — 1:1 kopya kokusu: "
+        "kaynak maddeleri ekrana bire bir aktarmak öğretim tasarımı değildir; maddeleri hedefe göre "
+        "birleştir/böl, kanıt üreten etkileşimlere dönüştür (K1 türleri)",
+        "screens",
+    )]

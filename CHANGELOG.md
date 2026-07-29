@@ -5,6 +5,46 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — evidence-binding lint checks (E1 / #110)
+- `lint_course` now enforces the Layer-1 evidence rules from the authoring skill
+  (`references/core/evidence-binding.md` K1–K3, `alignment.md` H3, `scoring-timing.md` Z1/Z3,
+  `anti-slop.md` T1). All checks look at the *existence* of evidence only — there is deliberately
+  **no order/position/phase check** (in branching/adaptive courses screen index ≠ presentation
+  order; where evidence sits in the flow is the teaching method's choice).
+- New additive schema field `evidence_screen_ids: list[str]` on every scored screen type
+  (plural — a question may rest on several artifacts): the ids of the in-course evidence-source
+  screens the answer is derived from. This explicit declaration is the *only* thing that counts
+  as a binding; the heuristic candidate discovery (shared objective with a formative screen, or
+  an evidentiary screen in the same `section`) only softens the default WARN message with
+  suggestions and never satisfies the check — in strict mode only the explicit field passes.
+- New additive schema field `source_item_count: int | None` on `CourseSpec`/`Project`
+  (declaration-based): the item/heading count of the source document the course was derived from.
+- New lint codes:
+  - `unbound_scored_question` (WARN, strict-promoted): scored screen (Z1: `points` > 0 or writing
+    to the points variable via `on_correct`) with no explicit evidence binding; message carries
+    the K2 audit question and the K3 bind-or-drop procedure plus discovered candidates.
+  - `evidence_screen_missing` (ERROR, blocks builds like unknown `objective_ids`): dangling or
+    self-referencing evidence id. Only fires when the new field is used — backward compatible.
+  - `evidence_target_not_evidentiary` (WARN, strict-promoted): a resolved evidence id points at a
+    screen that cannot carry evidence (plain-text `content_slide` without blocks/media,
+    title/summary/poll/results/branching, captionless video, promptless lottie, or another
+    *scored* screen — formative `points: 0` screens are valid evidence per K1 type 3/5 and Z3),
+    so the binding cannot be ceremonial.
+  - `scored_over_objectives` (WARN, not promoted — H3 is explicitly warn-tier): scored screen
+    count exceeds declared objective count + 1.
+  - `source_item_parity` (WARN, declaration-based): screen count ≈ declared `source_item_count`
+    (±10%, source ≥ 5) — the 1:1 copy smell from #110.
+- `lint_course` output gains `evidence_binding_coverage` (0..1): explicitly-bound scored
+  questions / total scored questions (1.0 when there are none). Ceremonial bindings and heuristic
+  candidates do not count, so the ratio makes audit drift visible even while lint stays green.
+- The `visual_poverty` ratio now counts **teaching** visuals only (#110: decorative visuals do
+  not count): a bare `video` (external-asset container without caption/narration_text) and a
+  promptless `lottie` no longer satisfy the visual-density requirement.
+- `STRICT_PROMOTED_CODES` grows by `unbound_scored_question` and `evidence_target_not_evidentiary`;
+  default (non-strict) behavior stays advisory, so existing courses keep building unchanged.
+- Out of scope here (deferred to E2 / #111): the declared-pack `evidence_phase` conformance check
+  (`conflicts_with`, `scoring_allowed_from`) — it presupposes the pack front-matter schema.
+
 ### Added — opt-in strict anti-slop mode (SP-5 / B4-strict)
 - New optional `strict` parameter on `lint_course`, `build_package` and `build_from_spec`
   (`bool | None`, default `None` = server default). When strict is on, a curated set of advisory
