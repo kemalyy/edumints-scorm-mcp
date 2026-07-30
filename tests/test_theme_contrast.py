@@ -177,6 +177,17 @@ PAIRS = [
      'OUTLINE_CSS .mtree-btn[aria-disabled="true"]{opacity:.55}'),
 ]
 
+# Faz 6b — grafik seri renkleri token'a taşındı (ColorPalette.chart_series → --chart-N);
+# her seri rengi 1.4.11 metin-dışı tabanına bağlanır (grafik .screen-inner surface üstünde
+# render edilir). Ölçüm raporu §4.1: eski sabit #2563eb premium koyu zeminde 3.19:1'di —
+# artık her preset × mod için kapıda.
+PAIRS += [
+    (f"chart_series_{_ci}_on_surface", NONTEXT,
+     (lambda c, i=_ci: c.chart_series[i]), lambda c: c.surface,
+     f".chart-svg seri {_ci} dolgu/vuruş (var(--chart-{_ci})) — figure surface zemininde")
+    for _ci in range(8)
+]
+
 
 # --------------------------------------------------------------------------- #
 # Sevk edilen varyantlar: her preset + her preset×audience kombinasyonu
@@ -196,12 +207,15 @@ def shipped_audiences() -> list[str]:
     return sorted(p.stem for p in aud.glob("*.json") if not p.name.startswith("_"))
 
 
-def shipped_variants() -> list[tuple[str, str | None]]:
+def shipped_variants() -> list[tuple[str, str | None, str]]:
+    """Faz 6b — matris MOD ekseniyle büyür: her preset(×audience) hem aydınlık hem koyu
+    varyantıyla kapıya girer (koyu varyant = core.theme_dark.derive_dark_theme çıktısı;
+    ayrı preset dosyası DEĞİL — yeni preset eklendiğinde koyu türevi otomatik matrise düşer)."""
     presets = shipped_presets()
-    out: list[tuple[str, str | None]] = [(p, None) for p in presets]
+    combos: list[tuple[str, str | None]] = [(p, None) for p in presets]
     for a in shipped_audiences():  # Faz 5'te boş; ilk paket sevkiyle otomatik matrise girer
-        out.extend((p, a) for p in presets)
-    return out
+        combos.extend((p, a) for p in presets)
+    return [(p, a, m) for p, a in combos for m in ("light", "dark")]
 
 
 def check_palette(c) -> list[tuple[str, float, float, str]]:
@@ -215,14 +229,19 @@ def check_palette(c) -> list[tuple[str, float, float, str]]:
 
 
 @pytest.mark.parametrize(
-    "preset,audience", shipped_variants(),
-    ids=[f"{p}+{a}" if a else p for p, a in shipped_variants()])
-def test_aa_contrast_gate(preset, audience):
+    "preset,audience,mode", shipped_variants(),
+    ids=[f"{p}+{a}@{m}" if a else f"{p}@{m}" for p, a, m in shipped_variants()])
+def test_aa_contrast_gate(preset, audience, mode):
     theme = server._load_theme(preset, audience=audience)
+    if mode == "dark":
+        from core.theme_dark import derive_dark_theme
+
+        theme = derive_dark_theme(theme)
     fails = check_palette(theme.color)
     assert not fails, (
         f"tema '{preset}'"
         + (f" × audience '{audience}'" if audience else "")
+        + f" × mod '{mode}'"
         + " AA kontrast kapısını GEÇEMEDİ (3.5 — erişilebilirlik zemindir):\n"
         + "\n".join(f"  {pid}: {r}:1 < {t}:1  [{ref}]" for pid, r, t, ref in fails)
     )
@@ -255,8 +274,13 @@ def test_matrix_keeps_state_variant_coverage():
     assert {"contrast_on_primary_hover", "muted_on_dropover6_bg"} <= ids             # hover
     assert {"text_on_selected7_bg", "text_on_chosen8_bg"} <= ids                     # selected
     assert {"focus_ring_on_surface", "focus_ring_on_bg"} <= ids                      # focus 1.4.11
+    # Faz 6b — grafik serisi kapsamı (8 seri × surface) matristen erimesin
+    assert {f"chart_series_{i}_on_surface" for i in range(8)} <= ids
     cats = {cat for _, cat, *_ in PAIRS}
     assert cats == {TEXT, NONTEXT, INACTIVE}
+    # Faz 6b — mod ekseni kapsamı: her varyant çifti aydınlık VE koyu modla kapıda
+    modes = {m for *_, m in shipped_variants()}
+    assert modes == {"light", "dark"}
 
 
 # --------------------------------------------------------------------------- #

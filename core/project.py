@@ -93,6 +93,16 @@ class ColorPalette(BaseModel):
     warning: str = "#975606"
     info: str = "#0284c7"
     focus_ring: str = "#4f46e5"
+    # Faz 6b — data_chart seri renkleri (ölçüm raporu §4.1: sabit `_CHART_COLORS` hex'i
+    # token'a taşındı; koyu varyantta `themes/_dark-overlay.json` AA-uyumlu setle değiştirir).
+    # Renderer bunları YALNIZ data_chart içeren kursta `--chart-N` CSS değişkeni olarak basar
+    # (3.3 bayt-parite); SVG içindeki var() fallback'i bu varsayılanlardır.
+    # Seri 4/7, eski sabitlerden en-yakın-uyumla oturtuldu (Faz 6b AA matrisi, 1.4.11 ≥3:1
+    # TÜM sevk edilen preset yüzeylerinde): #7c3aed→#8040ee (%3 beyaz), #65a30d→#64a10d (%1 siyah).
+    chart_series: list[str] = Field(default_factory=lambda: [
+        "#2563eb", "#db2777", "#059669", "#d97706",
+        "#8040ee", "#0891b2", "#dc2626", "#64a10d",
+    ])
 
 
 class Spacing(BaseModel):
@@ -1051,6 +1061,10 @@ class Project(BaseModel):
     scorm_version: Literal["1.2", "2004"] = "1.2"
     language: str = "tr"
     theme: ThemeTokens = Field(default_factory=ThemeTokens)
+    # Faz 6b — kozmetik mod ekseni (preset'lere ORTOGONAL; core/theme_dark.py):
+    # light (vars.) = bugünkü çıktı bayt-bayt; dark = :root koyu değişkenler;
+    # auto = aydınlık :root + @media (prefers-color-scheme: dark) bloğu (saf CSS, JS yok).
+    theme_mode: Literal["light", "dark", "auto"] = "light"
     tracking: Tracking = Field(default_factory=Tracking)
     variables: list[Variable] = Field(default_factory=list)  # Faz 5
     points_var: str | None = None  # Faz 6 — header puan HUD'u (gösterilecek değişken adı)
@@ -1106,6 +1120,8 @@ class CourseSpec(BaseModel):
     scorm_version: Literal["1.2", "2004"] = "1.2"
     language: str = "tr"
     theme: Union[str, ThemeTokens] = "default"
+    # Faz 6b — Project.theme_mode aynası: light (vars., bayt-parite) | dark | auto
+    theme_mode: Literal["light", "dark", "auto"] = "light"
     tracking: Tracking = Field(default_factory=Tracking)
     variables: list[Variable] = Field(default_factory=list)  # Faz 5
     points_var: str | None = None  # Faz 6

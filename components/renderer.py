@@ -212,10 +212,40 @@ def _render_html_inner(
     review: bool = False,
     canonical_url: str | None = None,
 ) -> str:
+    # Faz 6b — kozmetik mod ekseni (core/theme_dark.py): theme_mode=dark ise :root koyu
+    # varyanttan beslenir; auto ise aydınlık :root + medya-sorgulu koyu blok (aşağıda);
+    # light (varsayılan) hiçbir şey eklemez → mevcut çıktı BAYT-BAYT aynı (3.3).
     theme = project.theme
-    css_vars = _css_vars(theme)
+    if project.theme_mode == "dark":
+        from core.theme_dark import derive_dark_theme
+
+        theme = derive_dark_theme(theme)
+    # Faz 6b — grafik seri renkleri token'dan (--chart-N). YALNIZ data_chart içeren kursa
+    # basılır: grafiksiz kursların çıktısı bayt-bayt değişmez (3.3 geriye uyum).
+    has_chart = any(s.type == ScreenType.data_chart for s in project.screens)
+
+    def _mode_vars(t: ThemeTokens) -> str:
+        out = _css_vars(t)
+        if has_chart:
+            out += "\n  " + "".join(
+                f"--chart-{i}:{c};" for i, c in enumerate(t.color.chart_series))
+        return out
+
+    css_vars = _mode_vars(theme)
+    if project.theme_mode == "dark":
+        css_vars += "\n  color-scheme:dark;"  # form kontrolleri/kaydırma çubukları da koyu
     # Faz 9.1 — ayarlanabilir tuval ölçüsü → CSS değişkeni (stage modu bunları kullanır)
     css_vars += f"\n  --stage-w:{int(project.stage_width)}px; --stage-h:{int(project.stage_height)}px;"
+    dark_css = ""
+    if project.theme_mode == "auto":
+        from core.theme_dark import derive_dark_theme
+
+        # Tam değişken seti basılır (yalnız-delta değil): blok kendi başına eksiksiz —
+        # sıralama/DELTA çıkarımı kırılganlığına girmeden deterministik. Sahne ölçüleri
+        # :root'tan miras (mod'dan bağımsız).
+        dark_css = ("\n@media (prefers-color-scheme: dark){:root{"
+                    + _mode_vars(derive_dark_theme(project.theme))
+                    + "\n  color-scheme:dark;}}")
     screens_html = "\n".join(_render_screen(s, i) for i, s in enumerate(project.screens))
     course_cfg = _course_config(project)
 
@@ -290,8 +320,9 @@ def _render_html_inner(
         title=_text(project.title),
         og_tags=_og_meta_tags(project, canonical_url),
         css_vars=css_vars,
-        # outline tree CSS'i yalnız outline'lı kursa basılır (outline boş → bayt-bayt eski çıktı)
-        base_css=BASE_CSS + (OUTLINE_CSS if project.outline else ""),
+        # outline tree CSS'i yalnız outline'lı kursa basılır (outline boş → bayt-bayt eski çıktı);
+        # Faz 6b — auto modun koyu bloğu da buradan akar (light'ta boş string → bayt parite)
+        base_css=BASE_CSS + (OUTLINE_CSS if project.outline else "") + dark_css,
         custom_css=theme.custom_css or "",
         bg_pattern=theme.background_pattern,
         layout_mode=project.layout_mode,
@@ -1207,7 +1238,17 @@ def _r_labeled_diagram(s) -> str:
     return _quiz_shell(s, inner)
 
 
-_CHART_COLORS = ["#2563eb", "#db2777", "#059669", "#d97706", "#7c3aed", "#0891b2", "#dc2626", "#65a30d"]
+# Faz 6b — seri renkleri artık tema token'ı (ColorPalette.chart_series → --chart-N değişkeni);
+# bu liste yalnız var() FALLBACK'idir ve ColorPalette varsayılanıyla senkron tutulmalıdır
+# (ölçüm raporu §4.1: sabit hex premium koyu zeminde 3.19:1'de kalıyordu — koyu modda overlay
+# AA-uyumlu seti basar, SVG değişmeden renk değişir).
+_CHART_COLORS = ["#2563eb", "#db2777", "#059669", "#d97706", "#8040ee", "#0891b2", "#dc2626", "#64a10d"]
+
+
+def _chart_style(i: int, prop: str = "fill") -> str:
+    """Seri rengini token'dan akıtan style özniteliği: var(--chart-N, <light-fallback>)."""
+    idx = i % len(_CHART_COLORS)
+    return f'style="{prop}:var(--chart-{idx},{_CHART_COLORS[idx]})"'
 
 
 def _r_data_chart(s) -> str:
@@ -1219,8 +1260,25 @@ def _r_data_chart(s) -> str:
     return f'{head}<figure class="data-chart">{svg}{cap}</figure>'
 
 
+def _nice_step(vmax: float, target: int = 4) -> float:
+    """Deterministik 'güzel' tick adımı (1/2/5×10^k) — ~target aralık hedefler."""
+    import math
+    raw = vmax / max(target, 1)
+    mag = 10.0 ** math.floor(math.log10(raw))
+    norm = raw / mag
+    factor = 1 if norm <= 1 else 2 if norm <= 2 else 5 if norm <= 5 else 10
+    return mag * factor
+
+
 def _build_chart_svg(s) -> str:
-    """Deterministik inline-SVG grafik (bar/line/pie) — dış lib/ağ yok."""
+    """Deterministik inline-SVG grafik (bar/line/pie) — dış lib/ağ yok.
+
+    Faz 6b (ölçüm raporu §5.1 — 2/6 split'in render açığı): çizgi grafik artık
+    (i) y-ekseni + sayısal tick etiketleri + hafif grid, (ii) ilk/son nokta DEĞER etiketi
+    basar (bar'daki çubuk-üstü değer davranışıyla simetri). Sayısal metinler direction=ltr
+    taşır (RTL belgede text-anchor end/start ters çözülür — sayı eksenleri LTR'dir).
+    Veri modeli TEK seridir (ChartDatum listesi) — "tüm seriler" = bu tek serinin uçları.
+    Seri renkleri tema token'ından akar (bkz. _chart_style)."""
     data = s.data
     W, H, PAD = 600, 340, 40
     vmax = max((d.value for d in data), default=0) or 1
@@ -1236,9 +1294,11 @@ def _build_chart_svg(s) -> str:
             large = 1 if frac > 0.5 else 0
             x0, y0 = cx + r * math.cos(a0), cy + r * math.sin(a0)
             x1, y1 = cx + r * math.cos(a1), cy + r * math.sin(a1)
-            col = _CHART_COLORS[i % len(_CHART_COLORS)]
-            parts.append(f'<path d="M{cx},{cy} L{x0:.1f},{y0:.1f} A{r},{r} 0 {large},1 {x1:.1f},{y1:.1f} Z" fill="{col}"/>')
-            legend.append(f'<tspan x="470" dy="22"><tspan fill="{col}">&#9632;</tspan> {_text(d.label)} ({frac * 100:.0f}%)</tspan>')
+            parts.append(f'<path d="M{cx},{cy} L{x0:.1f},{y0:.1f} A{r},{r} 0 {large},1 {x1:.1f},{y1:.1f} Z" {_chart_style(i)}/>')
+            # Faz 6b — legend ham değeri de taşır ("A (30 · 30%)"): yüzde oranı, değer ise
+            # büyüklüğü verir; değer yalnız gövde metninde kalırsa split-attention üretir.
+            legend.append(f'<tspan x="470" dy="22"><tspan {_chart_style(i)}>&#9632;</tspan> '
+                          f'{_text(d.label)} ({_num(d.value)} &#183; {frac * 100:.0f}%)</tspan>')
             a0 = a1
         return (f'<svg viewBox="0 0 {W} {H}" role="img" class="chart-svg">{"".join(parts)}'
                 f'<text x="470" y="40" font-size="13" fill="currentColor">{"".join(legend)}</text></svg>')
@@ -1249,24 +1309,42 @@ def _build_chart_svg(s) -> str:
         for i, d in enumerate(data):
             x = PAD + bw * (i + 0.5)
             y = H - PAD - (d.value / vmax) * (H - 2 * PAD)
-            pts.append(f"{x:.1f},{y:.1f}")
-        dots = "".join(f'<circle cx="{p.split(",")[0]}" cy="{p.split(",")[1]}" r="4" fill="#2563eb"/>' for p in pts)
+            pts.append((x, y))
+        # y-ekseni + güzel-adımlı tick etiketleri + hafif grid (0 taban çizgisi zaten var)
+        step = _nice_step(vmax)
+        axis = f'<line class="chart-axis-y" x1="{PAD}" y1="{PAD}" x2="{PAD}" y2="{H - PAD}" stroke="currentColor" opacity=".3"/>'
+        v, k = 0.0, 0
+        while v <= vmax + 1e-9:
+            ty = H - PAD - (v / vmax) * (H - 2 * PAD)
+            if v > 0:
+                axis += f'<line x1="{PAD}" y1="{ty:.1f}" x2="{W - PAD}" y2="{ty:.1f}" stroke="currentColor" opacity=".12"/>'
+            axis += (f'<text class="chart-tick" x="{PAD - 6}" y="{ty + 4:.1f}" font-size="11" '
+                     f'text-anchor="end" direction="ltr" fill="currentColor">{_num(v)}</text>')
+            k += 1
+            v = step * k
+        dots = "".join(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="4" {_chart_style(0)}/>' for x, y in pts)
+        # ilk/son nokta değer etiketi — yorum görselin ÜZERİNDE (rapor: dc_satis 100→108)
+        vals = ""
+        for i in ({0, n - 1} if n > 1 else {0}):
+            x, y = pts[i]
+            vals += (f'<text class="chart-val" x="{x:.1f}" y="{y - 10:.1f}" font-size="11" '
+                     f'text-anchor="middle" direction="ltr" fill="currentColor">{_num(data[i].value)}</text>')
         labels = "".join(
             f'<text x="{PAD + bw * (i + 0.5):.1f}" y="{H - PAD + 18}" font-size="11" text-anchor="middle" fill="currentColor">{_text(d.label)}</text>'
             for i, d in enumerate(data))
+        poly = " ".join(f"{x:.1f},{y:.1f}" for x, y in pts)
         return (f'<svg viewBox="0 0 {W} {H}" role="img" class="chart-svg">'
                 f'<line x1="{PAD}" y1="{H - PAD}" x2="{W - PAD}" y2="{H - PAD}" stroke="currentColor" opacity=".3"/>'
-                f'<polyline points="{" ".join(pts)}" fill="none" stroke="#2563eb" stroke-width="2.5"/>{dots}{labels}</svg>')
+                f'{axis}<polyline points="{poly}" fill="none" {_chart_style(0, "stroke")} stroke-width="2.5"/>{dots}{vals}{labels}</svg>')
     # bar (varsayılan)
     bars = ""
     for i, d in enumerate(data):
         bh = (d.value / vmax) * (H - 2 * PAD)
         x = PAD + bw * i + bw * 0.15
         y = H - PAD - bh
-        col = _CHART_COLORS[i % len(_CHART_COLORS)]
-        bars += (f'<rect x="{x:.1f}" y="{y:.1f}" width="{bw * 0.7:.1f}" height="{bh:.1f}" rx="3" fill="{col}"/>'
+        bars += (f'<rect x="{x:.1f}" y="{y:.1f}" width="{bw * 0.7:.1f}" height="{bh:.1f}" rx="3" {_chart_style(i)}/>'
                  f'<text x="{x + bw * 0.35:.1f}" y="{H - PAD + 18}" font-size="11" text-anchor="middle" fill="currentColor">{_text(d.label)}</text>'
-                 f'<text x="{x + bw * 0.35:.1f}" y="{y - 6:.1f}" font-size="11" text-anchor="middle" fill="currentColor">{_num(d.value)}</text>')
+                 f'<text x="{x + bw * 0.35:.1f}" y="{y - 6:.1f}" font-size="11" text-anchor="middle" direction="ltr" fill="currentColor">{_num(d.value)}</text>')
     return (f'<svg viewBox="0 0 {W} {H}" role="img" class="chart-svg">'
             f'<line x1="{PAD}" y1="{H - PAD}" x2="{W - PAD}" y2="{H - PAD}" stroke="currentColor" opacity=".3"/>{bars}</svg>')
 

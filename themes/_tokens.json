@@ -32,7 +32,17 @@
     "error_bg": "#fee2e2",
     "warning": "#975606",
     "info": "#0284c7",
-    "focus_ring": "#4f46e5"
+    "focus_ring": "#4f46e5",
+    "chart_series": [
+      "#2563eb",
+      "#db2777",
+      "#059669",
+      "#d97706",
+      "#8040ee",
+      "#0891b2",
+      "#dc2626",
+      "#64a10d"
+    ]
   },
   "spacing": {
     "base_px": 4,
