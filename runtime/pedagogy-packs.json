@@ -1,0 +1,798 @@
+{
+  "_generated_by": "tools/gen_packs_manifest.py — ELLE DÜZENLEME; kaynak: skill paketleri",
+  "packs": {
+    "4cid": {
+      "conflicts_with": [],
+      "evidence_phases": [
+        "gorev_tam_destek",
+        "gorev_soluklastirma"
+      ],
+      "name": "4C/ID — Karmaşık Beceri Eğitimi (van Merriënboer)",
+      "phases": [
+        {
+          "id": "gorev_tam_destek",
+          "izinli_ekran_tipleri": [
+            "worked_example",
+            "content_slide",
+            "video",
+            "timeline",
+            "accordion",
+            "tabs",
+            "image_compare"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "gorev_soluklastirma",
+          "izinli_ekran_tipleri": [
+            "worked_example",
+            "fill_blank",
+            "simulation",
+            "mcq",
+            "drag_drop",
+            "sorting",
+            "matching",
+            "decision_scenario",
+            "adaptive_practice"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "gorev_bagimsiz",
+          "izinli_ekran_tipleri": "hepsi",
+          "skorlanabilir": true
+        }
+      ],
+      "requires_platform": [
+        "worked_example"
+      ],
+      "scoring_allowed_from": "gorev_bagimsiz",
+      "version": 1
+    },
+    "5e-inquiry": {
+      "conflicts_with": [
+        "rosenshine-di",
+        "cognitive-apprenticeship"
+      ],
+      "evidence_phases": [
+        "kesfet",
+        "acikla"
+      ],
+      "name": "5E Sorgulama Döngüsü (BSCS)",
+      "phases": [
+        {
+          "id": "merak",
+          "izinli_ekran_tipleri": [
+            "content_slide",
+            "video",
+            "image_compare",
+            "data_chart",
+            "poll",
+            "lottie"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "kesfet",
+          "izinli_ekran_tipleri": [
+            "exploration",
+            "simulation",
+            "image_compare",
+            "data_chart"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "acikla",
+          "izinli_ekran_tipleri": [
+            "content_slide",
+            "accordion",
+            "tabs",
+            "timeline",
+            "video",
+            "data_chart"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "derinlestir",
+          "izinli_ekran_tipleri": [
+            "mcq",
+            "drag_drop",
+            "matching",
+            "sorting",
+            "simulation",
+            "decision_scenario",
+            "branching"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "degerlendir",
+          "izinli_ekran_tipleri": "hepsi",
+          "skorlanabilir": true
+        }
+      ],
+      "requires_platform": [],
+      "scoring_allowed_from": "degerlendir",
+      "version": 1
+    },
+    "cognitive-apprenticeship": {
+      "conflicts_with": [
+        "productive-failure",
+        "5e-inquiry"
+      ],
+      "evidence_phases": [
+        "modelleme",
+        "dile_getirme"
+      ],
+      "name": "Bilişsel Çıraklık (Collins, Brown & Newman)",
+      "phases": [
+        {
+          "id": "modelleme",
+          "izinli_ekran_tipleri": [
+            "worked_example",
+            "video",
+            "content_slide"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "kocluk",
+          "izinli_ekran_tipleri": [
+            "simulation",
+            "adaptive_practice",
+            "mcq",
+            "true_false",
+            "fill_blank",
+            "branching",
+            "drag_drop",
+            "sorting"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "iskele_soluklastirma",
+          "izinli_ekran_tipleri": [
+            "worked_example",
+            "simulation",
+            "drag_drop",
+            "sorting",
+            "fill_blank"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "dile_getirme",
+          "izinli_ekran_tipleri": [
+            "exploration",
+            "poll"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "yansitma",
+          "izinli_ekran_tipleri": [
+            "content_slide",
+            "tabs",
+            "accordion",
+            "image_compare"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "kesif",
+          "izinli_ekran_tipleri": "hepsi",
+          "skorlanabilir": true
+        }
+      ],
+      "requires_platform": [
+        "worked_example",
+        "exploration"
+      ],
+      "scoring_allowed_from": "kesif",
+      "version": 1
+    },
+    "gagne-9": {
+      "conflicts_with": [],
+      "evidence_phases": [
+        "uyaran_sunumu",
+        "ogrenme_rehberligi"
+      ],
+      "name": "Gagné'nin Dokuz Öğretim Olayı",
+      "phases": [
+        {
+          "id": "dikkat_cekme",
+          "izinli_ekran_tipleri": [
+            "title_slide",
+            "content_slide",
+            "video",
+            "data_chart",
+            "image_compare"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "hedef_bildirimi",
+          "izinli_ekran_tipleri": [
+            "content_slide",
+            "title_slide"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "on_bilgi_cagirma",
+          "izinli_ekran_tipleri": [
+            "poll",
+            "mcq",
+            "true_false",
+            "flashcards",
+            "exploration"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "uyaran_sunumu",
+          "izinli_ekran_tipleri": [
+            "content_slide",
+            "worked_example",
+            "timeline",
+            "accordion",
+            "tabs",
+            "data_chart",
+            "image_compare",
+            "video"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "ogrenme_rehberligi",
+          "izinli_ekran_tipleri": [
+            "worked_example",
+            "content_slide",
+            "tabs",
+            "accordion",
+            "flashcards",
+            "image_compare",
+            "data_chart"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "performans_cikarma",
+          "izinli_ekran_tipleri": [
+            "mcq",
+            "true_false",
+            "fill_blank",
+            "drag_drop",
+            "matching",
+            "sorting",
+            "hotspot",
+            "simulation",
+            "adaptive_practice"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "gerekceli_geribildirim",
+          "izinli_ekran_tipleri": [
+            "content_slide",
+            "worked_example",
+            "tabs",
+            "accordion"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "performans_degerlendirme",
+          "izinli_ekran_tipleri": "hepsi",
+          "skorlanabilir": true
+        },
+        {
+          "id": "kalicilik_transfer",
+          "izinli_ekran_tipleri": "hepsi",
+          "skorlanabilir": true
+        }
+      ],
+      "requires_platform": [],
+      "scoring_allowed_from": "performans_degerlendirme",
+      "version": 1
+    },
+    "kolb-experiential": {
+      "conflicts_with": [],
+      "evidence_phases": [
+        "somut_deneyim",
+        "soyut_kavramsallastirma"
+      ],
+      "name": "Kolb Deneyimsel Öğrenme Döngüsü",
+      "phases": [
+        {
+          "id": "somut_deneyim",
+          "izinli_ekran_tipleri": [
+            "decision_scenario",
+            "branching",
+            "simulation",
+            "game",
+            "video",
+            "content_slide"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "yansitici_gozlem",
+          "izinli_ekran_tipleri": [
+            "exploration",
+            "poll",
+            "content_slide"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "soyut_kavramsallastirma",
+          "izinli_ekran_tipleri": [
+            "content_slide",
+            "tabs",
+            "accordion",
+            "data_chart",
+            "timeline",
+            "worked_example"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "aktif_deneme",
+          "izinli_ekran_tipleri": "hepsi",
+          "skorlanabilir": true
+        }
+      ],
+      "requires_platform": [],
+      "scoring_allowed_from": "aktif_deneme",
+      "version": 1
+    },
+    "mastery-learning": {
+      "conflicts_with": [],
+      "evidence_phases": [
+        "unite_sunumu",
+        "duzeltici_dongu"
+      ],
+      "name": "Tam Öğrenme (Bloom)",
+      "phases": [
+        {
+          "id": "unite_sunumu",
+          "izinli_ekran_tipleri": [
+            "content_slide",
+            "worked_example",
+            "video",
+            "timeline",
+            "accordion",
+            "tabs",
+            "data_chart",
+            "image_compare"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "formatif_kontrol",
+          "izinli_ekran_tipleri": [
+            "adaptive_practice",
+            "mcq",
+            "true_false",
+            "fill_blank",
+            "branching"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "duzeltici_dongu",
+          "izinli_ekran_tipleri": [
+            "content_slide",
+            "worked_example",
+            "video",
+            "accordion",
+            "flashcards",
+            "data_chart",
+            "image_compare",
+            "simulation"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "summatif_olcum",
+          "izinli_ekran_tipleri": "hepsi",
+          "skorlanabilir": true
+        }
+      ],
+      "requires_platform": [
+        "branching",
+        "adaptive_practice"
+      ],
+      "scoring_allowed_from": "summatif_olcum",
+      "version": 1
+    },
+    "merrill-fpi": {
+      "conflicts_with": [],
+      "evidence_phases": [
+        "gosterim"
+      ],
+      "name": "Merrill İlk İlkeler (görev-merkezli)",
+      "phases": [
+        {
+          "id": "gorev_tanitimi",
+          "izinli_ekran_tipleri": [
+            "content_slide",
+            "video",
+            "image_compare",
+            "data_chart"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "etkinlestirme",
+          "izinli_ekran_tipleri": [
+            "poll",
+            "flashcards",
+            "mcq",
+            "true_false",
+            "accordion"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "gosterim",
+          "izinli_ekran_tipleri": [
+            "content_slide",
+            "video",
+            "timeline",
+            "tabs",
+            "accordion",
+            "image_compare"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "uygulama_destekli",
+          "izinli_ekran_tipleri": [
+            "simulation",
+            "mcq",
+            "fill_blank",
+            "drag_drop",
+            "sorting",
+            "matching",
+            "hotspot",
+            "decision_scenario"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "uygulama_bagimsiz",
+          "izinli_ekran_tipleri": "hepsi",
+          "skorlanabilir": true
+        },
+        {
+          "id": "butunlestirme",
+          "izinli_ekran_tipleri": [
+            "poll",
+            "content_slide",
+            "branching"
+          ],
+          "skorlanabilir": false
+        }
+      ],
+      "requires_platform": [],
+      "scoring_allowed_from": "uygulama_bagimsiz",
+      "version": 1
+    },
+    "pbl-case": {
+      "conflicts_with": [],
+      "evidence_phases": [
+        "vaka_dosyasi",
+        "analiz_arastirma"
+      ],
+      "name": "Vaka/Problem Temelli Öğrenme (Barrows)",
+      "phases": [
+        {
+          "id": "vaka_dosyasi",
+          "izinli_ekran_tipleri": [
+            "content_slide",
+            "timeline",
+            "data_chart",
+            "accordion",
+            "tabs",
+            "image_compare",
+            "hotspot",
+            "video"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "problem_tanimlama",
+          "izinli_ekran_tipleri": [
+            "exploration",
+            "poll",
+            "mcq",
+            "true_false",
+            "content_slide"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "analiz_arastirma",
+          "izinli_ekran_tipleri": [
+            "accordion",
+            "tabs",
+            "data_chart",
+            "timeline",
+            "hotspot",
+            "branching",
+            "mcq",
+            "fill_blank",
+            "drag_drop",
+            "matching"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "cozum_onerisi",
+          "izinli_ekran_tipleri": "hepsi",
+          "skorlanabilir": true
+        },
+        {
+          "id": "karsilastirma_genelleme",
+          "izinli_ekran_tipleri": "hepsi",
+          "skorlanabilir": true
+        }
+      ],
+      "requires_platform": [],
+      "scoring_allowed_from": "cozum_onerisi",
+      "version": 1
+    },
+    "productive-failure": {
+      "conflicts_with": [
+        "rosenshine-di",
+        "cognitive-apprenticeship"
+      ],
+      "evidence_phases": [
+        "problem_deneme",
+        "konsolidasyon"
+      ],
+      "name": "Üretken Başarısızlık (Kapur)",
+      "phases": [
+        {
+          "id": "problem_deneme",
+          "izinli_ekran_tipleri": [
+            "content_slide",
+            "exploration",
+            "data_chart",
+            "image_compare",
+            "simulation"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "deneme_karsilastirma",
+          "izinli_ekran_tipleri": [
+            "content_slide",
+            "accordion",
+            "tabs",
+            "data_chart",
+            "image_compare"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "konsolidasyon",
+          "izinli_ekran_tipleri": [
+            "worked_example",
+            "content_slide",
+            "tabs",
+            "accordion",
+            "video",
+            "data_chart"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "skorlu_uygulama",
+          "izinli_ekran_tipleri": "hepsi",
+          "skorlanabilir": true
+        }
+      ],
+      "requires_platform": [
+        "exploration"
+      ],
+      "scoring_allowed_from": "skorlu_uygulama",
+      "version": 1
+    },
+    "retrieval-spaced": {
+      "conflicts_with": [],
+      "evidence_phases": [
+        "referans_artefakt"
+      ],
+      "name": "Geri Getirme + Aralıklı Pratik (tazeleme)",
+      "phases": [
+        {
+          "id": "on_yoklama",
+          "izinli_ekran_tipleri": [
+            "mcq",
+            "true_false",
+            "fill_blank",
+            "flashcards",
+            "matching",
+            "exploration"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "referans_artefakt",
+          "izinli_ekran_tipleri": [
+            "content_slide",
+            "accordion",
+            "tabs",
+            "timeline",
+            "data_chart",
+            "image_compare",
+            "flashcards"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "aralikli_turlar",
+          "izinli_ekran_tipleri": [
+            "adaptive_practice",
+            "mcq",
+            "true_false",
+            "fill_blank",
+            "flashcards",
+            "matching",
+            "sorting"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "karisik_pratik",
+          "izinli_ekran_tipleri": [
+            "adaptive_practice",
+            "mcq",
+            "matching",
+            "drag_drop",
+            "fill_blank",
+            "term_match_race"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "summatif_tur",
+          "izinli_ekran_tipleri": "hepsi",
+          "skorlanabilir": true
+        }
+      ],
+      "requires_platform": [],
+      "scoring_allowed_from": "summatif_tur",
+      "version": 1
+    },
+    "rosenshine-di": {
+      "conflicts_with": [
+        "5e-inquiry",
+        "productive-failure"
+      ],
+      "evidence_phases": [
+        "sunum_model"
+      ],
+      "name": "Doğrudan Öğretim (Rosenshine)",
+      "phases": [
+        {
+          "id": "gunluk_tekrar",
+          "izinli_ekran_tipleri": [
+            "flashcards",
+            "mcq",
+            "true_false",
+            "fill_blank",
+            "adaptive_practice"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "sunum_model",
+          "izinli_ekran_tipleri": [
+            "worked_example",
+            "content_slide",
+            "video",
+            "timeline",
+            "accordion",
+            "tabs",
+            "image_compare",
+            "data_chart"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "rehberli_pratik",
+          "izinli_ekran_tipleri": [
+            "mcq",
+            "true_false",
+            "fill_blank",
+            "drag_drop",
+            "matching",
+            "sorting",
+            "hotspot",
+            "labeled_diagram",
+            "simulation"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "bagimsiz_pratik",
+          "izinli_ekran_tipleri": "hepsi",
+          "skorlanabilir": true
+        }
+      ],
+      "requires_platform": [],
+      "scoring_allowed_from": "bagimsiz_pratik",
+      "version": 1
+    },
+    "sim-drill": {
+      "conflicts_with": [],
+      "evidence_phases": [
+        "gosterim_turu",
+        "cikti_cozumleme"
+      ],
+      "name": "Simülasyon Tatbikatı (psikomotor/prosedürel drill)",
+      "phases": [
+        {
+          "id": "brifing",
+          "izinli_ekran_tipleri": [
+            "content_slide",
+            "tabs",
+            "accordion",
+            "video"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "gosterim_turu",
+          "izinli_ekran_tipleri": [
+            "worked_example",
+            "video",
+            "content_slide",
+            "image_compare"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "serbest_deneme",
+          "izinli_ekran_tipleri": [
+            "simulation",
+            "exploration"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "cikti_cozumleme",
+          "izinli_ekran_tipleri": [
+            "content_slide",
+            "image_compare",
+            "tabs",
+            "accordion",
+            "data_chart",
+            "branching"
+          ],
+          "skorlanabilir": false
+        },
+        {
+          "id": "senaryolu_olcum",
+          "izinli_ekran_tipleri": "hepsi",
+          "skorlanabilir": true
+        }
+      ],
+      "requires_platform": [
+        "simulation",
+        "worked_example",
+        "exploration"
+      ],
+      "scoring_allowed_from": "senaryolu_olcum",
+      "version": 1
+    }
+  },
+  "schema_version": 1,
+  "source": "skills/authoring-scorm-courses/references/pedagogy"
+}
