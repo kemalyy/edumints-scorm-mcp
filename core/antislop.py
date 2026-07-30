@@ -457,6 +457,8 @@ def _lint_text_only_runs(project: Project) -> list[LintIssue]:
 # sabit alanlar (örn. S5 order-fingerprint) tahmini aşabilir. Kodlayıcı değişirse burası elle
 # senkron kalmalı (encoder alan düzeni yorumu scorm.js'te).
 _SUSPEND_LIMIT_12 = 4096          # scorm.js SUSPEND_LIMIT_12 ile senkron
+_SUSPEND_BUDGET_12 = 3500         # Faz 4-ek — scorm.js SUSPEND_BUDGET_12 ile senkron (BAYT;
+                                  # 4096-3500 LMS kaçışlama ek yüküne rezerv)
 _SUSPEND_WARN_RATIO = 0.9         # sınıra "yaklaşınca" da uyar (öğrenci verisi büyümeden önce)
 _EXPLORATION_VALUE_MAX = 500      # F2 (#113) — scorm.js EXPLORATION_VALUE_MAX ile senkron
 
@@ -472,17 +474,19 @@ def _b36_len(n: int) -> int:
 
 
 def estimate_suspend_size(project: Project) -> int:
-    """v2 kodlanmış suspend_data için yaklaşık üst-sınır tahmini (karakter, kesin garanti değil).
+    """v2 kodlanmış suspend_data için KÖTÜ-DURUM projeksiyonu — UTF-8 BAYT (kesin garanti değil).
 
-    Varsayımlar (hepsi kötü-durum yönünde):
+    Faz 4-ek: ölçü birimi karakterden BAYTA çevrildi (Türkçe çok-bayt tuzağı — runtime
+    byteLen ile aynı ilke) ve zarfın Faz 4-ek alanları eklendi (z pozisyon kaydı + t bayrağı).
+    Varsayımlar (madde-1 sözleşmesi — hepsi kötü-durum yönünde):
     - her ekran ziyaret edilmiş, her ekran bir kez back-stack'te (history),
-    - her puanlı ekran cevaplanmış (results + interaction indeksi ix),
+    - TÜM sayfalar cevaplanmış (results + interaction indeksi ix), tüm hedefler tamam,
+    - keşif (xp) alanları tavanda (500 bayt — runtime bayt-kırpar),
     - tüm indeksler maksimum base36 genişliğinde,
-    - değişkenler tail JSON'da adı + değeriyle taşınır.
+    - değişkenler tail JSON'da adı + değeriyle taşınır (UTF-8 bayt sayımıyla).
 
-    Runtime'daki var büyümesi (öğrenci ilerledikçe tail JSON şişer) ya da encoder zarfına eklenen
-    yeni sabit alanlar bu tahmini aşabilir — WARN eşiği bu yüzden %90'da (bkz. _SUSPEND_WARN_RATIO),
-    tam sınırda değil.
+    Runtime'daki var büyümesi bu tahmini yine aşabilir — erken uyarı eşiği bu yüzden %90'da
+    (bkz. _SUSPEND_WARN_RATIO); bütçe aşımı ayrıca SUSPEND_OVERFLOW üretir (_lint_suspend_size).
     """
     n = len(project.screens)
     scored = [s for s in project.screens if s.type in QUIZ_TYPES]
@@ -498,33 +502,54 @@ def estimate_suspend_size(project: Project) -> int:
         size += iw + digits * 2 + 5                  # results: i36:puan:max:bayrak + virgül
         size += iw * 2 + 2                           # ix: i36:n36 + virgül
     if project.variables:
-        size += 8 + sum(len(v.name) + len(str(v.default)) + 8 for v in project.variables)
+        size += 8 + sum(len(v.name.encode("utf-8")) + len(str(v.default).encode("utf-8")) + 8
+                        for v in project.variables)
     # F2 (#113) — exploration girdileri kuyruk JSON'unda kimlik-anahtarlı taşınır:
-    # kötü-durum = değer tavanı (runtime 500'de kırpar — scorm.js EXPLORATION_VALUE_MAX ile
-    # senkron sabit) + anahtar + JSON zarf payı (tırnaklar/iki nokta/virgül).
+    # kötü-durum = değer tavanı (runtime 500 BAYTTA kırpar — scorm.js EXPLORATION_VALUE_MAX
+    # ile senkron sabit) + anahtar + JSON zarf payı (tırnaklar/iki nokta/virgül).
     for s in project.screens:
         if s.type == ScreenType.exploration:
-            size += _EXPLORATION_VALUE_MAX + len(s.store_key) + 8
+            size += _EXPLORATION_VALUE_MAX + len(s.store_key.encode("utf-8")) + 8
+    # Faz 4-ek — z pozisyon kaydı {"z":{"s":…,"n":…,"v":…}} + t bayrağı ("t":4). Kimlikler
+    # makine-dostu ASCII'dir; en uzun ekran + düğüm id'si ve 7 haneli sürümle kötü durum.
+    max_sid = max((len(s.id or "") for s in project.screens), default=0)
+    max_nid = max((len(nd.id) for nd in project.outline), default=0)
+    size += 26 + max_sid + max_nid + 7               # z zarf payı + içerik
+    size += 8                                        # "t":4 + virgül payı
     return size
 
 
 def _lint_suspend_size(project: Project) -> list[LintIssue]:
-    """WARN — 1.2 hedefinde tahmini suspend_data boyutu 4096 sınırına yaklaşıyor/aşıyor.
+    """WARN — 1.2 hedefinde kötü-durum suspend projeksiyonu bütçeyi aşıyor/yaklaşıyor.
 
-    FAIL değil: tahmin kötü-durum üst sınırıdır ve runtime encodeSuspendFit history düşürerek
-    çoğu kursu yine sığdırır — ama yazar sınırı ÖNCEDEN bilmeli (kursu bölme / 2004'e geçme kararı)."""
+    Faz 4-ek (madde 1, yazar-görünür yarı): projeksiyon 3500 BAYT çalışma bütçesine karşı —
+    aşarsa SUSPEND_OVERFLOW (projeksiyon sayısıyla; runtime kırpma merdiveni SON ÇAREDİR,
+    yazar sınırı ÖNCEDEN bilmeli: kursu bölme / 2004'e geçme kararı). Bütçenin %90'ına
+    yaklaşınca erken uyarı suspend_size_risk. FAIL değil: tahmin kötü-durum üst sınırıdır.
+    scenario_compile bu lint'i derlenen spec üzerinden otomatik görür (lint_course raporu)."""
     if project.scorm_version != "1.2":
         return []
     est = estimate_suspend_size(project)
-    threshold = int(_SUSPEND_LIMIT_12 * _SUSPEND_WARN_RATIO)
+    n_scored = sum(1 for s in project.screens if s.type in QUIZ_TYPES)
+    if est > _SUSPEND_BUDGET_12:
+        return [LintIssue(
+            "warn", "SUSPEND_OVERFLOW",
+            f"Kötü-durum suspend_data projeksiyonu ~{est} BAYT — SCORM 1.2 çalışma bütçesi "
+            f"{_SUSPEND_BUDGET_12} bayt (sınır {_SUSPEND_LIMIT_12}; kalan pay LMS kaçışlama "
+            "rezervi). Runtime kırpma merdiveni (history→serbest metin→cevaplar) veri düşürerek "
+            "sığdırır ama bu SON ÇAREDİR — kursu bölmeyi ya da scorm_version='2004' hedeflemeyi "
+            f"düşün ({len(project.screens)} ekran, {n_scored} puanlı).",
+            "screens",
+        )]
+    threshold = int(_SUSPEND_BUDGET_12 * _SUSPEND_WARN_RATIO)
     if est < threshold:
         return []
     return [LintIssue(
         "warn", "suspend_size_risk",
-        f"Tahmini suspend_data boyutu ~{est} karakter — SCORM 1.2 sınırı {_SUSPEND_LIMIT_12} "
-        f"(eşik {threshold}). Runtime sığdırmak için gezinme geçmişini düşürebilir; kursu bölmeyi "
-        "ya da scorm_version='2004' hedeflemeyi düşün "
-        f"({len(project.screens)} ekran, {sum(1 for s in project.screens if s.type in QUIZ_TYPES)} puanlı).",
+        f"Kötü-durum suspend_data projeksiyonu ~{est} bayt — {_SUSPEND_BUDGET_12} bayt "
+        f"çalışma bütçesine yaklaşıyor (eşik {threshold}; SCORM 1.2 sınırı {_SUSPEND_LIMIT_12}). "
+        "Öğrenci verisi büyüyünce kırpma merdiveni devreye girebilir; kursu bölmeyi ya da "
+        f"scorm_version='2004' hedeflemeyi düşün ({len(project.screens)} ekran, {n_scored} puanlı).",
         "screens",
     )]
 

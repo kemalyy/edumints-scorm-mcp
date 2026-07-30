@@ -5,6 +5,43 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — Faz 4 follow-up: suspend truncation ladder + republish-resume resilience
+- **Truncation ladder** (`encodeSuspendFit`): on overflow, data drops bottom-up with re-measure
+  after every rung — position (id-based `z` record: screen id + node id + `content_version`)
+  NEVER drops › objective/score state › per-page answers › learner free text (`xp`) › history.
+  The rung is written into the envelope (`t` short key); the player treats state as partial
+  per rung (linear back-nav, exploration placeholders, `g`/`e` score floor via
+  `mergeObjectiveSnapshot` — scores never regress, rung-4 linear visited approximation).
+- **All measurement in UTF-8 BYTES** (`byteLen`/`byteSlice`): working budget
+  **`SUSPEND_BUDGET_12` = 3500 bytes** (rest of the 4096 limit reserved for LMS escaping
+  overhead; same ratio for 2004). Fixes the Turkish multi-byte trap (ç ğ ı ö ş ü = 2 bytes);
+  `setExploration` now caps at 500 bytes, never splitting a character. Envelope fields are
+  provably ASCII (test).
+- **Loss is never silent and never learner-facing**: `console.warn` ALWAYS (bytes + budget +
+  rung; independent of xAPI/LRS), xAPI `suspend.trouble` additionally when an LRS is
+  configured; SCORM offers no cheap learner-invisible LMS error channel (documented decision).
+  New `trimmed` issue kind for ladder drops. Author-facing half: compile-time worst-case
+  projection (`estimate_suspend_size`, now in bytes, including the new envelope fields) warns
+  **`SUSPEND_OVERFLOW`** with the projected number vs the 3500 budget — surfaced by
+  `scenario_compile`'s lint report and by direct `build_from_spec` lint alike.
+- **Republish-resume read ladder** (`resumeSuspend`): an orderFp mismatch no longer wipes the
+  attempt. Positional fields are discarded (misattribution protection preserved), id-based
+  fields survive, and the `z` position record resolves: node alive → resume silently (exact
+  screen if it survived, else the node's new first screen); node gone but screen alive →
+  resume at the screen's NEW node + friendly notice; both gone (or pre-ladder payload) →
+  course start + notice — no silent reset. Notice is non-technical, i18n tr/en
+  (`resume_updated`/`resume_restart`), `role=status` `aria-live=polite`, dismissible.
+  `COURSE.content_version`: deterministic djb2 digest (20-bit int) of ordered node + screen
+  ids — equality-only semantics, source-independent, no mutable counter.
+- **ID stability (precondition)**: verified `compile_scenario` passes ids through untouched
+  (mid-outline insert / reorder never renumbers — tests). Deleted page/node ids are retired
+  (`ScenarioDocument.retired_ids`) and can never be reused; upserts reject retired ids.
+- Probe: real-browser republish scenario (build → enter node 2 → suspend → modify outline +
+  recompile → relaunch → resumes at the surviving screen + accessible notice; silent full
+  resume stays notice-free). Acceptance #12 re-run against the 3500-byte budget.
+- Fixture regenerated (deliberate engine/runtime change — the 3.11 "no new envelope fields"
+  invariant is consciously revised: the only outline cost is the `z.n` node id).
+
 ### Added — scenario line Faz 5: theme consolidation + automated AA contrast gate — 5/6
 - **`themes/_tokens.json` base layer**: the shared semantic token set (kept byte-synced with
   `ThemeTokens` model defaults by a bidirectional drift test). Every shipped preset (18,

@@ -92,6 +92,26 @@ p = Project(id=new_project_id(), title="probe-lock", scorm_version=ver,
 open(out, "w", encoding="utf-8").write(render_html(p, mode="preview", runtime_js="/*probe*/"))
 `;
 
+// Faz 4-ek — REPUBLISH edilmiş aynı kurs: b2 düğümü silindi (c2/c3 yeni b9 düğümünde),
+// u1'e yeni ekran eklendi (order + içerik sürümü değişir → orderFp uyuşmaz). Eski suspend
+// ile açılınca kimlik-merdiveni: düğüm (b2) GİTMİŞ ama ekran (c2) YAŞIYOR → c2'nin yeni
+// düğümünde devam + DOSTANE BİLDİRİM (teknik hata değil; aria-live).
+const LOCK_V2_RENDER_PY = `
+import sys
+from components.renderer import render_html
+from core.project import Project, new_project_id, TitleSlide, ContentSlide, OutlineNode
+out, ver = sys.argv[1], sys.argv[2]
+p = Project(id=new_project_id(), title="probe-lock", scorm_version=ver,
+    outline=[OutlineNode(id="u1", kind="unit", title="Unite 1"),
+             OutlineNode(id="b9", kind="unit", title="Yeni Bolum")],
+    screens=[TitleSlide(id="t1", title="Giris", node_id="u1"),
+             ContentSlide(id="c1", title="Konu 1", body_html="<p>a</p>", node_id="u1"),
+             ContentSlide(id="c1b", title="Konu Ek", body_html="<p>ek</p>", node_id="u1"),
+             ContentSlide(id="c2", title="Konu 2", body_html="<p>b</p>", node_id="b9"),
+             ContentSlide(id="c3", title="Konu 3", body_html="<p>c</p>", node_id="b9")])
+open(out, "w", encoding="utf-8").write(render_html(p, mode="preview", runtime_js="/*probe*/"))
+`;
+
 const failures = [];
 function check(label, actual, expected) {
   const ok = actual === expected;
@@ -472,6 +492,56 @@ async function main() {
         check("resume: kilit kalkti (u1 tamam)", r1.u2dis, null);
         check("resume: sebep gizlendi", r1.reasonHidden, true);
         check("resume: dugum ici ekran gorunur", r1.c2visible, true);
+        // Faz 4-ek: TAM (sessiz) resume'da bildirim OLMAMALI
+        const r2 = await page.evaluate(() => document.querySelector(".resume-notice") !== null);
+        check("tam resume SESSIZ (bildirim yok)", r2, false);
+      } finally {
+        await ctx.close();
+      }
+    }
+
+    // --- Faz 4-ek: REPUBLISH sonrasi resume — outline degisti, eski suspend ile acilir ---
+    console.log("\n== Faz 4-ek — republish-resume: dugum silindi, ekran yasiyor ==");
+    {
+      const l2file = path.join(tmp, "lock12v2.html");
+      execFileSync("python3", ["-c", LOCK_V2_RENDER_PY, l2file, "1.2"], { cwd: process.cwd() });
+      const ctx = await browser.newContext();
+      try {
+        const page = await ctx.newPage();
+        const warns = [];
+        page.on("console", (m) => { if (m.type() === "warning") warns.push(m.text()); });
+        // eski (v1 icerigin) suspend'i YENI pakete verilir — LRS/xAPI YOK (kayit konsola)
+        await page.addInitScript(lmsInit, [false, "resume", lockSuspend, null]);
+        await page.goto(`file://${l2file}`);
+        await page.waitForTimeout(200);
+        const m0 = await page.evaluate(() => {
+          const v = document.querySelector('.screen[aria-hidden="false"]');
+          const n = document.querySelector(".resume-notice");
+          return {
+            shown: v ? v.dataset.screenId : "?",
+            notice: !!n,
+            role: n && n.getAttribute("role"),
+            live: n && n.getAttribute("aria-live"),
+            text: n ? n.textContent : "",
+            closable: !!(n && n.querySelector(".resume-notice-close")),
+          };
+        });
+        // kimlik-merdiveni: b2 dugumu GITTI ama c2 ekrani YASIYOR → c2'de devam (sifirlama YOK)
+        check("republish resume: kaldigi EKRANA devam (c2)", m0.shown, "c2");
+        check("republish resume: BILDIRIM gorunur", m0.notice, true);
+        check("bildirim role=status", m0.role, "status");
+        check("bildirim aria-live=polite", m0.live, "polite");
+        check("bildirim dostane metin (Kurs guncellendi...)", m0.text.includes("Kurs güncellendi"), true);
+        check("bildirim hedef basligi anar (Konu 2)", m0.text.includes("Konu 2"), true);
+        check("bildirim teknik jargon tasimaz", /suspend|orderFp|error/i.test(m0.text), false);
+        check("bildirim kapatilabilir", m0.closable, true);
+        // pozisyonel yanlis atif YOK: eski history/visited bitfield atildi; lineer yaklasimla
+        // c2'ye kadarki ekranlar gezilmis sayilir → ilerleme sifirlanmadi
+        const m1 = await page.evaluate(() => {
+          const bar = document.querySelector(".progress-bar");
+          return parseInt((bar && bar.style.width) || "0", 10);
+        });
+        check("ilerleme sifirlanmadi (lineer yaklasim > 0%)", m1 > 0, true);
       } finally {
         await ctx.close();
       }

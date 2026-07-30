@@ -5,7 +5,8 @@ import {
   INTERACTION_TYPES, interactionType, sanitizeId, resultValue, formatResponse,
   interactionElements,
   SUSPEND_LIMIT_12, SUSPEND_LIMIT_2004, suspendLimit,
-  encodeSuspend, decodeSuspend, encodeSuspendFit,
+  SUSPEND_BUDGET_12, suspendBudget, byteLen, byteSlice,
+  encodeSuspend, decodeSuspend, encodeSuspendFit, resumeSuspend, mergeObjectiveSnapshot,
   setResultOk, suspendWriteIssues,
   EXPLORATION_VALUE_MAX, setExploration, getExploration,
   aggregateObjectives, objectiveIndices, objectiveElements,
@@ -438,16 +439,23 @@ describe("F2 exploration xp codec (setExploration/getExploration + v2 kuyruk)", 
     expect(encodeSuspend({ ...bare, xp: {} }, ORDER)).toBe(encodeSuspend(bare, ORDER));
   });
 
-  it("xp, sığdırma yolunda (encodeSuspendFit history düşse bile) KORUNUR", () => {
+  it("xp, history düşürmek (rung 1) YETERLİYSE korunur; ancak rung 2'de düşer (Faz 4-ek merdiveni)", () => {
     const order = Array.from({ length: 40 }, (_, i) => `ekran_uzun_kimlik_${i}`);
     const st = { visited: {}, results: {}, history: [], xp: {} };
     order.forEach((id) => { st.visited[id] = true; st.history.push(id); });
     for (let i = 0; i < 6; i++) setExploration(st, `kesif_${i}`, "x".repeat(500));
-    const fit = encodeSuspendFit(st, order, 3000);
-    expect(fit.historyDropped).toBe(true);
-    const out = decodeSuspend(fit.data, order);
-    expect(Object.keys(out.xp)).toHaveLength(6);
-    expect(out.xp.kesif_0).toBe("x".repeat(500));
+    const full = encodeSuspendFit(st, order, 100000).bytes;
+    // rung 1 yeterli olacak bütçe: history (~40 indeks) düşünce sığar → xp KORUNUR
+    const fit1 = encodeSuspendFit(st, order, full - 10);
+    expect(fit1.rung).toBe(1);
+    expect(fit1.historyDropped).toBe(true);
+    const out1 = decodeSuspend(fit1.data, order);
+    expect(Object.keys(out1.xp)).toHaveLength(6);
+    expect(out1.xp.kesif_0).toBe("x".repeat(500));
+    // daha dar bütçe: öğrenen serbest metni (xp) rung 2'de düşer — cevap/pozisyondan ÖNCE
+    const fit2 = encodeSuspendFit(st, order, 3000);
+    expect(fit2.rung).toBe(2);
+    expect(decodeSuspend(fit2.data, order).xp).toBeUndefined();
   });
 
   it("v1 (eski JSON) migrasyonu xp'yi olduğu gibi taşır", () => {
@@ -611,5 +619,315 @@ describe("S2 objectiveElements — 1.2 ↔ 2004 sözlük/eleman farkları", () =
   it("geçme eşiği tam sınırda geçer (scaled >= ratio)", () => {
     const agg = { id: "o", correct: 3, total: 5, answered: 5, scaled: 0.6 };
     expect(Object.fromEntries(objectiveElements(agg, 0, false, 0.6))["cmi.objectives.0.status"]).toBe("passed");
+  });
+});
+
+// --------------------------------------------------------------------------- //
+// Faz 4-ek — UTF-8 bayt ölçümü + çalışma bütçesi
+// --------------------------------------------------------------------------- //
+describe("Faz 4-ek: byteLen/byteSlice (UTF-8 bayt ölçümü)", () => {
+  it("ASCII'de bayt = karakter; Türkçe harfler 2 bayt (ç ğ ı ö ş ü tuzağı)", () => {
+    expect(byteLen("abc")).toBe(3);
+    expect(byteLen("çğıöşü")).toBe(12);        // 6 karakter, 12 bayt
+    expect(byteLen("öğrenci")).toBe(9);        // ö+ğ 2'şer bayt
+    expect(byteLen("")).toBe(0);
+    expect(byteLen(null)).toBe(0);
+  });
+
+  it("surrogate çifti (emoji) 4 bayt sayılır", () => {
+    expect(byteLen("😀")).toBe(4);
+    expect(byteLen("a😀b")).toBe(6);
+  });
+
+  it("byteSlice karakter ortasından KESMEZ (Türkçe harf/emoji bölünmez)", () => {
+    expect(byteSlice("çç", 3)).toBe("ç");      // 2. ç 3. bayta sığmaz → düşer
+    expect(byteSlice("çç", 4)).toBe("çç");
+    expect(byteSlice("a😀b", 4)).toBe("a");    // emoji 4 bayt → 4 bütçesine a'dan sonra sığmaz
+    expect(byteSlice("abc", 10)).toBe("abc");
+    expect(byteLen(byteSlice("ığüşöç yüzer".repeat(50), 500))).toBeLessThanOrEqual(500);
+  });
+
+  it("çalışma bütçesi: 1.2'de 3500 bayt; 2004'te aynı rezerv oranı", () => {
+    expect(SUSPEND_BUDGET_12).toBe(3500);
+    expect(suspendBudget(false)).toBe(3500);
+    expect(suspendBudget(true)).toBe(Math.floor(64000 * 3500 / 4096));
+    expect(suspendBudget(true)).toBeLessThan(SUSPEND_LIMIT_2004);
+  });
+
+  it("setExploration 500 UTF-8 BAYTTA kırpar (karakterde değil)", () => {
+    const st = {};
+    const turkce = "ç".repeat(400);                        // 400 karakter = 800 bayt
+    const r = setExploration(st, "k", turkce);
+    expect(r.truncated).toBe(true);
+    expect(byteLen(r.value)).toBeLessThanOrEqual(500);
+    expect(r.value).toBe("ç".repeat(250));                 // 250 × 2 bayt = 500
+    const ascii = "a".repeat(500);                         // 500 bayt → tam sığar
+    expect(setExploration(st, "k2", ascii).truncated).toBe(false);
+  });
+});
+
+// --------------------------------------------------------------------------- //
+// Faz 4-ek — KIRPMA MERDİVENİ (taşma önceliği): pozisyon > hedef/skor > cevaplar > serbest metin
+// --------------------------------------------------------------------------- //
+describe("Faz 4-ek: encodeSuspendFit kırpma merdiveni", () => {
+  const ORDER = Array.from({ length: 40 }, (_, i) => `unite_${Math.floor(i / 10)}_ekran_${String(i).padStart(2, "0")}`);
+  const OBJ_IDS = ["o1", "o2"];
+  const OBJ_MAP = {};
+  function ladderState() {
+    const st = { visited: {}, results: {}, history: [], ix: {}, inext: 0,
+                 vars: { puan: 120, can: 2 }, xp: {}, cursorId: ORDER[25], reachedEnd: false };
+    ORDER.forEach((id, i) => {
+      st.visited[id] = true;
+      if (i > 0) st.history.push(ORDER[i - 1]);
+      if (i % 2 === 0) {
+        st.results[id] = { points: 10, max: 10, ok: i % 4 === 0, answered: true };
+        st.ix[id] = st.inext++;
+        OBJ_MAP[id] = [i < 20 ? "o1" : "o2"];
+      }
+    });
+    for (let k = 0; k < 4; k++) st.xp[`kesif_${k}`] = "gözlemim şu: yüzer çünkü yoğunluk ".repeat(8);
+    return st;
+  }
+  const META = { node: "u2", cv: 7, objIds: OBJ_IDS, objMap: OBJ_MAP };
+
+  it("bütçeye sığıyorsa merdiven HİÇ çalışmaz: t yazılmaz, rung=0", () => {
+    const st = ladderState();
+    const fit = encodeSuspendFit(st, ORDER, 100000, META);
+    expect(fit.rung).toBe(0);
+    expect(fit.truncated).toBe(false);
+    const out = decodeSuspend(fit.data, ORDER);
+    expect(out.t).toBeUndefined();
+    expect(out.results).toEqual(st.results);
+    expect(out.xp).toEqual(st.xp);
+  });
+
+  it("rung 1: önce history düşer; xp/cevaplar/pozisyon KORUNUR; t=1 yazılır+okunur", () => {
+    const st = ladderState();
+    const full = encodeSuspendFit(st, ORDER, 100000, META).bytes;
+    const fit = encodeSuspendFit(st, ORDER, full - 1, META);
+    expect(fit.rung).toBe(1);
+    const out = decodeSuspend(fit.data, ORDER);
+    expect(out.t).toBe(1);
+    expect(out.history).toEqual([]);
+    expect(out.xp).toEqual(st.xp);
+    expect(out.results).toEqual(st.results);
+    expect(out.vars).toEqual(st.vars);
+    expect(out.cursorId).toBe(ORDER[25]);
+  });
+
+  it("rung 2: sonra öğrenen serbest metni (xp) düşer; cevaplar hâlâ KORUNUR", () => {
+    const st = ladderState();
+    const r1 = encodeSuspendFit(st, ORDER, encodeSuspendFit(st, ORDER, 100000, META).bytes - 1, META);
+    const fit = encodeSuspendFit(st, ORDER, r1.bytes - 1, META);
+    expect(fit.rung).toBe(2);
+    const out = decodeSuspend(fit.data, ORDER);
+    expect(out.t).toBe(2);
+    expect(out.xp).toBeUndefined();
+    expect(out.results).toEqual(st.results);
+    expect(out.ix).toEqual(st.ix);
+    expect(out.cursorId).toBe(ORDER[25]);
+  });
+
+  it("rung 3: sayfa cevapları düşer ama HEDEF/SKOR durumu g/e tabanı olarak YAŞAR", () => {
+    const st = ladderState();
+    const r2bytes = (() => {
+      let b = encodeSuspendFit(st, ORDER, 100000, META).bytes;
+      let f = encodeSuspendFit(st, ORDER, b - 1, META);          // rung 1
+      f = encodeSuspendFit(st, ORDER, f.bytes - 1, META);        // rung 2
+      return f.bytes;
+    })();
+    const fit = encodeSuspendFit(st, ORDER, r2bytes - 1, META);
+    expect(fit.rung).toBe(3);
+    const out = decodeSuspend(fit.data, ORDER);
+    expect(out.t).toBe(3);
+    expect(out.results).toEqual({});                     // cevaplar düştü
+    expect(out.ix).toBeUndefined();
+    expect(out.vars).toBeUndefined();
+    // hedef tamamlanma/skor tabanı: o1 = 10 ekran (hepsi cevaplı), o2 = 10 ekran
+    expect(out.g.o1).toEqual([5, 10, 10]);               // i%4 doğru → 20'ye kadar 5 doğru
+    expect(out.g.o2).toEqual([5, 10, 10]);
+    expect(out.e).toBe(200);                             // 20 cevaplı ekran × 10 puan
+    expect(out.visited).toEqual(st.visited);             // visited rung 3'te KORUNUR
+    expect(out.cursorId).toBe(ORDER[25]);                // pozisyon ASLA düşmez
+  });
+
+  it("rung 4 (son çare): yalnız pozisyon — cursor korunur, visited lineer yaklaşımla kurulur", () => {
+    const st = ladderState();
+    const fit = encodeSuspendFit(st, ORDER, 120, META);
+    expect(fit.rung).toBe(4);
+    const out = decodeSuspend(fit.data, ORDER);
+    expect(out.t).toBe(4);
+    expect(out.cursorId).toBe(ORDER[25]);                // POZİSYON SON BASAMAKTA BİLE SAĞ
+    expect(out.g).toBeUndefined();
+    // lineer yaklaşım: cursor'a kadarki ekranlar visited (kilit tuzağı yok); cursor değil
+    for (let i = 0; i < 25; i++) expect(out.visited[ORDER[i]]).toBe(true);
+    expect(out.visited[ORDER[25]]).toBeUndefined();
+  });
+
+  it("her basamakta YENİDEN ölçülür ve sığdığı yerde durur (alt basamağa inilmez)", () => {
+    const st = ladderState();
+    const r1 = encodeSuspendFit(st, ORDER, encodeSuspendFit(st, ORDER, 100000, META).bytes - 1, META);
+    expect(r1.rung).toBe(1);
+    expect(decodeSuspend(r1.data, ORDER).xp).toEqual(st.xp);   // rung 1 yeterliyken xp düşmedi
+  });
+
+  it("TÜRKÇE-YOĞUN tuzak: karakterce sığan ama BAYTÇA taşan payload kırpılır", () => {
+    const st = { visited: {}, results: {}, history: [], cursorId: "e1",
+                 xp: { not_1: "ğüşıöç".repeat(300) } };          // 1800 kchar = 3600 bayt
+    const order = ["e1", "e2"];
+    const enc = encodeSuspend(st, order, { cv: 1 });
+    expect(enc.length).toBeLessThan(3500);               // karakter ölçümü YANILTICI: sığıyor görünür
+    expect(byteLen(enc)).toBeGreaterThan(3500);          // gerçek UTF-8 boyutu taşıyor
+    const fit = encodeSuspendFit(st, order, 3500, { cv: 1 });
+    expect(fit.rung).toBeGreaterThan(0);                 // .length ile ölçülseydi rung=0 kalırdı
+    expect(byteLen(fit.data)).toBeLessThanOrEqual(3500);
+    expect(fit.truncated).toBe(false);
+  });
+
+  it("zarfın kendi alanları ASCII'dir (Türkçe yalnız tail serbest metninde olabilir)", () => {
+    const st = ladderState();
+    delete st.xp; delete st.vars;                        // serbest metin kanalları boş
+    const enc = encodeSuspend(st, ORDER, META);
+    // eslint-disable-next-line no-control-regex
+    expect(/^[\x00-\x7F]*$/.test(enc)).toBe(true);       // saf ASCII → bayt = karakter
+    expect(byteLen(enc)).toBe(enc.length);
+  });
+
+  it("suspendWriteIssues rung'u taşır (verilmişse) — konsol uyarısı basamağı raporlar", () => {
+    const issues = suspendWriteIssues({ ok: true, size: 3600, limit: 3500, truncated: true, rung: 4 });
+    expect(issues).toEqual([{ kind: "truncated", size: 3600, limit: 3500, rung: 4 }]);
+    // rung verilmezse alan eklenmez (geriye uyum)
+    expect(suspendWriteIssues({ ok: true, size: 10, limit: 3500, truncated: true }))
+      .toEqual([{ kind: "truncated", size: 10, limit: 3500 }]);
+  });
+
+  it("KAYIP SESSİZ KALMAZ: merdiven veri düşürüp sığdırdıysa (rung>0) 'trimmed' uyarısı üretilir", () => {
+    // xAPI/LRS'e BAĞIMLI DEĞİL: bu saf karar katmanıdır; runtime bunu HER ZAMAN console.warn'a,
+    // xAPI'ye yalnız LRS konfigürasyonu varsa EK olarak çevirir (templates suspendTrouble).
+    const issues = suspendWriteIssues({ ok: true, size: 3400, limit: 3500, truncated: false, rung: 2 });
+    expect(issues).toEqual([{ kind: "trimmed", size: 3400, limit: 3500, rung: 2 }]);
+    // sığdı + kayıp yok → uyarı yok
+    expect(suspendWriteIssues({ ok: true, size: 900, limit: 3500, truncated: false, rung: 0 })).toEqual([]);
+  });
+
+  it("mergeObjectiveSnapshot: canlı cevap varsa canlı kazanır, yoksa g tabanı (skor geriye gitmez)", () => {
+    const g = { o1: [5, 10, 10], o2: [3, 10, 10] };
+    const live = [{ id: "o1", correct: 1, total: 10, answered: 1, scaled: 0.1 }];
+    const out = mergeObjectiveSnapshot(live, ["o1", "o2"], g);
+    expect(out[0]).toEqual({ id: "o1", correct: 1, total: 10, answered: 1, scaled: 0.1 });
+    expect(out[1]).toEqual({ id: "o2", correct: 3, total: 10, answered: 10, scaled: 0.3 });
+    expect(mergeObjectiveSnapshot(live, ["o1"], null)).toBe(live);
+  });
+});
+
+// --------------------------------------------------------------------------- //
+// Faz 4-ek — REPUBLISH-RESUME okuma merdiveni (resumeSuspend): orderFp × v etkileşimi
+// --------------------------------------------------------------------------- //
+describe("Faz 4-ek: resumeSuspend republish merdiveni", () => {
+  const ORDER = ["t1", "c1", "c2", "c3", "s1"];
+  const SN = { t1: "u1", c1: "u1", c2: "b2", c3: "b2" };       // s1 düğümsüz
+  function state() {
+    const st = { visited: { t1: true, c1: true }, results: { c1: { points: 10, max: 10, ok: true, answered: true } },
+                 history: ["t1", "c1"], ix: { c1: 0 }, inext: 1, cursorId: "c2",
+                 vars: { puan: 10 }, xp: { kesif: "tahminim bu" } };
+    return st;
+  }
+  const META = { node: "b2", cv: 41 };
+
+  it("v/order eşleşir → TAM resume, SESSİZ (bildirim yok)", () => {
+    const raw = encodeSuspend(state(), ORDER, META);
+    const r = resumeSuspend(raw, ORDER, { cv: 41, screenNode: SN });
+    expect(r.mode).toBe("full");
+    expect(r.notice).toBe(false);
+    expect(r.state.cursorId).toBe("c2");
+    expect(r.state.results.c1.points).toBe(10);
+    expect(r.state.history).toEqual(["t1", "c1"]);
+  });
+
+  it("order değişti + düğüm yaşıyor + ekran yaşıyor → ekrana devam, SESSİZ", () => {
+    const raw = encodeSuspend(state(), ORDER, META);
+    const newOrder = ["t1", "yeni", "c1", "c2", "c3", "s1"];   // araya ekran girdi (fp uyuşmaz)
+    const newSN = { ...SN, yeni: "u1" };
+    const r = resumeSuspend(raw, newOrder, { cv: 42, screenNode: newSN });
+    expect(r.mode).toBe("node");
+    expect(r.notice).toBe(false);
+    expect(r.target).toBe("c2");
+    expect(r.state.cursorId).toBe("c2");
+  });
+
+  it("düğüm yaşıyor ama ekran silinmiş → düğümün YENİ ilk ekranına devam, SESSİZ", () => {
+    const raw = encodeSuspend(state(), ORDER, META);
+    const newOrder = ["t1", "c1", "c9", "c3", "s1"];           // c2 silindi; b2'de c9+c3 var
+    const newSN = { t1: "u1", c1: "u1", c9: "b2", c3: "b2" };
+    const r = resumeSuspend(raw, newOrder, { cv: 42, screenNode: newSN });
+    expect(r.mode).toBe("node");
+    expect(r.target).toBe("c9");
+    expect(r.notice).toBe(false);
+  });
+
+  it("DÜĞÜM SİLİNMİŞ ama ekran yaşıyor → ekranın YENİ düğümünde devam + BİLDİRİM", () => {
+    const raw = encodeSuspend(state(), ORDER, META);
+    const newOrder = ["t1", "c1", "c2", "s1"];                 // c3 gitti, b2 düğümü kalktı
+    const newSN = { t1: "u1", c1: "u1", c2: "u9" };            // c2 artık u9 düğümünde
+    const r = resumeSuspend(raw, newOrder, { cv: 42, screenNode: newSN });
+    expect(r.mode).toBe("screen");
+    expect(r.target).toBe("c2");
+    expect(r.notice).toBe(true);
+  });
+
+  it("İKİSİ DE gitmiş → kurs başı + BİLDİRİM (sessiz sıfırlama YOK); kimlik-tabanlı veri yaşar", () => {
+    const raw = encodeSuspend(state(), ORDER, META);
+    const newOrder = ["a1", "a2", "a3"];                       // tamamen yeni içerik
+    const r = resumeSuspend(raw, newOrder, { cv: 99, screenNode: { a1: "x" } });
+    expect(r.mode).toBe("start");
+    expect(r.notice).toBe(true);
+    expect(r.state.cursorId).toBeUndefined();                  // baştan başlar
+    expect(r.state.vars).toEqual({ puan: 10 });                // id-tabanlı alanlar kurtuldu
+    expect(r.state.xp).toEqual({ kesif: "tahminim bu" });
+    expect(r.state.inext).toBe(1);                             // LMS interaction sayacı korunur
+  });
+
+  it("POZİSYONEL YANLIŞ ATIF YOK: order değişince indeks-tabanlı results/visited/history atılır", () => {
+    const raw = encodeSuspend(state(), ORDER, META);
+    const newOrder = ["c9", "c1", "c2", "t1"];                 // reorder + değişim
+    const r = resumeSuspend(raw, newOrder, { cv: 42, screenNode: { c9: "b2", c2: "b2" } });
+    // eski order'da c1 indeks-tabanlı cevaplıydı; yeni order'a karşı indeks çözülemez → results boş
+    expect(r.state.results).toEqual({});
+    expect(r.state.history).toEqual([]);
+    // ama pozisyon kimlik-tabanlı z'den geldi: c2 (b2 yaşıyor) → sessiz düğüm devamı
+    expect(r.mode).toBe("node");
+    expect(r.target).toBe("c2");
+  });
+
+  it("fallback devamda hedefe kadarki ekranlar lineer yaklaşımla visited (kilit tuzağı yok)", () => {
+    const raw = encodeSuspend(state(), ORDER, META);
+    const newOrder = ["t1", "yeni", "c1", "c2", "c3", "s1"];
+    const r = resumeSuspend(raw, newOrder, { cv: 42, screenNode: { ...SN, yeni: "u1" } });
+    expect(r.state.visited).toEqual({ t1: true, yeni: true, c1: true });
+  });
+
+  it("POZİSYON KAYDI OLMAYAN eski v2 payload'u order değişiminde başa döner + BİLDİRİM", () => {
+    // Faz 4-ek ÖNCESİ üretilmiş payload taklidi: meta'sız encode (z yok)
+    const raw = encodeSuspend(state(), ORDER);
+    expect(raw.indexOf('"z"')).toBeGreaterThan(-1);            // cursorId varsa z.s yazılır (yeni encoder)
+    // gerçek eski payload'da z hiç yoktu → elle sök
+    const legacy = raw.replace(/"z":\{[^}]*\},?/, "").replace(/,\}/, "}");
+    const r = resumeSuspend(legacy, ["x1", "x2"], { cv: 5, screenNode: {} });
+    expect(r.mode).toBe("start");
+    expect(r.notice).toBe(true);
+  });
+
+  it("v1 (kimlik-anahtarlı) payload TAM resume sayılır — reorder'a zaten bağışık", () => {
+    const st = { visited: { a: true }, results: {}, history: [], cursorId: "a" };
+    const r = resumeSuspend(JSON.stringify(st), ["b", "a"], { cv: 1, screenNode: {} });
+    expect(r.mode).toBe("full");
+    expect(r.notice).toBe(false);
+    expect(r.state.cursorId).toBe("a");
+  });
+
+  it("boş/çöp girdi mode=none (bildirimsiz temiz başlangıç)", () => {
+    expect(resumeSuspend("", ORDER, {}).mode).toBe("none");
+    expect(resumeSuspend(null, ORDER, {}).mode).toBe("none");
+    expect(resumeSuspend("çöp", ORDER, {}).mode).toBe("none");
   });
 });

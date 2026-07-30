@@ -163,6 +163,10 @@ _EN: dict[str, str] = {
     "adaptive_mastery": "Mastery: {pct}%",
     "adaptive_ability": "Level: {value}",
     "adaptive_result": "{correct} / {answered} correct · {level}",
+    # Faz 4-ek — republish devam bildirimi (dostane, teknik olmayan; aria-live=polite)
+    "resume_updated": "The course has been updated. You are continuing from: {name}",
+    "resume_restart": "The course has been updated. You are starting from the beginning.",
+    "notice_close": "Close",
     # --- yazar içeriği için varsayılanlar (yazar doldurmazsa) ---
     "feedback_correct": "Correct!",
     "feedback_incorrect": "Try again.",
@@ -253,6 +257,10 @@ _TR: dict[str, str] = {
     "adaptive_mastery": "Ustalık: {pct}%",
     "adaptive_ability": "Seviye: {value}",
     "adaptive_result": "{correct} / {answered} doğru · {level}",
+    # Faz 4-ek — republish devam bildirimi
+    "resume_updated": "Kurs güncellendi. Şu bölümden devam ediyorsun: {name}",
+    "resume_restart": "Kurs güncellendi. Baştan başlıyorsun.",
+    "notice_close": "Kapat",
     "feedback_correct": "Doğru!",
     "feedback_incorrect": "Tekrar deneyin.",
 }
@@ -272,6 +280,9 @@ RUNTIME_KEYS: tuple[str, ...] = (
     "adaptive_engine_failed", "adaptive_mastery", "adaptive_ability", "adaptive_result",
     "review_sending", "review_sent", "review_error",
     "xp_not_answered",  # F2 (#113) — boş exploration referansının yer tutucusu
+    # Faz 4-ek — republish devam bildirimi (runtime JS üretir; tüm kurslarda — dayanıklılık
+    # outline'a bağlı değildir, düz kurs da republish edilebilir)
+    "resume_updated", "resume_restart", "notice_close",
     # NOT (Faz 4): results_completion RUNTIME_KEYS'e BİLEREK eklenmedi — yalnız outline'lı
     # kursun runtime tablosuna girer (renderer._runtime_i18n; 3.3 bayt-parite).
 )

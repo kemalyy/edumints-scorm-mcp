@@ -112,6 +112,15 @@ body[data-bg="grid"]{background-image:linear-gradient(color-mix(in srgb,var(--c-
 .status-pill,.pl-time{direction:ltr;unicode-bidi:isolate}
 .status-pill{font-size:12px;color:var(--c-muted);min-width:60px;text-align:end;
   font-variant-numeric:tabular-nums;font-weight:500}
+/* Faz 4-ek — republish devam bildirimi (dostane; teknik hata degil) */
+.resume-notice{position:fixed;inset-block-start:14px;inset-inline-start:50%;transform:translateX(-50%);
+  z-index:60;display:flex;align-items:center;gap:10px;max-width:min(92vw,560px);
+  background:var(--c-surface);color:var(--c-text);border:1px solid color-mix(in srgb,var(--c-primary) 25%,transparent);
+  border-radius:var(--r-md);box-shadow:0 6px 24px rgba(0,0,0,.18);padding:10px 14px;font-size:14px;line-height:1.45}
+[dir="rtl"] .resume-notice{transform:translateX(50%)}
+.resume-notice-close{flex:none;background:none;border:0;cursor:pointer;color:var(--c-muted);
+  font-size:18px;line-height:1;padding:2px 6px;border-radius:var(--r-sm)}
+.resume-notice-close:hover{color:var(--c-text)}
 .timer-hud{font-family:var(--font-mono);font-weight:var(--w-strong);font-size:13px;color:var(--c-primary);
   background:color-mix(in srgb,var(--c-primary) 6%,var(--c-surface));
   padding:4px 10px;border-radius:var(--r-pill);border:1px solid color-mix(in srgb,var(--c-primary) 12%,transparent)}
@@ -967,6 +976,54 @@ function suspendLimit(is2004) {
   return is2004 ? SUSPEND_LIMIT_2004 : SUSPEND_LIMIT_12;
 }
 
+// Faz 4-ek — ÇALIŞMA BÜTÇESİ: sınırın tamamı kullanılmaz; kalan pay LMS tarafındaki
+// kaçışlama/depolama ek yüküne REZERVE edilir (bazı LMS'ler suspend_data'yı SQL/XML
+// kaçışlayarak saklar — 4096'ya dayanan payload orada taşar). TÜM ölçüm UTF-8 BAYTTIR,
+// karakter değil (Türkçe ç/ğ/ı/ö/ş/ü 2 bayttır; .length ile ölçüm sessizce taşırırdı).
+// Zarfın kendi alanları zaten ASCII'dir (kısa anahtar, id, base36/int) — Türkçe yalnız
+// tail JSON'daki yazar değişkeni / öğrenen serbest metninde görülebilir.
+const SUSPEND_BUDGET_12 = 3500;    // 1.2 çalışma bütçesi (bayt); 4096-3500 rezerv
+
+function suspendBudget(is2004) {
+  // 2004'te aynı rezerv ORANI uygulanır (kaçışlama ek yükü içerikle orantılıdır).
+  return is2004
+    ? Math.floor(SUSPEND_LIMIT_2004 * SUSPEND_BUDGET_12 / SUSPEND_LIMIT_12)
+    : SUSPEND_BUDGET_12;
+}
+
+// UTF-8 bayt uzunluğu — saf, TextEncoder'sız (eski WebView'larda da deterministik).
+// Surrogate çifti 4 bayt sayılır; eşleşmemiş surrogate U+FFFD gibi 3 bayt kabul edilir.
+function byteLen(s) {
+  s = String(s == null ? "" : s);
+  var n = 0;
+  for (var i = 0; i < s.length; i++) {
+    var c = s.charCodeAt(i);
+    if (c < 0x80) n += 1;
+    else if (c < 0x800) n += 2;
+    else if (c >= 0xd800 && c <= 0xdbff && i + 1 < s.length &&
+             (s.charCodeAt(i + 1) & 0xfc00) === 0xdc00) { n += 4; i++; }
+    else n += 3;
+  }
+  return n;
+}
+
+// s'yi en çok maxBytes UTF-8 baytına kırp — karakter ORTASINDAN kesmez (surrogate çifti bölünmez).
+function byteSlice(s, maxBytes) {
+  s = String(s == null ? "" : s);
+  var n = 0, i = 0;
+  while (i < s.length) {
+    var c = s.charCodeAt(i), w, step = 1;
+    if (c < 0x80) w = 1;
+    else if (c < 0x800) w = 2;
+    else if (c >= 0xd800 && c <= 0xdbff && i + 1 < s.length &&
+             (s.charCodeAt(i + 1) & 0xfc00) === 0xdc00) { w = 4; step = 2; }
+    else w = 3;
+    if (n + w > maxBytes) break;
+    n += w; i += step;
+  }
+  return s.slice(0, i);
+}
+
 function _b36(n) { return Math.max(0, Math.floor(Number(n) || 0)).toString(36); }
 function _p36(s) { var n = parseInt(s, 36); return isNaN(n) ? 0 : n; }
 function _numStr(x) { var n = Number(x); return isFinite(n) ? String(n) : "0"; }
@@ -982,7 +1039,10 @@ function _fp(order) {
   return h.toString(36) + "_" + (order || []).length.toString(36);
 }
 
-var _V2_KNOWN = { visited: 1, results: 1, history: 1, vars: 1, ix: 1, inext: 1, cursorId: 1, reachedEnd: 1, xp: 1 };
+// g/e/t: Faz 4-ek merdiven alanları (aşağıda); z pozisyon kaydı state'e hiç yazılmaz ama
+// savunmacı olarak listede (yanlışlıkla state.z konursa extra.o'ya yankılanmasın).
+var _V2_KNOWN = { visited: 1, results: 1, history: 1, vars: 1, ix: 1, inext: 1, cursorId: 1,
+                  reachedEnd: 1, xp: 1, g: 1, e: 1, t: 1, z: 1 };
 
 // --------------------------------------------------------------------------- //
 // F2 (#113) — exploration girdi saklama: state.xp = { store_key: değer }
@@ -990,18 +1050,18 @@ var _V2_KNOWN = { visited: 1, results: 1, history: 1, vars: 1, ix: 1, inext: 1, 
 // Anahtarlar store_key'dir (ekran id'si DEĞİL) → pozisyonel indekse çevrilmez, v2 kuyruk
 // JSON'unda (extra.p) kimlik-anahtarlı taşınır; paket reorder'ında bile anlamı bozulmaz
 // (orderFp uyuşmazlığında zarfın tamamı temiz-başlangıca düşer — bilinçli güvenli taraf).
-// Değer 500 karakterde kırpılır: SCORM 1.2 suspend bütçesi (4096) birkaç keşif ekranını
-// kaldırabilsin; sunucu tarafı tahmin (core/antislop.py estimate_suspend_size) AYNI sabiti
-// kullanır — değişirse ikisi birlikte güncellenmeli.
+// Değer 500 UTF-8 BAYTTA kırpılır (Faz 4-ek: karakter değil bayt — Türkçe metin 2 bayt/harf):
+// SCORM 1.2 suspend bütçesi (3500 bayt) birkaç keşif ekranını kaldırabilsin; sunucu tarafı
+// tahmin (core/antislop.py estimate_suspend_size) AYNI sabiti kullanır — birlikte güncellenmeli.
 
 var EXPLORATION_VALUE_MAX = 500;
 
-// state.xp[key] = String(value) (500'de kırp). Dönüş: { value, truncated } — çağıran
+// state.xp[key] = String(value) (500 baytta kırp). Dönüş: { value, truncated } — çağıran
 // (bindExploration) truncated'ı console.warn'a çevirir; burada ASLA loglanmaz (saf).
 function setExploration(state, key, value) {
   var v = value == null ? "" : String(value);
   var truncated = false;
-  if (v.length > EXPLORATION_VALUE_MAX) { v = v.slice(0, EXPLORATION_VALUE_MAX); truncated = true; }
+  if (byteLen(v) > EXPLORATION_VALUE_MAX) { v = byteSlice(v, EXPLORATION_VALUE_MAX); truncated = true; }
   if (state) (state.xp = state.xp || {})[String(key)] = v;
   return { value: v, truncated: truncated };
 }
@@ -1011,11 +1071,26 @@ function getExploration(state, key) {
   return v == null ? "" : String(v);
 }
 
-function encodeSuspend(state, order) {
-  state = state || {}; order = order || [];
+// meta (Faz 4-ek, opsiyonel): { node: cursor ekranının outline düğüm id'si, cv: içerik
+// sürümü (content_version, küçük int), t: kırpma basamağı (encodeSuspendFit yazar) }.
+// meta verilirse tail'e `z` POZİSYON KAYDI eklenir: {s: ekranId, n: düğümId, v: içerikSürümü}.
+// z KİMLİK-tabanlıdır (pozisyonel DEĞİL) → paket güncellenip order değişse (orderFp uyuşmasa)
+// bile okunabilir kalır; resumeSuspend republish merdiveni bunun üzerinden çalışır.
+function encodeSuspend(state, order, meta) {
+  state = state || {}; order = order || []; meta = meta || {};
   var idx = {}, i;
   for (i = 0; i < order.length; i++) idx[order[i]] = i;
   var extra = {};
+
+  // z — pozisyon kaydı: konum + içerik sürümü. ASLA DÜŞMEZ (merdivenin tepesi).
+  var z = {};
+  if (state.cursorId != null) z.s = state.cursorId;
+  if (meta.node != null) z.n = meta.node;
+  if (meta.cv != null) z.v = meta.cv;
+  if (z.s != null || z.v != null) extra.z = z;
+  if (meta.t) extra.t = meta.t;                        // kırpma basamağı bayrağı
+  if (state.g) extra.g = state.g;                      // hedef anlık görüntüsü (taban — rung 3)
+  if (state.e != null) extra.e = state.e;              // toplam kazanılmış puan tabanı (rung 3)
 
   var cur = "";
   if (state.cursorId != null) {
@@ -1113,11 +1188,27 @@ function _decodeV2(s, order) {
     if (extra.a) st.vars = extra.a;                    // vars boşsa YOK say → runtime varsayılanları kurar
     if (extra.p) st.xp = extra.p;                      // F2 — exploration girdileri (store_key → değer)
     if (extra.o) Object.keys(extra.o).forEach(function (ok_) { st[ok_] = extra.o[ok_]; });
+    // Faz 4-ek — merdiven alanları: t (kırpma basamağı), g/e (rung-3 skor/hedef tabanı).
+    // z pozisyon kaydı state'e YAZILMAZ (konum zaten cursor'dan geldi; z resumeSuspend'in işi).
+    if (extra.t) st.t = extra.t;
+    if (extra.g) st.g = extra.g;
+    if (extra.e != null) st.e = extra.e;
+    // t=4 (yalnız-pozisyon): visited de düşmüştü → LİNEER YAKLAŞIM: cursor'a kadarki ekranlar
+    // gezilmiş sayılır (kilit tuzağı/ilerleme sıfırlanması olmasın; menüden atlanmış ekranlar
+    // için iyimser bir yaklaşıklıktır — belgeli). cursor'un kendisi visited SAYILMAZ (oynatıcı
+    // gösterirken işaretler).
+    if (st.t >= 4 && parts[1]) {
+      var ci = _p36(parts[1]);
+      for (var q = 0; q < ci && q < order.length; q++) st.visited[order[q]] = true;
+    }
     return st;
   } catch (e) { return null; }
 }
 
 // raw → state | null. v2 ("2|" öneki) ve v1 (düz JSON {visited:...}) formatlarını tanır.
+// NOT (Faz 4-ek): orderFp uyuşmazlığında null döner — bu TAM decode'un sözleşmesidir
+// (pozisyonel alanlar güvensiz). Republish'ten sağ çıkan kimlik-tabanlı KISMİ resume için
+// oynatıcı resumeSuspend kullanır (aşağıda) — null artık "her şeyi sıfırla" demek DEĞİLDİR.
 function decodeSuspend(raw, order) {
   if (raw == null || raw === "") return null;
   var s = String(raw);
@@ -1132,20 +1223,172 @@ function decodeSuspend(raw, order) {
   return null;
 }
 
-// Sığdırarak kodla: limit aşılırsa önce history düşer (v1'deki davranışın kayıpsız hâli — vars ve
-// ix v2'de KORUNUR; v1 fallback ikisini de atardı → tekrar cevaplanan sorular kopya interaction
-// üretirdi). Hâlâ sığmıyorsa veri OLDUĞU GİBİ döner + truncated bayrağı (görünürlük katmanı uyarır).
-function encodeSuspendFit(state, order, limit) {
-  var lim = Number(limit) > 0 ? Number(limit) : SUSPEND_LIMIT_12;
-  var data = encodeSuspend(state, order);
-  var dropped = false;
-  if (data.length > lim && state && state.history && state.history.length) {
-    var slim = {}; for (var k in state) slim[k] = state[k];
-    slim.history = [];
-    data = encodeSuspend(slim, order);
-    dropped = true;
+// orderFp uyuşmayan v2 zarfından KİMLİK-tabanlı alanları kurtar: tail (extra.c/v/r/x/a/p/o,
+// z, g, e, t) + inext (LMS interaction sayacı — order'dan bağımsız; eski satırların üzerine
+// yazmayı önler). POZİSYONEL alanlar (cursor idx, visited bitfield, history, results/ix
+// indeksleri) ATILIR — eski order bilinmediği için id'ye çevrilemezler; reachedEnd de atılır
+// (yeni içerikte "sonu görmüş" sayılamaz). → {state, z} | null.
+function _salvageV2(s) {
+  try {
+    var parts = s.split("|");
+    if (parts[0] !== "2") return null;
+    var tail = parts.slice(9).join("|");
+    var extra = tail ? JSON.parse(tail) : {};
+    var st = { visited: {}, results: {}, history: [] };
+    (extra.v || []).forEach(function (vid) { st.visited[vid] = true; });
+    if (extra.r) Object.keys(extra.r).forEach(function (rid) { st.results[rid] = extra.r[rid]; });
+    if (extra.x) { st.ix = {}; Object.keys(extra.x).forEach(function (xid) { st.ix[xid] = extra.x[xid]; }); }
+    if (parts[7] != null && parts[7] !== "") st.inext = _p36(parts[7]);
+    if (extra.a) st.vars = extra.a;
+    if (extra.p) st.xp = extra.p;
+    if (extra.t) st.t = extra.t;
+    if (extra.g) st.g = extra.g;
+    if (extra.e != null) st.e = extra.e;
+    if (extra.o) Object.keys(extra.o).forEach(function (ok_) { st[ok_] = extra.o[ok_]; });
+    return { state: st, z: extra.z || null, c: extra.c != null ? extra.c : null };
+  } catch (e) { return null; }
+}
+
+// Faz 4-ek — REPUBLISH-RESUME OKUMA MERDİVENİ. ctx: { cv: COURSE.content_version,
+// screenNode: {ekranId: düğümId} }. Dönüş: { state, mode, target, notice }:
+//   mode "none"   → veri yok/çözülemedi (temiz başlangıç, bildirim YOK — eski davranış)
+//   mode "full"   → orderFp eşleşti (veya v1 kimlik-anahtarlı) → TAM resume, SESSİZ.
+//                   İçerik sürümü v yalnız pozisyonel bütünlük bozulunca danışılır: fp
+//                   eşleşiyorsa ekran kümesi ve sırası aynıdır → v farkı (yalnız düğüm
+//                   kümesi değişimi) tam resume'u etkilemez (düğüm konumu statik konfigden).
+//   mode "node"   → fp uyuşmadı ama pozisyon kaydındaki düğüm YAŞIYOR → düğüme devam
+//                   (tam ekran hâlâ varsa o; yoksa düğümün yeni İLK ekranı) — SESSİZ (madde-2).
+//   mode "screen" → düğüm gitmiş ama EKRAN yaşıyor → ekranın YENİ düğümünde devam + BİLDİRİM.
+//   mode "start"  → ikisi de gitmiş (ya da pozisyon kaydı yok — eski payload) → kurs başı +
+//                   BİLDİRİM (sessiz sıfırlama YOK).
+// Fallback modlarında (node/screen) hedefe kadarki ekranlar LİNEER YAKLAŞIMLA visited
+// işaretlenir (kilit tuzağı/ilerleme sıfırlanması olmasın — belgeli yaklaşıklık). Öğrenene
+// ASLA teknik hata gösterilmez; bildirim dostu metindir (runtime i18n, aria-live).
+function resumeSuspend(raw, order, ctx) {
+  ctx = ctx || {}; order = order || [];
+  var none = { state: null, mode: "none", target: null, notice: false };
+  if (raw == null || raw === "") return none;
+  var s = String(raw);
+  if (s.slice(0, 2) !== "2|") {
+    var v1 = decodeSuspend(s, order);                  // v1 kimlik-anahtarlı → reorder'a bağışık
+    return v1 ? { state: v1, mode: "full", target: v1.cursorId != null ? v1.cursorId : null,
+                  notice: false } : none;
   }
-  return { data: data, truncated: data.length > lim, historyDropped: dropped };
+  var full = _decodeV2(s, order);
+  if (full) return { state: full, mode: "full",
+                     target: full.cursorId != null ? full.cursorId : null, notice: false };
+  var sv = _salvageV2(s);
+  if (!sv) return none;
+  var st = sv.state;
+  var z = sv.z || {};
+  if (z.s == null && sv.c != null) z.s = sv.c;         // eski payload: yalnız extra.c varsa o da konumdur
+  var sn = ctx.screenNode || {};
+  var idx = {}, i;
+  for (i = 0; i < order.length; i++) idx[order[i]] = i;
+  var nodeAlive = false;
+  if (z.n != null) {
+    for (i = 0; i < order.length; i++) if (sn[order[i]] === z.n) { nodeAlive = true; break; }
+  }
+  var mode, target = null, notice;
+  if (nodeAlive) {
+    mode = "node"; notice = false;
+    if (z.s != null && idx[z.s] != null) target = z.s;
+    else for (i = 0; i < order.length; i++) if (sn[order[i]] === z.n) { target = order[i]; break; }
+  } else if (z.s != null && idx[z.s] != null) {
+    mode = "screen"; notice = true; target = z.s;
+  } else {
+    mode = "start"; notice = true; target = order.length ? order[0] : null;
+  }
+  if (target != null && mode !== "start") {
+    st.cursorId = target;
+    for (i = 0; i < (idx[target] || 0); i++) st.visited[order[i]] = true;   // lineer yaklaşım
+  }
+  return { state: st, mode: mode, target: target, notice: notice };
+}
+
+function _shallow(st) { var o = {}; for (var k in st) o[k] = st[k]; return o; }
+
+// rung-3 anlık görüntüsü: results düşmeden ÖNCE hedef toplamları + toplam kazanılmış puan
+// tail'e taşınır (rung 2 sözleşmesi: hedef tamamlanma/skor durumu, sayfa-cevaplarından uzun
+// yaşar). Mevcut taban (önceki kısmi resume'dan gelen g/e) korunur: canlı toplam yalnızca
+// cevaplanmış hedeflerde tabanı EZER; toplam puanda büyük olan kazanır (çifte sayım yok).
+function _snapshotScores(st, meta) {
+  var g = {}, oid;
+  if (st.g) for (oid in st.g) g[oid] = st.g[oid];
+  if (meta && meta.objIds && meta.objMap) {
+    var aggs = aggregateObjectives(meta.objIds, meta.objMap, st.results || {});
+    for (var i = 0; i < aggs.length; i++) {
+      var a = aggs[i];
+      if (a.answered > 0) g[a.id] = [a.correct, a.total, a.answered];
+    }
+  }
+  var e = 0;
+  var res = st.results || {};
+  for (var sid in res) e += Number(res[sid] && res[sid].points) || 0;
+  if (st.e != null && Number(st.e) > e) e = Number(st.e);
+  var out = {};
+  if (Object.keys(g).length) out.g = g;
+  if (e > 0) out.e = e;
+  return out;
+}
+
+// Faz 4-ek — KIRPMA MERDİVENİ (taşma önceliği; üst korunur, alt önce düşer):
+//   korunan tepe: pozisyon (z: ekran id + düğüm id + içerik sürümü) + cursor + reachedEnd
+//                 + inext — ASLA düşmez.
+//   rung 1: history (gezinme geri-yığını; en az değerli — geri tuşu lineere düşer)
+//   rung 2: xp (öğrenen serbest metni — keşif girdileri; yer tutucuya düşer)
+//   rung 3: sayfa-başına cevaplar (results/ix/vars) — düşmeden önce hedef toplamları + toplam
+//           puan g/e olarak tail'e alınır (hedef tamamlanma/skor durumu cevaplardan uzun yaşar)
+//   rung 4: g/e + visited de düşer → yalnız pozisyon (decode visited'ı lineer yaklaşımla kurar)
+// Her basamaktan sonra YENİDEN ÖLÇÜLÜR (UTF-8 bayt), sığdığı anda durur. Basamak `t` kısa
+// anahtarıyla zarfa yazılır — oynatıcı state'i KISMİ sayar (basamak-başına davranış runtime'da).
+// limit = ÇALIŞMA BÜTÇESİ bayt (suspendBudget; 1.2'de 3500). meta: encodeSuspend meta'sı +
+// {objIds, objMap} (rung-3 anlık görüntüsü için).
+function encodeSuspendFit(state, order, limit, meta) {
+  var budget = Number(limit) > 0 ? Number(limit) : SUSPEND_BUDGET_12;
+  meta = meta || {};
+  var st = state || {};
+  var rung = 0;
+  var data = encodeSuspend(st, order, meta);
+  while (byteLen(data) > budget && rung < 4) {
+    rung++;
+    st = _shallow(st);
+    if (rung === 1) { st.history = []; }
+    else if (rung === 2) { delete st.xp; }
+    else if (rung === 3) {
+      var snap = _snapshotScores(st, meta);
+      delete st.results; delete st.ix; delete st.vars;
+      delete st.g; delete st.e;
+      if (snap.g) st.g = snap.g;
+      if (snap.e != null) st.e = snap.e;
+    } else if (rung === 4) { delete st.g; delete st.e; st.visited = {}; }
+    var m = _shallow(meta); m.t = rung;
+    data = encodeSuspend(st, order, m);
+  }
+  var bytes = byteLen(data);
+  return { data: data, rung: rung, bytes: bytes, truncated: bytes > budget,
+           historyDropped: rung >= 1 };
+}
+
+// rung-3 tabanını canlı toplamlarla birleştir (runtime writeObjectives yolu): hedef sırası
+// objectiveIds'tir; CANLI toplamda cevap varsa canlı kazanır (öğrenen yeniden cevapladı),
+// yoksa g tabanı kullanılır → kısmi resume'da LMS'e SIFIR yazılmaz (skor geriye gitmez).
+function mergeObjectiveSnapshot(aggs, objectiveIds, g) {
+  if (!g) return aggs || [];
+  var live = {};
+  (aggs || []).forEach(function (a) { live[a.id] = a; });
+  var out = [];
+  (objectiveIds || []).forEach(function (oid) {
+    var a = live[oid], snap = g[oid];
+    if (a && a.answered > 0) { out.push(a); return; }
+    if (snap) {
+      var c = Number(snap[0]) || 0, t = Number(snap[1]) || 0, n = Number(snap[2]) || 0;
+      out.push({ id: oid, correct: c, total: t, answered: n, scaled: t > 0 ? c / t : 0 });
+      return;
+    }
+    if (a) out.push(a);
+  });
+  return out;
 }
 
 // SCORM API Set çağrısının dönüşü başarı mı? 1.2 LMSSetValue ve 2004 SetValue CMIBoolean
@@ -1162,8 +1405,14 @@ function suspendWriteIssues(opts) {
   var out = [];
   if (!opts) return out;
   var size = Number(opts.size) || 0, limit = Number(opts.limit) || 0;
+  // Faz 4-ek: "truncated" = merdivenin SONUNDA bile bütçeye sığmadı; "trimmed" = merdiven
+  // veri düşürerek sığdırdı (rung>0) — kayıp OLDU, sessiz kalmaz (konsol + varsa xAPI).
   if (opts.truncated) out.push({ kind: "truncated", size: size, limit: limit });
+  else if (Number(opts.rung) > 0) out.push({ kind: "trimmed", size: size, limit: limit });
   if (opts.ok === false) out.push({ kind: "write_failed", size: size, limit: limit });
+  // kırpma basamağı (rung) verilmişse uyarılara eklenir: iz hangi veri katmanının düştüğünü
+  // raporlar. Verilmezse alan hiç eklenmez (geriye uyum).
+  if (opts.rung) for (var i = 0; i < out.length; i++) out[i].rung = Number(opts.rung);
   return out;
 }
 
@@ -1377,17 +1626,17 @@ function objectiveElements(agg, n, is2004, passingRatio, includeId) {
   return out;
 }
 
-__E.duration12 = duration12; __E.duration2004 = duration2004; __E.sessionTime = sessionTime; __E.timestamp12 = timestamp12; __E.timestamp2004 = timestamp2004; __E.exitValue = exitValue; __E.shouldRestore = shouldRestore; __E.SUSPEND_LIMIT_12 = SUSPEND_LIMIT_12; __E.SUSPEND_LIMIT_2004 = SUSPEND_LIMIT_2004; __E.suspendLimit = suspendLimit; __E.EXPLORATION_VALUE_MAX = EXPLORATION_VALUE_MAX; __E.setExploration = setExploration; __E.getExploration = getExploration; __E.encodeSuspend = encodeSuspend; __E.decodeSuspend = decodeSuspend; __E.encodeSuspendFit = encodeSuspendFit; __E.setResultOk = setResultOk; __E.suspendWriteIssues = suspendWriteIssues; __E.INTERACTION_TYPES = INTERACTION_TYPES; __E.interactionType = interactionType; __E.sanitizeId = sanitizeId; __E.resultValue = resultValue; __E.formatResponse = formatResponse; __E.interactionElements = interactionElements; __E.aggregateObjectives = aggregateObjectives; __E.objectiveIndices = objectiveIndices; __E.objectiveElements = objectiveElements;
+__E.duration12 = duration12; __E.duration2004 = duration2004; __E.sessionTime = sessionTime; __E.timestamp12 = timestamp12; __E.timestamp2004 = timestamp2004; __E.exitValue = exitValue; __E.shouldRestore = shouldRestore; __E.SUSPEND_LIMIT_12 = SUSPEND_LIMIT_12; __E.SUSPEND_LIMIT_2004 = SUSPEND_LIMIT_2004; __E.suspendLimit = suspendLimit; __E.SUSPEND_BUDGET_12 = SUSPEND_BUDGET_12; __E.suspendBudget = suspendBudget; __E.byteLen = byteLen; __E.byteSlice = byteSlice; __E.EXPLORATION_VALUE_MAX = EXPLORATION_VALUE_MAX; __E.setExploration = setExploration; __E.getExploration = getExploration; __E.encodeSuspend = encodeSuspend; __E.decodeSuspend = decodeSuspend; __E.resumeSuspend = resumeSuspend; __E.encodeSuspendFit = encodeSuspendFit; __E.mergeObjectiveSnapshot = mergeObjectiveSnapshot; __E.setResultOk = setResultOk; __E.suspendWriteIssues = suspendWriteIssues; __E.INTERACTION_TYPES = INTERACTION_TYPES; __E.interactionType = interactionType; __E.sanitizeId = sanitizeId; __E.resultValue = resultValue; __E.formatResponse = formatResponse; __E.interactionElements = interactionElements; __E.aggregateObjectives = aggregateObjectives; __E.objectiveIndices = objectiveIndices; __E.objectiveElements = objectiveElements;
 })();
 window.SCORMRT = __E;
 })();</script>
 <script>
-window.__COURSE__ = {"title": "SCORM'a Giriş", "language": "tr", "scorm_version": "1.2", "total_points": 10, "tracking": {"completion_rule": "viewed_all_and_passed", "passing_score": 50, "score_scaling": true}, "variables": [], "points_var": null, "levels": [], "lives_var": null, "max_lives": 0, "layout_mode": "stage", "stage_width": 960, "stage_height": 540, "screens": [{"id": "t1", "type": "title_slide", "index": 0, "is_quiz": false, "reveal": "auto"}, {"id": "c1", "type": "content_slide", "index": 1, "is_quiz": false, "reveal": "auto"}, {"id": "q1", "type": "mcq", "index": 2, "is_quiz": true, "title": "Mini Quiz", "points": 10, "multi": false, "correct": ["a"], "feedback": {"correct": "Doğru! 🎉", "incorrect": "Tekrar düşün.", "show_correct": true}, "reveal": "none"}, {"id": "s1", "type": "summary", "index": 3, "is_quiz": false, "reveal": "auto"}], "id_order": ["t1", "c1", "q1", "s1"]};
+window.__COURSE__ = {"title": "SCORM'a Giriş", "language": "tr", "scorm_version": "1.2", "total_points": 10, "tracking": {"completion_rule": "viewed_all_and_passed", "passing_score": 50, "score_scaling": true}, "variables": [], "points_var": null, "levels": [], "lives_var": null, "max_lives": 0, "layout_mode": "stage", "stage_width": 960, "stage_height": 540, "screens": [{"id": "t1", "type": "title_slide", "index": 0, "is_quiz": false, "reveal": "auto"}, {"id": "c1", "type": "content_slide", "index": 1, "is_quiz": false, "reveal": "auto"}, {"id": "q1", "type": "mcq", "index": 2, "is_quiz": true, "title": "Mini Quiz", "points": 10, "multi": false, "correct": ["a"], "feedback": {"correct": "Doğru! 🎉", "incorrect": "Tekrar düşün.", "show_correct": true}, "reveal": "none"}, {"id": "s1", "type": "summary", "index": 3, "is_quiz": false, "reveal": "auto"}], "id_order": ["t1", "c1", "q1", "s1"], "content_version": 755240};
 window.__ASSETS__ = {};
 window.__SCORM_2004__ = false;
 window.__PREVIEW__ = true;
 window.__REVIEW__ = false;
-window.__I18N__ = {"summary_passed": "Başarıyla tamamladınız", "summary_failed": "Geçme notuna ulaşılamadı", "summary_completed": "Tamamlandı", "summary_in_progress": "Devam ediyor", "results_total": "Toplam: <b>%{pct}</b>", "scenario_result_score": "Skor: {score}", "term_race_result": "{correct}/{total}", "term_race_bonus": " · +{bonus} hız bonusu", "escape_win": "Tüm kilitleri açtın!", "escape_lose": "Canların bitti.", "game_engine_failed": "Oyun motoru yüklenemedi.", "game_result_score": "Skor: {score}", "adaptive_engine_failed": "Adaptif motor yüklenemedi.", "adaptive_mastery": "Ustalık: {pct}%", "adaptive_ability": "Seviye: {value}", "adaptive_result": "{correct} / {answered} doğru · {level}", "review_sending": "Gönderiliyor…", "review_sent": "Gönderildi", "review_error": "Hata — tekrar dene", "xp_not_answered": "henüz cevaplamadın"};
+window.__I18N__ = {"summary_passed": "Başarıyla tamamladınız", "summary_failed": "Geçme notuna ulaşılamadı", "summary_completed": "Tamamlandı", "summary_in_progress": "Devam ediyor", "results_total": "Toplam: <b>%{pct}</b>", "scenario_result_score": "Skor: {score}", "term_race_result": "{correct}/{total}", "term_race_bonus": " · +{bonus} hız bonusu", "escape_win": "Tüm kilitleri açtın!", "escape_lose": "Canların bitti.", "game_engine_failed": "Oyun motoru yüklenemedi.", "game_result_score": "Skor: {score}", "adaptive_engine_failed": "Adaptif motor yüklenemedi.", "adaptive_mastery": "Ustalık: {pct}%", "adaptive_ability": "Seviye: {value}", "adaptive_result": "{correct} / {answered} doğru · {level}", "review_sending": "Gönderiliyor…", "review_sent": "Gönderildi", "review_error": "Hata — tekrar dene", "xp_not_answered": "henüz cevaplamadın", "resume_updated": "Kurs güncellendi. Şu bölümden devam ediyorsun: {name}", "resume_restart": "Kurs güncellendi. Baştan başlıyorsun.", "notice_close": "Kapat"};
 </script>
 <script>
 
@@ -1472,14 +1721,29 @@ function writeSessionTime(){ if(!RT.sessionTime) return;
 
 // ---- durum (suspend_data'dan geri yükle) ----
 // S4 — entry "ab-initio" ise LMS yeni bir deneme başlatmıştır: eski suspend_data'yı GERİ YÜKLEME.
+// Faz 4-ek — republish dayanıklılığı: resumeSuspend okuma merdiveni (scorm.js) orderFp
+// uyuşmazlığında pozisyonel alanları atar ama KİMLİK-tabanlı pozisyon kaydından (z) devam
+// noktası çıkarır: düğüm yaşıyorsa SESSİZ devam; düğüm gitmiş/ekran yaşıyorsa ya da ikisi de
+// gitmişse DOSTANE bildirim (_resumeNotice — showAt sonrası basılır; teknik hata ASLA).
 var state={visited:{},results:{},history:[]};
+var _resumeNotice=null;
 (function restore(){ try{
   var raw=sGet("cmi.suspend_data");
   var entry=sGet(S2004?"cmi.entry":"cmi.core.entry");
   var may = RT.shouldRestore ? RT.shouldRestore(entry, !!raw) : !!raw;
-  // S5 — v2 kompakt format + v1 (eski JSON) migrasyonu scorm.js'te; RT yoksa eski yol.
-  if(may && raw){ var d=RT.decodeSuspend?RT.decodeSuspend(raw,order):JSON.parse(raw);
-    if(d&&d.visited){ state=d; state.history=state.history||[]; } }
+  if(may && raw){
+    if(RT.resumeSuspend){
+      var sn={}; COURSE.screens.forEach(function(s){ if(s.node_id!=null) sn[s.id]=s.node_id; });
+      var rz=RT.resumeSuspend(raw,order,{cv:COURSE.content_version,screenNode:sn});
+      if(rz&&rz.state){ state=rz.state;
+        state.visited=state.visited||{}; state.results=state.results||{}; state.history=state.history||[];
+        if(rz.notice) _resumeNotice={target:rz.target,mode:rz.mode}; }
+    } else {
+      // S5 — v2 kompakt format + v1 (eski JSON) migrasyonu scorm.js'te; RT yoksa eski yol.
+      var d=RT.decodeSuspend?RT.decodeSuspend(raw,order):JSON.parse(raw);
+      if(d&&d.visited){ state=d; state.history=state.history||[]; }
+    }
+  }
 }catch(e){} })();
 
 // ---- Faz 5: değişken/durum motoru (state.vars → suspend_data'da persist) ----
@@ -1538,29 +1802,50 @@ function initLottie(el,s){ if(!window.lottie || !s || _lottieInit[s.id]) return;
     loop:box.dataset.loop==="1", autoplay:box.dataset.autoplay==="1", path:src}); _lottieInit[s.id]=true; }catch(e){} }
 
 function persist(){
-  // S5 — kompakt v2 kodlama (scorm.js): kısa anahtar yok, indeks+bitfield; limitte önce history düşer.
-  var lim=RT.suspendLimit?RT.suspendLimit(S2004):(S2004?64000:4096);
+  // S5 — kompakt v2 kodlama (scorm.js). Faz 4-ek: sınır yerine ÇALIŞMA BÜTÇESİ (1.2'de 3500
+  // BAYT; kalan pay LMS kaçışlama ek yüküne rezerv) ve kırpma MERDİVENİ: pozisyon (z: ekran+
+  // düğüm+içerik sürümü) asla düşmez; hedef/skor > cevaplar > serbest metin > history sırasıyla
+  // korunur. Ölçüm UTF-8 bayttır (Türkçe çok-bayt tuzağı — .length değil byteLen).
+  var lim=RT.suspendBudget?RT.suspendBudget(S2004):(RT.suspendLimit?RT.suspendLimit(S2004):(S2004?64000:4096));
   var json, fit=null;
-  if(RT.encodeSuspendFit){ fit=RT.encodeSuspendFit(state,order,lim); json=fit.data; }
+  if(RT.encodeSuspendFit){
+    var _cs=byId[state.cursorId];
+    fit=RT.encodeSuspendFit(state,order,lim,{node:(_cs&&_cs.node_id!=null)?_cs.node_id:null,
+      cv:COURSE.content_version,objIds:OBJ_IDS,objMap:OBJ_MAP});
+    json=fit.data;
+  }
   else { json=JSON.stringify(state);   // beklenmedik: bundle yok → eski davranış
     if(json.length>4000 && !S2004){ json=JSON.stringify({visited:state.visited,results:state.results,
       history:[],cursorId:state.cursorId,reachedEnd:state.reachedEnd}); } }
   var wok=sSetChecked("cmi.suspend_data",json); sCommit();
   // 2.2c — yazma hatası/kırpma SESSİZ kalmasın: konsol + (varsa) xAPI izi; asla throw yok.
   if(RT.suspendWriteIssues){
-    var probs=RT.suspendWriteIssues({ok:wok,size:json.length,limit:lim,truncated:!!(fit&&fit.truncated)});
+    var probs=RT.suspendWriteIssues({ok:wok,size:RT.byteLen?RT.byteLen(json):json.length,limit:lim,
+      truncated:!!(fit&&fit.truncated),rung:fit?fit.rung:0});
     for(var pi=0;pi<probs.length;pi++) suspendTrouble(probs[pi]);
   }
 }
 var _suspendWarned={};
+// Faz 4-ek kayıt sözleşmesi: kayıp/hata izi xAPI'ye BAĞIMLI DEĞİLDİR — console.warn HER ZAMAN
+// (boyut+bütçe+basamak ile); xAPI suspend.trouble YALNIZ LRS konfigürasyonu varsa EK OLARAK
+// (2.2c yolu). SCORM'un öğrenciye görünmeyen ucuz bir LMS hata kanalı YOKTUR (cmi.comments
+// öğrenen yorumudur, durum alanları hata taşıyamaz) → konsol+xAPI ile sınırlı (belgeli karar).
+// Öğrenciye teknik hata ASLA gösterilmez; yazar tarafı uyarı derleme-zamanı projeksiyondadır
+// (antislop taşma WARN'ı — grep etiketi outline runtime'ında).
 function suspendTrouble(p){
   if(_suspendWarned[p.kind]) return; _suspendWarned[p.kind]=true;   // olay başına TEK uyarı (spam yok)
-  try{ console.warn("[scorm] suspend_data "+p.kind+": "+p.size+" chars (limit "+p.limit+") - progress data may be incomplete"); }catch(e){}
-  try{ if(typeof XAPI!=="undefined"&&XAPI&&XAPI.emit) XAPI.emit("suspend.trouble",{kind:p.kind,size:p.size,limit:p.limit}); }catch(e){}
+  try{ console.warn("[scorm] suspend_data "+p.kind+": "+p.size+" bytes (budget "+p.limit+
+    (p.rung?", rung "+p.rung:"")+") - progress data may be incomplete"); }catch(e){}
+  try{ if(typeof XAPI!=="undefined"&&XAPI&&XAPI.emit) XAPI.emit("suspend.trouble",{kind:p.kind,size:p.size,limit:p.limit,rung:p.rung||0}); }catch(e){}
 }
 
 // ---- skor + tamamlanma ----
-function earned(){ var e=0; for(var k in state.results){ e+=state.results[k].points||0; } return e; }
+// Faz 4-ek: state.e = rung-3 kırpma/republish kurtarma TABANI (toplam kazanılmış puan anlık
+// görüntüsü) — canlı toplam tabanın altına düşerse taban kazanır (skor geriye gitmez; öğrenen
+// yeniden cevaplayıp geçerse canlı toplam devralır — çifte sayım yok, max alınır).
+function earned(){ var e=0; for(var k in state.results){ e+=state.results[k].points||0; }
+  if(state.e!=null && Number(state.e)>e) e=Number(state.e);
+  return e; }
 function scoreValue(){
   var tp=COURSE.total_points||0; var e=earned();
   if(tp<=0) return 0;
@@ -1592,6 +1877,9 @@ var _objIdx=null;   // hedef id → cmi.objectives indeksi (oturum boyunca sabit
 function writeObjectives(){
   if(!OBJ_IDS.length||!RT.aggregateObjectives||!RT.objectiveElements||!RT.objectiveIndices) return;
   var aggs=RT.aggregateObjectives(OBJ_IDS,OBJ_MAP,state.results);
+  // Faz 4-ek: rung-3/republish tabanı — canlı cevap olmayan hedefte g anlık görüntüsü yazılır
+  // (kısmi resume LMS'e SIFIR hedef skoru bastırmasın); canlı cevap gelen hedefte canlı kazanır.
+  if(state.g&&RT.mergeObjectiveSnapshot) aggs=RT.mergeObjectiveSnapshot(aggs,OBJ_IDS,state.g);
   if(!aggs.length) return;
   if(_objIdx==null){
     // LMS'te önceden var olan kayıtlar (2004'te manifest imsss:objective pre-populate edebilir)
@@ -2710,6 +2998,26 @@ window.addEventListener("pagehide",finishNow);
 var startIdx=0;
 if(state.cursorId && indexOfId(state.cursorId)>=0) startIdx=indexOfId(state.cursorId);
 showAt(startIdx,false);
+// Faz 4-ek — republish devam BİLDİRİMİ: dostane, teknik olmayan, i18n (tr/en), aria-live=polite.
+// Yalnız fallback modlarında görünür (screen: düğüm gitmiş; start: ikisi de gitmiş); sessiz
+// modlarda (full/node) hiç oluşturulmaz. Kapatılabilir + 12 sn'de kendiliğinden kalkar.
+if(_resumeNotice){ try{ (function(){
+  var rn=document.createElement("div"); rn.className="resume-notice";
+  rn.setAttribute("role","status"); rn.setAttribute("aria-live","polite");
+  var msg=T("resume_restart");
+  if(_resumeNotice.mode!=="start" && _resumeNotice.target){
+    var tEl=secById[_resumeNotice.target]&&secById[_resumeNotice.target].querySelector(".screen-title");
+    var ttl=tEl?tEl.textContent.trim():"";
+    if(ttl) msg=T("resume_updated",{name:ttl});
+  }
+  var sp=document.createElement("span"); sp.textContent=msg; rn.appendChild(sp);
+  var cb=document.createElement("button"); cb.type="button"; cb.className="resume-notice-close";
+  cb.setAttribute("aria-label",T("notice_close")); cb.textContent="×";
+  cb.addEventListener("click",function(){ if(rn.parentNode) rn.parentNode.removeChild(rn); });
+  rn.appendChild(cb);
+  document.body.appendChild(rn);
+  setTimeout(function(){ if(rn.parentNode) rn.parentNode.removeChild(rn); },12000);
+})(); }catch(e){} }
 fitStage();  // Faz 9 — ilk ölçekleme (layout görseli oturduktan sonra)
 window.__navReady=true;  // ilk render bitti → sonraki gezinmelerde focus aktif ekrana taşınır
 

@@ -207,9 +207,11 @@ def test_overflow_tag_only_in_outline_runtime():
     assert "SUSPEND_OVERFLOW" not in _render(_project())
 
 
-def test_estimate_suspend_size_unchanged_by_outline():
-    """Faz 4 suspend zarfına yeni alan eklemedi (türetme kararı, 3.11) — outline/kilit
-    eklemek sunucu maliyet tahminini DEĞİŞTİRMEZ."""
+def test_estimate_suspend_size_outline_costs_only_node_id():
+    """Faz 4-ek REVİZYONU: zarf artık z POZİSYON KAYDI taşır (republish-resume dayanıklılığı
+    madde 2 — 3.11'in 'alan girmedi' kararını bilinçli olarak günceller). Outline eklemenin
+    tahmine TEK etkisi z.n düğüm id'sinin kötü-durum uzunluğudur — kilit/başlık gibi serbest
+    metin yine ASLA girmez."""
     screens = [
         TitleSlide(id="t1", title="Giriş"),
         MCQScreen(id="q1", title="Soru", prompt_html="<p>?</p>", points=10,
@@ -224,7 +226,8 @@ def test_estimate_suspend_size_unchanged_by_outline():
     )
     outlined.screens[0].node_id = "u1"
     outlined.screens[1].node_id = "u2"
-    assert estimate_suspend_size(outlined) == estimate_suspend_size(plain)
+    # fark tam olarak en uzun düğüm id'si kadar (z.n) — başka hiçbir alan girmedi
+    assert estimate_suspend_size(outlined) == estimate_suspend_size(plain) + len("u1")
 
 
 def test_results_breakdown_completion_hook_present():

@@ -14,7 +14,7 @@ import {
   positionInfo, nodeProgress, lockedNodes, sectionCompletion,
 } from "../../components/engine/progress.js";   // Faz 4 — AYRI modül (3.3 bayt-parite; yalnız outline'lı pakete inline)
 import {
-  encodeSuspend, decodeSuspend, SUSPEND_LIMIT_12,
+  encodeSuspend, decodeSuspend, SUSPEND_LIMIT_12, SUSPEND_BUDGET_12, byteLen,
 } from "../../components/engine/scorm.js";
 
 // 3 kademeli örnek outline (Faz 1 test ağacıyla aynı yapı) + ekran→düğüm bağı.
@@ -166,12 +166,14 @@ describe("P5 kabul #12 — hiyerarşik kursta suspend bütçesi", () => {
     }
   });
 
-  it("kodlanmış zarf 4096'nın altında kalır (ölçüm raporlanır)", () => {
-    const data = encodeSuspend(state, order);
-    // Ölçümü test çıktısına yaz (rapor kanıtı):
+  it("kodlanmış zarf 3500 bayt ÇALIŞMA BÜTÇESİNİN altında kalır (Faz 4-ek; ölçüm raporlanır)", () => {
+    // Faz 4-ek: gerçekçi çalışma-anı zarfı pozisyon kaydını (z: ekran+düğüm+içerik sürümü) İÇERİR
+    const data = encodeSuspend(state, order, { node: "b1a", cv: 123456 });
+    // Ölçümü test çıktısına yaz (rapor kanıtı) — ölçü birimi UTF-8 BAYT:
     // eslint-disable-next-line no-console
-    console.log("[kabul #12] 3 kademe × 30 sayfa suspend boyutu:", data.length, "char");
-    expect(data.length).toBeLessThan(SUSPEND_LIMIT_12);
+    console.log("[kabul #12] 3 kademe × 30 sayfa suspend boyutu:", byteLen(data), "bayt");
+    expect(byteLen(data)).toBeLessThan(SUSPEND_BUDGET_12);   // 3500 bayt bütçe (4096 sınırın altı)
+    expect(byteLen(data)).toBeLessThan(SUSPEND_LIMIT_12);
     // kayıpsız gidiş-dönüş
     const back = decodeSuspend(data, order);
     expect(back.cursorId).toBe("scr30");
