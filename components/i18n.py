@@ -87,6 +87,8 @@ _EN: dict[str, str] = {
     "menu_close": "Close menu",
     # senaryo hattı Faz 1 — outline tree menüsünde düğümsüz ekranların sondaki düz grubu
     "menu_ungrouped": "Ungrouped screens",
+    # senaryo hattı Faz 4 — kilitli düğüm sebebi (engelleyen düğüm ADIYLA; sunucuda çözülür)
+    "node_locked_reason": "Unlocks after completing “{name}”",
     # --- HUD ---
     "hud_lives": "Lives",
     # --- geri bildirim paneli (yalnız önizleme) ---
@@ -148,6 +150,8 @@ _EN: dict[str, str] = {
     "summary_completed": "Completed",
     "summary_in_progress": "In progress",
     "results_total": "Total: <b>{pct}%</b>",
+    # senaryo hattı Faz 4 — results_breakdown bölüm tamamlanması (skorla AYNI screen_ids mekanizması)
+    "results_completion": "{done}/{total} completed",
     "scenario_result_score": "Score: {score}",
     "term_race_result": "{correct}/{total}",
     "term_race_bonus": " · +{bonus} speed bonus",
@@ -179,6 +183,7 @@ _TR: dict[str, str] = {
     "menu_heading": "İçerik",
     "menu_close": "Menüyü kapat",
     "menu_ungrouped": "Düğümsüz ekranlar",
+    "node_locked_reason": "“{name}” tamamlanınca açılır",
     "hud_lives": "Can",
     "review_open": "Geri bildirim",
     "review_title": "Bu ekran için yorum bırak",
@@ -236,6 +241,7 @@ _TR: dict[str, str] = {
     "summary_completed": "Tamamlandı",
     "summary_in_progress": "Devam ediyor",
     "results_total": "Toplam: <b>%{pct}</b>",
+    "results_completion": "{done}/{total} tamamlandı",
     "scenario_result_score": "Skor: {score}",
     "term_race_result": "{correct}/{total}",
     "term_race_bonus": " · +{bonus} hız bonusu",
@@ -266,6 +272,8 @@ RUNTIME_KEYS: tuple[str, ...] = (
     "adaptive_engine_failed", "adaptive_mastery", "adaptive_ability", "adaptive_result",
     "review_sending", "review_sent", "review_error",
     "xp_not_answered",  # F2 (#113) — boş exploration referansının yer tutucusu
+    # NOT (Faz 4): results_completion RUNTIME_KEYS'e BİLEREK eklenmedi — yalnız outline'lı
+    # kursun runtime tablosuna girer (renderer._runtime_i18n; 3.3 bayt-parite).
 )
 
 

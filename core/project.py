@@ -216,6 +216,13 @@ class OutlineNode(BaseModel):
     title: str
     objective: Objective | None = None
     pedagogy_pack: str | None = None
+    # Senaryo hattı Faz 4 (additive) — kilit kuralı (§6.1): "sequential" düğüm, ÖNCEKİ
+    # KARDEŞİNİN alt-ağacındaki tüm bağlı ekranlar ziyaret edilmeden menüden açılamaz
+    # (görünür + devre dışı + sebepli; klavye odaklanabilir, etkinleştirilemez).
+    # "Tamamlandı" = ziyaret — skor eşiği GEZİNMEYİ kilitleyemez (erişilebilirlik zemini
+    # 3.5; sonuç kapıları results tarafındadır). İlk kardeşte sequential = açık.
+    # Önceki kardeşin alt-ağacında ekran yoksa UNREACHABLE_NODE SERT hata (core/validator).
+    unlock_rule: Literal["free", "sequential"] = "free"
 
     @field_validator("id")
     @classmethod

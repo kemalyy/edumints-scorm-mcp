@@ -5,6 +5,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — scenario line Faz 4: position, per-objective progress, resume-to-node, locks — 4/6
+- **`OutlineNode.unlock_rule`** (`"free" | "sequential"`, additive, default `"free"`):
+  `sequential` locks a node until every screen in the **previous sibling's subtree** has been
+  visited ("complete" = visited; score thresholds can never lock navigation — accessibility
+  floor). New hard error **`UNREACHABLE_NODE`**: a sequential node whose previous sibling's
+  subtree has no attached screens could never unlock (validator rejects; runtime defensively
+  leaves such nodes open).
+- **Position strip** (`#posStrip`, outlined courses only): "Ünite 1 · Bölüm 1.1 · 2/4" — node
+  chain + within-node n/m; `aria-live="polite"` announces only on change; the n/m fragment is
+  isolated `dir="ltr"` (RTL-safe); the ungrouped-screens label is server-resolved i18n (tr/en).
+- **Per-node progress** in the tree menu (`.mtree-progress`, cumulative subtree n/m) and
+  **results_breakdown section completion** (`.rb-comp`, "n/m completed") driven by the SAME
+  `data-screens` mechanism as section scores — no parallel objective-progress machinery.
+- **Lock UI**: locked nodes stay visible with `aria-disabled="true"`, the server-rendered
+  reason (naming the blocking node, i18n) becomes visible and is part of the button's
+  accessible name; the locked branch collapses; focusable-but-not-activatable, no keyboard
+  trap.
+- **Resume-to-node**: relaunch restores the exact screen, expands the node chain
+  (`aria-expanded`) and re-seats `aria-current`; manual collapse choices are never overridden
+  (only the active chain is expanded).
+- **Hierarchical suspend (non-negotiable 3.11): NO new envelope fields** — `n` is derived from
+  static config (`screens[cursor].node_id`), `s`/`st` already exist in the v2 envelope. Free
+  text never enters suspend_data. Realistic 3-level × 30-page course: **780 chars < 4096**
+  (vitest acceptance #12). Overflow now logs a greppable `SUSPEND_OVERFLOW` warning + xAPI
+  `suspend.trouble` (no silent truncation). `estimate_suspend_size` provably unchanged by
+  outlines (test).
+- **Byte-parity repair**: Faz 4 helpers moved out of the unconditional scorm bundle into
+  `components/engine/progress.js` (`window.SCORMP`, inlined **only** for outlined courses);
+  all Faz 4 runtime lives in OUTLINE_JS — outline-less course HTML is byte-identical to the
+  previous release (fixture-locked).
+- Probe: 23 new real-browser checks (strip, lock semantics, focusability, resume expansion,
+  suspend hygiene). Docs: CONTRACTS §2.1, ACCESSIBILITY-CONFORMANCE player section.
+
 ### Added — scenario line Faz 3: media federation (fill/match/provenance) — 3/6
 - **`fill_media_slot`** (39th tool): fills a scenario page's media slot from a `data:` URI or
   https URL — DELEGATES to the same ingest internals as `add_asset` (SSRF guard + quota). Assets

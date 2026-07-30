@@ -74,6 +74,24 @@ p = Project(id=new_project_id(), title="probe-tree", scorm_version=ver,
 open(out, "w", encoding="utf-8").write(render_html(p, mode="preview", runtime_js="/*probe*/"))
 `;
 
+// Senaryo hattı Faz 4 — kilitli (sequential) + 2 kademeli outline: konum şeridi, kilit UI,
+// düğüme devam (resume → zincir açımı + aria-current) davranış kanıtı.
+const LOCK_RENDER_PY = `
+import sys
+from components.renderer import render_html
+from core.project import Project, new_project_id, TitleSlide, ContentSlide, OutlineNode
+out, ver = sys.argv[1], sys.argv[2]
+p = Project(id=new_project_id(), title="probe-lock", scorm_version=ver,
+    outline=[OutlineNode(id="u1", kind="unit", title="Unite 1"),
+             OutlineNode(id="u2", kind="unit", title="Unite 2", unlock_rule="sequential"),
+             OutlineNode(id="b2", parent_id="u2", kind="section", title="Bolum 2.1")],
+    screens=[TitleSlide(id="t1", title="Giris", node_id="u1"),
+             ContentSlide(id="c1", title="Konu 1", body_html="<p>a</p>", node_id="u1"),
+             ContentSlide(id="c2", title="Konu 2", body_html="<p>b</p>", node_id="b2"),
+             ContentSlide(id="c3", title="Konu 3", body_html="<p>c</p>", node_id="b2")])
+open(out, "w", encoding="utf-8").write(render_html(p, mode="preview", runtime_js="/*probe*/"))
+`;
+
 const failures = [];
 function check(label, actual, expected) {
   const ok = actual === expected;
@@ -345,6 +363,118 @@ async function main() {
       check("aria-current yeni ekrana tasinir", t5, "s1");
     } finally {
       await tctx.close();
+    }
+
+    // --- Senaryo hattı Faz 4: konum şeridi + sequential kilit + düğüme devam ---
+    console.log("\n== Faz 4 — konum seridi + kilit + dugume devam (resume) ==");
+    const lfile = path.join(tmp, "lock12.html");
+    execFileSync("python3", ["-c", LOCK_RENDER_PY, lfile, "1.2"], { cwd: process.cwd() });
+    let lockSuspend = "";
+    {
+      const ctx = await browser.newContext();
+      try {
+        const page = await ctx.newPage();
+        await page.addInitScript(lmsInit, [false, "", "", null]);
+        await page.goto(`file://${lfile}`);
+        await page.waitForTimeout(150);
+        // 1) Konum şeridi (t1 → u1 içinde 1/2) — RTL-güvenli sayı parçası ayrı span'da
+        const s0 = await page.evaluate(() => {
+          const el = document.getElementById("posStrip");
+          return { text: el && el.textContent, live: el && el.getAttribute("aria-live"),
+                   ltr: el && el.lastElementChild && el.lastElementChild.dir };
+        });
+        check("konum seridi (dugum zinciri + n/m)", s0.text, "Unite 1 · 1/2");
+        check("konum seridi aria-live=polite", s0.live, "polite");
+        check("n/m parcasi dir=ltr (RTL-guvenli)", s0.ltr, "ltr");
+        // 2) Kilit: u2 gorunur + aria-disabled + sebep GORUNUR (engelleyeni adiyla) + katli
+        await page.click("#btnMenu");
+        await page.waitForTimeout(120);
+        const l0 = await page.evaluate(() => {
+          const u2 = document.querySelector('[data-node-id="u2"]');
+          const rs = u2.querySelector(".mtree-lockreason");
+          const u1p = document.querySelector('[data-node-id="u1"] .mtree-progress');
+          return { dis: u2.getAttribute("aria-disabled"), exp: u2.getAttribute("aria-expanded"),
+                   visible: u2.offsetParent !== null, reasonHidden: rs.hidden, reason: rs.textContent,
+                   u1prog: u1p && u1p.textContent };
+        });
+        check("kilitli dugum aria-disabled", l0.dis, "true");
+        check("kilitli dugum GORUNUR (gizlenmez)", l0.visible, true);
+        check("kilit sebebi gorunur (hidden kalkti)", l0.reasonHidden, false);
+        check("sebep engelleyen dugumu ADIYLA anar", l0.reason.includes("Unite 1"), true);
+        check("kilitli dal katli (icerik gezilemez)", l0.exp, "false");
+        check("dugum ilerlemesi n/m (u1: t1 ziyaretli)", l0.u1prog, "1/2");
+        // 3) Odaklanılır ama etkinleştirilemez: Enter/klik ekran degistirmez, katlamaz.
+        // force:true — Playwright aria-disabled'i "enabled degil" sayip klik oncesi bekler
+        // (yani kilit makine-okunur); handler davranisini kanitlamak icin zorlanir.
+        await page.focus('[data-node-id="u2"]');
+        await page.keyboard.press("Enter");
+        await page.click('[data-node-id="u2"]', { force: true });
+        await page.waitForTimeout(100);
+        const l1 = await page.evaluate(() => ({
+          exp: document.querySelector('[data-node-id="u2"]').getAttribute("aria-expanded"),
+          focusable: document.activeElement === document.querySelector('[data-node-id="u2"]') ||
+                     document.activeElement.getAttribute("data-node-id") === "u2",
+          shown: document.querySelector('.screen[aria-hidden="false"]').dataset.screenId,
+        }));
+        check("kilitli dugum odaklanabilir", l1.focusable, true);
+        check("Enter/klik ACMAZ (etkinlestirilemez)", l1.exp, "false");
+        check("ekran degismedi", l1.shown, "t1");
+        // 4) u1 bitir → u2 acilir; c2'ye gec (b2 alt-agacinda) → suspend
+        await page.click("#menuClose");
+        await page.click("#btnNext");   // c1 → u1 tamam
+        await page.waitForTimeout(120);
+        await page.click("#btnNext");   // c2 (u2/b2 ilk ekrani)
+        await page.waitForTimeout(120);
+        const s1 = await page.evaluate(() => document.getElementById("posStrip").textContent);
+        check("konum seridi 2 kademeli zincir", s1, "Unite 2 · Bolum 2.1 · 1/2");
+        await page.evaluate(() => window.dispatchEvent(new Event("pagehide")));
+        await page.waitForTimeout(80);
+        lockSuspend = await page.evaluate(() => {
+          const log = window.__LMS__; let v = "";
+          for (const [k, val] of log) if (k === "cmi.suspend_data") v = val;
+          return v;
+        });
+        check("suspend_data yazildi", lockSuspend.length > 0, true);
+        check("suspend serbest metin tasimaz (baslik sizmaz)", lockSuspend.includes("Unite"), false);
+      } finally {
+        await ctx.close();
+      }
+    }
+    // 5) Resume: kaldigi dugume doner — ekran + serit + zincir acik + aria-current + kilit kalkti
+    {
+      const ctx = await browser.newContext();
+      try {
+        const page = await ctx.newPage();
+        await page.addInitScript(lmsInit, [false, "resume", lockSuspend, null]);
+        await page.goto(`file://${lfile}`);
+        await page.waitForTimeout(150);
+        const r0 = await page.evaluate(() => ({
+          shown: document.querySelector('.screen[aria-hidden="false"]').dataset.screenId,
+          strip: document.getElementById("posStrip").textContent,
+        }));
+        check("resume: kaldigi ekran (dugum ici)", r0.shown, "c2");
+        check("resume: konum seridi dogru", r0.strip, "Unite 2 · Bolum 2.1 · 1/2");
+        await page.click("#btnMenu");
+        await page.waitForTimeout(120);
+        const r1 = await page.evaluate(() => {
+          const u2 = document.querySelector('[data-node-id="u2"]');
+          const b2 = document.querySelector('[data-node-id="b2"]');
+          const cur = document.querySelector('#slideMenuList [aria-current="page"]');
+          return { u2exp: u2.getAttribute("aria-expanded"), b2exp: b2.getAttribute("aria-expanded"),
+                   u2dis: u2.getAttribute("aria-disabled"),
+                   reasonHidden: u2.querySelector(".mtree-lockreason").hidden,
+                   cur: cur && cur.getAttribute("data-goto"),
+                   c2visible: document.querySelector('[data-goto="c2"]').offsetParent !== null };
+        });
+        check("resume: zincir acildi (u2)", r1.u2exp, "true");
+        check("resume: zincir acildi (b2)", r1.b2exp, "true");
+        check("resume: aria-current kaldigi ekranda", r1.cur, "c2");
+        check("resume: kilit kalkti (u1 tamam)", r1.u2dis, null);
+        check("resume: sebep gizlendi", r1.reasonHidden, true);
+        check("resume: dugum ici ekran gorunur", r1.c2visible, true);
+      } finally {
+        await ctx.close();
+      }
     }
   } finally {
     if (browser) await browser.close();
