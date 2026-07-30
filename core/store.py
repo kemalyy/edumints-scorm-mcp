@@ -17,6 +17,7 @@ import aiosqlite
 from pydantic import BaseModel, Field
 
 from .project import Project, utcnow
+from .scenario import ScenarioDocument
 
 
 # --------------------------------------------------------------------------- #
@@ -161,6 +162,14 @@ class Store(ABC):
     @abstractmethod
     async def total_bytes(self, owner_key_id: str) -> int: ...
 
+    # senaryo dokümanları (Faz 2 — projeler deseni: sahipli JSON blob, kota-boyutlu)
+    @abstractmethod
+    async def create_scenario(self, d: ScenarioDocument) -> None: ...
+    @abstractmethod
+    async def get_scenario(self, scenario_id: str, owner_key_id: str) -> ScenarioDocument | None: ...
+    @abstractmethod
+    async def update_scenario(self, d: ScenarioDocument) -> None: ...
+
     # varlıklar (fs + metadata)
     @abstractmethod
     async def put_asset(self, project_id: str, data: bytes, meta) -> None: ...
@@ -292,6 +301,12 @@ class SqliteStore(Store):
                 comment TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open', created_at TEXT NOT NULL);
             CREATE INDEX IF NOT EXISTS ix_feedback_project ON feedback(project_id);
 
+            CREATE TABLE IF NOT EXISTS scenarios(
+                id TEXT PRIMARY KEY, owner_key_id TEXT NOT NULL, data TEXT NOT NULL,
+                size_bytes INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+            CREATE INDEX IF NOT EXISTS ix_scenarios_owner ON scenarios(owner_key_id);
+
             CREATE TABLE IF NOT EXISTS demos(
                 slug TEXT PRIMARY KEY, project_id TEXT NOT NULL, owner_key_id TEXT NOT NULL,
                 title TEXT NOT NULL, language TEXT NOT NULL, size_bytes INTEGER NOT NULL,
@@ -414,7 +429,42 @@ class SqliteStore(Store):
             (owner_key_id,),
         ) as cur:
             dm = await cur.fetchone()
-        return int(pr["s"]) + int(pk["s"]) + int(dm["s"])
+        async with self.db.execute(
+            "SELECT COALESCE(SUM(size_bytes),0) s FROM scenarios WHERE owner_key_id=?",
+            (owner_key_id,),
+        ) as cur:
+            sc = await cur.fetchone()
+        return int(pr["s"]) + int(pk["s"]) + int(dm["s"]) + int(sc["s"])
+
+    # -- senaryo dokümanları (Faz 2) --
+    async def create_scenario(self, d: ScenarioDocument) -> None:
+        blob = d.model_dump_json()
+        async with self._wlock:
+            await self.db.execute(
+                "INSERT INTO scenarios(id,owner_key_id,data,size_bytes,created_at,updated_at)"
+                " VALUES(?,?,?,?,?,?)",
+                (d.id, d.owner_key_id, blob, len(blob.encode("utf-8")),
+                 d.created_at.isoformat(), d.updated_at.isoformat()),
+            )
+            await self.db.commit()
+
+    async def get_scenario(self, scenario_id: str, owner_key_id: str) -> ScenarioDocument | None:
+        async with self.db.execute(
+            "SELECT data FROM scenarios WHERE id=? AND owner_key_id=?",
+            (scenario_id, owner_key_id),
+        ) as cur:
+            row = await cur.fetchone()
+        return ScenarioDocument.model_validate_json(row["data"]) if row else None
+
+    async def update_scenario(self, d: ScenarioDocument) -> None:
+        d.updated_at = utcnow()
+        blob = d.model_dump_json()
+        async with self._wlock:
+            await self.db.execute(
+                "UPDATE scenarios SET data=?,size_bytes=?,updated_at=? WHERE id=? AND owner_key_id=?",
+                (blob, len(blob.encode("utf-8")), d.updated_at.isoformat(), d.id, d.owner_key_id),
+            )
+            await self.db.commit()
 
     # -- varlıklar (fs) --
     def _asset_path(self, project_id: str, asset_id: str) -> Path:
