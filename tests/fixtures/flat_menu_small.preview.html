@@ -1,104 +1,35 @@
-"""components/templates.py — HTML shell + premium CSS + SCORM engine JS.
-
-renderer.py bunları kullanır. SHELL bir str.format() şablonudur; içindeki literal CSS süslü
-parantezleri YOKTUR (tüm CSS {base_css} değeri olarak gelir), yalnız :root{{...}} kaçışlıdır.
-BASE_CSS / ENGINE_JS / FALLBACK_RUNTIME_SHIM düz string'dir (format edilmez).
-REVIEW_MARKUP da SHELL gibi bir str.format() şablonudur (renderer.py ayrıca .format(t=...) eder);
-sonucu SHELL'e {review_markup} alanıyla düz metin olarak geçer, o alan SHELL.format() tarafından
-tekrar işlenmez (1.1 — review UI, __PREVIEW__'dan bağımsız `review` bayrağına bağlı).
-"""
-
-# --------------------------------------------------------------------------- #
-# HTML iskeleti (str.format şablonu)
-# --------------------------------------------------------------------------- #
-SHELL = """<!DOCTYPE html>
-<html lang="{lang}" dir="{dir}">
+<!DOCTYPE html>
+<html lang="tr" dir="ltr">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{title}</title>
-{og_tags}
-<style>:root{{{css_vars}}}
-{base_css}
-{font_faces}
-{custom_css}</style>
-</head>
-<body data-bg="{bg_pattern}" data-layout="{layout_mode}">
-<a class="skip-link" href="#stage">{t[skip_to_content]}</a>
-<div class="app">
-  <header class="app-header">
-    <div class="brand">{brand_mark}<span class="brand-title">{header_title}</span></div>
-    <div class="progress" role="progressbar" aria-label="{t[progress]}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="progress-bar"></div></div>
-    <span class="timer-hud" id="timerHud" aria-live="polite" hidden></span>
-    <span class="level-hud" id="levelHud" aria-live="polite" hidden></span>
-    <span class="lives-hud" id="livesHud" aria-label="{t[hud_lives]}" hidden></span>
-    <span class="points-hud" id="pointsHud" aria-live="polite" hidden></span>
-    <div class="status-pill" aria-live="polite"></div>
-  </header>
-  <main class="stage" id="stage" tabindex="-1">
-    <div class="stage-scaler" id="stageScaler">
-      <div class="stage-frame" id="stageFrame">
-        {screens}
-      </div>
-    </div>
-    <div class="cc-bar" id="ccBar" aria-live="polite" hidden></div>
-  </main>
-  <footer class="app-footer player">
-    <button class="btn btn-ghost pl-icon" id="btnPrev" type="button" aria-label="{t[nav_prev]}"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
-    <button class="pl-btn" id="btnPlay" type="button" aria-label="{t[player_play_pause]}"><span class="ic-a"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg></span><span class="ic-b"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="14" y="4" width="4" height="16" rx="1"/><rect x="6" y="4" width="4" height="16" rx="1"/></svg></span></button>
-    <button class="pl-btn" id="btnReplay" type="button" aria-label="{t[player_replay]}"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg></button>
-    <input class="seekbar" id="seekbar" type="range" min="0" max="1000" value="0" step="1" aria-label="{t[player_seek]}" disabled>
-    <span class="pl-time" id="plTime">0:00 / 0:00</span>
-    <button class="pl-btn" id="btnMute" type="button" aria-label="{t[player_mute]}"><span class="ic-a"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg></span><span class="ic-b"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="22" x2="16" y1="9" y2="15"/><line x1="16" x2="22" y1="9" y2="15"/></svg></span></button>
-    <button class="pl-btn" id="btnCc" type="button" aria-pressed="false" aria-label="{t[player_captions]}"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="14" x="3" y="5" rx="2" ry="2"/><path d="M7 15h4M15 15h2M7 11h2M13 11h4"/></svg></button>
-    <button class="pl-btn" id="btnMenu" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="{t[player_menu]}"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></svg></button>
-    <div class="dots" id="dots"></div>
-    <button class="btn btn-primary pl-icon" id="btnNext" type="button" aria-label="{t[nav_next]}"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
-  </footer>
-  <nav class="slide-menu" id="slideMenu" aria-label="{t[menu_label]}"><div class="slide-menu-header"><h3>{t[menu_heading]}</h3><button class="slide-menu-close" id="menuClose" type="button" aria-label="{t[menu_close]}"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div><ul id="slideMenuList"{menu_tree_attrs}>{menu_tree_items}</ul></nav>
-  <div class="menu-overlay" id="menuOverlay"></div>
-</div>
-{review_markup}
-{runtime_block}
-{extra_runtime}
-<script>
-window.__COURSE__ = {course_json};
-window.__ASSETS__ = {asset_json};
-window.__SCORM_2004__ = {scorm_2004};
-window.__PREVIEW__ = {preview};
-window.__REVIEW__ = {review};
-window.__I18N__ = {i18n_json};
-</script>
-<script>
-{engine_js}
-</script>
-</body>
-</html>"""
+<title>SCORM'a Giriş</title>
+<meta property="og:type" content="website">
+<meta property="og:title" content="SCORM'a Giriş">
+<meta property="og:description" content="Kısa tanıtım kursu">
+<meta name="twitter:card" content="summary">
+<style>:root{
+  --c-primary:#4f46e5; --c-primary-hover:#4338ca; --c-primary-contrast:#ffffff;
+  --c-secondary:#7c3aed; --c-accent:#0d9488;
+  --c-bg:#fafafa; --c-surface:#ffffff; --c-surface-alt:#f4f4f5; --c-border:#e4e4e7;
+  --c-text:#18181b; --c-muted:#71717a; --c-on-dark:#fafafa;
+  --c-success:#16a34a; --c-success-bg:#dcfce7;
+  --c-error:#dc2626; --c-error-bg:#fee2e2;
+  --c-warning:#d97706; --c-info:#0284c7; --c-focus:#4f46e5;
+  --font-heading:'Outfit', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; --font-body:'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; --font-mono:'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --fs-base:16px; --fs-h1:31px; --fs-h2:25px; --fs-h3:20px; --fs-h4:16px;
+  --w-heading:700; --w-body:400; --w-strong:600;
+  --lh-tight:1.15; --lh-normal:1.6;
+  --ls-heading:-0.025em;
+  --space-0:0px;--space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:24px;--space-6:32px;--space-7:48px;--space-8:64px;--space-9:96px;
+  --content-max:880px; --gutter:clamp(16px, 4vw, 48px);
+  --r-sm:6px; --r-md:12px; --r-lg:20px; --r-pill:999px;
+  --e1:0 1px 2px rgba(15,23,42,.06), 0 1px 3px rgba(15,23,42,.10); --e2:0 4px 6px -1px rgba(15,23,42,.10), 0 2px 4px -2px rgba(15,23,42,.10); --e3:0 10px 15px -3px rgba(15,23,42,.10), 0 4px 6px -4px rgba(15,23,42,.10); --e4:0 20px 25px -5px rgba(15,23,42,.12), 0 8px 10px -6px rgba(15,23,42,.10);
+  --d-fast:120ms; --d-base:220ms; --d-slow:400ms;
+  --ease:cubic-bezier(0.2, 0, 0, 1); --ease-emph:cubic-bezier(0.2, 0, 0, 1.2);
 
+  --stage-w:960px; --stage-h:540px;}
 
-# --------------------------------------------------------------------------- #
-# 1.1 — review/annotation FAB'ı bağımsız `review` bayrağına bağlı (str.format şablonu, SHELL'in
-# {{t[...]}} kaçışlaması ile aynı desen). review=False iken renderer.py bunu SHELL'e HİÇ vermez
-# (gizlemek değil, yoklamak) — /demo yüzeyinde reviewBtn/reviewPanel/reviewFab id'leri hiç yok.
-# --------------------------------------------------------------------------- #
-REVIEW_MARKUP = """<div class="review-fab" id="reviewFab" hidden>
-  <button class="review-btn" id="reviewBtn" type="button" aria-haspopup="dialog"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> {t[review_open]}</button>
-  <div class="review-panel" id="reviewPanel" role="dialog" aria-label="{t[review_open]}" hidden>
-    <div class="review-head">{t[review_title]}</div>
-    <textarea id="reviewText" rows="3" placeholder="{t[review_placeholder]}"></textarea>
-    <div class="review-actions">
-      <button class="btn btn-ghost" id="reviewCancel" type="button">{t[review_cancel]}</button>
-      <button class="btn btn-primary" id="reviewSend" type="button">{t[review_send]}</button>
-    </div>
-    <div class="review-status" id="reviewStatus" aria-live="polite"></div>
-  </div>
-</div>"""
-
-
-# --------------------------------------------------------------------------- #
-# Premium CSS (düz string — literal braces)
-# --------------------------------------------------------------------------- #
-BASE_CSS = r"""
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 /* I2 — RTL: yerleşim logical property'lerle (inset-inline-*, margin-inline-*) aynalanır.
    transform:translateX() aynalanamaz, bu yüzden yön işareti bir değişkenle taşınır.
@@ -866,13 +797,599 @@ body[data-embed="1"] .dots{display:none!important}
 body[data-embed="1"] .review-fab{display:none!important}
 body[data-embed="1"] .app-header{padding:6px var(--gutter,12px)}
 body[data-embed="1"] .app-footer{padding:6px var(--gutter,12px)}
-"""
 
 
-# --------------------------------------------------------------------------- #
-# SCORM engine JS (düz string)
-# --------------------------------------------------------------------------- #
-ENGINE_JS = r"""
+</style>
+</head>
+<body data-bg="none" data-layout="stage">
+<a class="skip-link" href="#stage">İçeriğe geç</a>
+<div class="app">
+  <header class="app-header">
+    <div class="brand"><span class="brand-dot"></span><span class="brand-title">SCORM'a Giriş</span></div>
+    <div class="progress" role="progressbar" aria-label="İlerleme" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="progress-bar"></div></div>
+    <span class="timer-hud" id="timerHud" aria-live="polite" hidden></span>
+    <span class="level-hud" id="levelHud" aria-live="polite" hidden></span>
+    <span class="lives-hud" id="livesHud" aria-label="Can" hidden></span>
+    <span class="points-hud" id="pointsHud" aria-live="polite" hidden></span>
+    <div class="status-pill" aria-live="polite"></div>
+  </header>
+  <main class="stage" id="stage" tabindex="-1">
+    <div class="stage-scaler" id="stageScaler">
+      <div class="stage-frame" id="stageFrame">
+        <section class="screen" data-screen-id="t1" data-type="title_slide" data-index="0" data-reveal="auto" data-anim="fade-up" aria-hidden="true"><div class="screen-inner"><div class="tl-block" data-block="0"><div class="title-slide"><div class="title-kicker">●</div><h1 class="title-main">SCORM'a Giriş</h1><p class="title-sub">5 dakikada temel kavramlar</p></div></div></div></section>
+<section class="screen" data-screen-id="c1" data-type="content_slide" data-index="1" data-reveal="auto" data-anim="fade-up" aria-hidden="true"><div class="screen-inner"><div class="tl-block" data-block="0"><h2 class="screen-title">SCORM Nedir?</h2></div><div class="rich"><div class="tl-block" data-block="1"><p><strong>SCORM</strong>, e-öğrenme içeriğinin LMS ile konuşmasını sağlayan bir standarttır.</p></div><div class="tl-block" data-block="2"><ul><li>Paketleme</li><li>İzleme</li><li>Taşınabilirlik</li></ul></div></div></div></section>
+<section class="screen" data-screen-id="q1" data-type="mcq" data-index="2" data-reveal="none" data-anim="fade-up" aria-hidden="true"><div class="screen-inner"><h2 class="screen-title">Mini Quiz</h2><div class="rich prompt"><p>SCORM ne işe yarar?</p></div><div class="options"><button class="opt" data-opt="a" type="button"><span class="opt-mark"></span><span class="opt-text">İçerik–LMS iletişimi</span></button><button class="opt" data-opt="b" type="button"><span class="opt-mark"></span><span class="opt-text">Video düzenleme</span></button><button class="opt" data-opt="c" type="button"><span class="opt-mark"></span><span class="opt-text">Resim çizme</span></button></div><div class="quiz-actions"><button class="btn btn-check" type="button">Kontrol Et</button></div><div class="feedback" role="status" aria-live="polite"></div></div></section>
+<section class="screen" data-screen-id="s1" data-type="summary" data-index="3" data-reveal="auto" data-anim="fade-up" aria-hidden="true"><div class="screen-inner"><div class="tl-block" data-block="0"><div class="summary"><div class="summary-badge"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></div><h2 class="screen-title">Tebrikler</h2><div class="rich"><p>Temel kavramları öğrendiniz.</p></div><div class="summary-score" data-show-score="1"></div><div class="summary-completion" data-show-completion="1"></div></div></div></div></section>
+      </div>
+    </div>
+    <div class="cc-bar" id="ccBar" aria-live="polite" hidden></div>
+  </main>
+  <footer class="app-footer player">
+    <button class="btn btn-ghost pl-icon" id="btnPrev" type="button" aria-label="Önceki"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
+    <button class="pl-btn" id="btnPlay" type="button" aria-label="Oynat / Duraklat"><span class="ic-a"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg></span><span class="ic-b"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="14" y="4" width="4" height="16" rx="1"/><rect x="6" y="4" width="4" height="16" rx="1"/></svg></span></button>
+    <button class="pl-btn" id="btnReplay" type="button" aria-label="Baştan oynat"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg></button>
+    <input class="seekbar" id="seekbar" type="range" min="0" max="1000" value="0" step="1" aria-label="İlerleme çubuğu" disabled>
+    <span class="pl-time" id="plTime">0:00 / 0:00</span>
+    <button class="pl-btn" id="btnMute" type="button" aria-label="Sesi aç / kapat"><span class="ic-a"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg></span><span class="ic-b"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="22" x2="16" y1="9" y2="15"/><line x1="16" x2="22" y1="9" y2="15"/></svg></span></button>
+    <button class="pl-btn" id="btnCc" type="button" aria-pressed="false" aria-label="Altyazı"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="14" x="3" y="5" rx="2" ry="2"/><path d="M7 15h4M15 15h2M7 11h2M13 11h4"/></svg></button>
+    <button class="pl-btn" id="btnMenu" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Bölüm menüsü"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></svg></button>
+    <div class="dots" id="dots"></div>
+    <button class="btn btn-primary pl-icon" id="btnNext" type="button" aria-label="Sonraki"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
+  </footer>
+  <nav class="slide-menu" id="slideMenu" aria-label="Slayt menüsü"><div class="slide-menu-header"><h3>İçerik</h3><button class="slide-menu-close" id="menuClose" type="button" aria-label="Menüyü kapat"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div><ul id="slideMenuList"></ul></nav>
+  <div class="menu-overlay" id="menuOverlay"></div>
+</div>
+
+<script>/*RUNTIME_STUB*/</script>
+<script>(function(){
+var __E = {};
+/* engine/scorm.js */
+(function(){
+// components/engine/scorm.js — SCORM runtime veri sözleşmesi: interactions (S1), seat time (S3),
+// exit/entry (S4). Saf-mantık, DOM'suz, AĞSIZ, deterministik (zaman DIŞARIDAN enjekte → vitest'te sabit).
+//
+// DRİFT RİSKİ: 1.2 ile 2004 arasındaki eleman adı / sözlük / ayraç farkları TEK yerde burada tutulur;
+// templates.py ENGINE_JS bu mantığı KOPYALAMAZ, window.SCORMRT üzerinden çağırır.
+//
+// Referans farklar (bilerek ayrı tutuldu):
+//   sonuç       1.2 "wrong"            | 2004 "incorrect"
+//   cevap alanı 1.2 student_response   | 2004 learner_response
+//   zaman       1.2 .time (CMITime, günün saati) | 2004 .timestamp (ISO 8601 tarih-saat)
+//   süre        1.2 CMITimespan HHHH:MM:SS.SS    | 2004 ISO 8601 PT#H#M#S
+//   doğru/yanlış 1.2 "1"/"0"           | 2004 "true"/"false"
+//   çoklu ayraç 1.2 "a,b" / "a.b"      | 2004 "a[,]b" / "a[.]b"
+
+// --------------------------------------------------------------------------- //
+// Süre / zaman biçimleme (S3 + interactions.latency)
+// --------------------------------------------------------------------------- //
+
+function _pad(n, w) {
+  var s = String(Math.floor(Math.abs(n)));
+  while (s.length < w) s = "0" + s;
+  return s;
+}
+
+// SCORM 1.2 CMITimespan: HHHH:MM:SS.SS (saat 2-4 hane; 4'e sabitliyoruz — ADL örnekleriyle birebir).
+function duration12(ms) {
+  var t = Math.max(0, Math.floor(Number(ms) || 0));
+  var cs = Math.floor(t / 10) % 100;          // yüzde-saniye
+  var sec = Math.floor(t / 1000) % 60;
+  var min = Math.floor(t / 60000) % 60;
+  var hr = Math.min(9999, Math.floor(t / 3600000));
+  return _pad(hr, 4) + ":" + _pad(min, 2) + ":" + _pad(sec, 2) + "." + _pad(cs, 2);
+}
+
+// SCORM 2004 ISO 8601 süresi: PT#H#M#S (sıfır bileşenler düşer; tamamen sıfırsa PT0S).
+function duration2004(ms) {
+  var t = Math.max(0, Math.floor(Number(ms) || 0));
+  var hr = Math.floor(t / 3600000);
+  var min = Math.floor(t / 60000) % 60;
+  var sec = (Math.floor(t / 10) % 6000) / 100;   // saniye + yüzde-saniye
+  var out = "PT";
+  if (hr) out += hr + "H";
+  if (min) out += min + "M";
+  if (sec || out === "PT") out += sec + "S";
+  return out;
+}
+
+function sessionTime(ms, is2004) {
+  return is2004 ? duration2004(ms) : duration12(ms);
+}
+
+// SCORM 1.2 CMITime: HH:MM:SS.SS — GÜNÜN SAATİ (tarih yok). date: Date | epoch ms.
+function timestamp12(date) {
+  var d = date instanceof Date ? date : new Date(Number(date) || 0);
+  return _pad(d.getUTCHours(), 2) + ":" + _pad(d.getUTCMinutes(), 2) + ":" +
+    _pad(d.getUTCSeconds(), 2) + "." + _pad(Math.floor(d.getUTCMilliseconds() / 10), 2);
+}
+
+// SCORM 2004: ISO 8601 tarih-saat (UTC).
+function timestamp2004(date) {
+  var d = date instanceof Date ? date : new Date(Number(date) || 0);
+  return d.getUTCFullYear() + "-" + _pad(d.getUTCMonth() + 1, 2) + "-" + _pad(d.getUTCDate(), 2) +
+    "T" + _pad(d.getUTCHours(), 2) + ":" + _pad(d.getUTCMinutes(), 2) + ":" +
+    _pad(d.getUTCSeconds(), 2) + "Z";
+}
+
+// --------------------------------------------------------------------------- //
+// S4 — exit / entry
+// --------------------------------------------------------------------------- //
+
+// Tamamlanmamış kurstan çıkış "suspend" olmalı: 1.2'de BOŞ exit *normal* çıkış demektir ve LMS
+// suspend_data'yı korumak zorunda değildir → "kaldığın yerden devam" sessizce bozulur.
+function exitValue(complete) {
+  return complete ? "normal" : "suspend";
+}
+
+// entry: "" | "ab-initio" | "resume". Yalnız "ab-initio" kesin olarak SIFIRDAN başlat demektir.
+// Boş/bilinmeyen değerde eski davranışı koru (suspend_data varsa geri yükle) — bazı LMS entry'yi
+// hiç doldurmaz, katı "sadece resume" kuralı bu LMS'lerde devam etmeyi bozar.
+function shouldRestore(entry, hasSuspendData) {
+  var e = String(entry == null ? "" : entry).trim().toLowerCase();
+  if (e === "resume") return true;
+  if (e === "ab-initio") return false;
+  return !!hasSuspendData;
+}
+
+// --------------------------------------------------------------------------- //
+// S5 — suspend_data: kompakt v2 kodlaması + eski (v1 JSON) format migrasyonu
+// --------------------------------------------------------------------------- //
+// SCORM 1.2 suspend_data sınırı 4096 karakterdir; v1 (düz JSON.stringify) 60+ ekranlı kurslarda
+// taşar ve history sessizce düşerdi. v2 biçimi ekran KİMLİKLERİ yerine `order` İNDEKSLERİNİ
+// kullanır (base36), visited'ı hex bitfield'a paketler, results/ix'i minimal tutar.
+//
+// v2 alan düzeni ("|" ayraçlı, ilk alan sürüm etiketi "2"):
+//   2 | cursorIdx36 | reachedEnd("1"|"") | visitedHex | history(i36,",") |
+//   results(i36:puan:max:bayrak ",") | ix(i36:n36 ",") | inext36 | orderFp | tailJSON
+// tailJSON (yalnız gerekliyse): { a: vars, c: order-dışı cursorId, v: [order-dışı visited],
+//   r: {order-dışı results}, x: {order-dışı ix}, p: xp (F2 exploration girdileri —
+//   store_key anahtarlı, pozisyonel DEĞİL), o: {bilinmeyen üst alanlar} } — kayıpsızlık garantisi.
+// tail SON alandır ve içindeki "|" karakterleri decode'da yeniden birleştirilir (split-limit hilesi).
+//
+// orderFp — SÜRÜM GÜVENLİĞİ: cursor/visited/results/ix POZİSYONEL indekstir (order dizisindeki
+// sıra). Kurs paketi güncellenip ekran eklenir/silinir/YENİDEN SIRALANIRSA eski payload YENİ order'a
+// karşı çözülür ve visited/results YANLIŞ ekrana atfedilir (sessiz veri bozulması — yanlış puan,
+// yanlış devam noktası). orderFp bu riski kapatır: encode ANINDAKİ order'ın djb2 özeti + uzunluğu
+// zarfa gömülür; decode'da GÜNCEL order'ın özetiyle eşleşmezse state TEMİZ BAŞLANGIÇ (null) döner —
+// devam noktasını kaybetmek, puanı/sonucu bozmaktan HER ZAMAN daha güvenlidir. Ekleme-sadece (append-only)
+// düzenlemeler de reddedilir (basitlik için bilinçli tercih — bkz. _fp yorum).
+//
+// GERİYE UYUM: decodeSuspend eski v1 formatını ("{" ile başlayan düz JSON) tanır ve olduğu gibi
+// döndürür — yayındaki kurslarda resume, paket güncellemesinden sağ çıkar. v1 KİMLİK-anahtarlıdır
+// (screenId → değer), pozisyonel değildir → reorder/insert'e karşı ZATEN bağışıktır; orderFp KONTROLÜ
+// v1'E UYGULANMAZ.
+
+const SUSPEND_LIMIT_12 = 4096;     // SCORM 1.2 cmi.suspend_data (SPM, karakter)
+const SUSPEND_LIMIT_2004 = 64000;  // SCORM 2004 4th Ed. cmi.suspend_data (SPM)
+
+function suspendLimit(is2004) {
+  return is2004 ? SUSPEND_LIMIT_2004 : SUSPEND_LIMIT_12;
+}
+
+function _b36(n) { return Math.max(0, Math.floor(Number(n) || 0)).toString(36); }
+function _p36(s) { var n = parseInt(s, 36); return isNaN(n) ? 0 : n; }
+function _numStr(x) { var n = Number(x); return isFinite(n) ? String(n) : "0"; }
+
+// order parmak izi (djb2, 32-bit işaretsiz — saf/deterministik, Date/random YOK). order.join(",")
+// üzerinden: reorder AYNI elemanları farklı sırada içerse bile hash değişir (join dizesi değişir);
+// insert/delete uzunluğu değiştirir; append de uzunluk+dizeyi değiştirir (append-only'yi de reddetmek
+// bilinçli basitlik tercihi — bkz. dosya başı S5 yorumu). "_" ayracı base36 hash/uzunlukta oluşmaz.
+function _fp(order) {
+  var s = (order || []).join(",");
+  var h = 5381;
+  for (var i = 0; i < s.length; i++) h = ((h * 33) + s.charCodeAt(i)) >>> 0;
+  return h.toString(36) + "_" + (order || []).length.toString(36);
+}
+
+var _V2_KNOWN = { visited: 1, results: 1, history: 1, vars: 1, ix: 1, inext: 1, cursorId: 1, reachedEnd: 1, xp: 1 };
+
+// --------------------------------------------------------------------------- //
+// F2 (#113) — exploration girdi saklama: state.xp = { store_key: değer }
+// --------------------------------------------------------------------------- //
+// Anahtarlar store_key'dir (ekran id'si DEĞİL) → pozisyonel indekse çevrilmez, v2 kuyruk
+// JSON'unda (extra.p) kimlik-anahtarlı taşınır; paket reorder'ında bile anlamı bozulmaz
+// (orderFp uyuşmazlığında zarfın tamamı temiz-başlangıca düşer — bilinçli güvenli taraf).
+// Değer 500 karakterde kırpılır: SCORM 1.2 suspend bütçesi (4096) birkaç keşif ekranını
+// kaldırabilsin; sunucu tarafı tahmin (core/antislop.py estimate_suspend_size) AYNI sabiti
+// kullanır — değişirse ikisi birlikte güncellenmeli.
+
+var EXPLORATION_VALUE_MAX = 500;
+
+// state.xp[key] = String(value) (500'de kırp). Dönüş: { value, truncated } — çağıran
+// (bindExploration) truncated'ı console.warn'a çevirir; burada ASLA loglanmaz (saf).
+function setExploration(state, key, value) {
+  var v = value == null ? "" : String(value);
+  var truncated = false;
+  if (v.length > EXPLORATION_VALUE_MAX) { v = v.slice(0, EXPLORATION_VALUE_MAX); truncated = true; }
+  if (state) (state.xp = state.xp || {})[String(key)] = v;
+  return { value: v, truncated: truncated };
+}
+
+function getExploration(state, key) {
+  var v = state && state.xp ? state.xp[String(key)] : null;
+  return v == null ? "" : String(v);
+}
+
+function encodeSuspend(state, order) {
+  state = state || {}; order = order || [];
+  var idx = {}, i;
+  for (i = 0; i < order.length; i++) idx[order[i]] = i;
+  var extra = {};
+
+  var cur = "";
+  if (state.cursorId != null) {
+    if (idx[state.cursorId] != null) cur = _b36(idx[state.cursorId]);
+    else extra.c = state.cursorId;
+  }
+
+  // visited → hex bitfield: bit i = order[i] ziyaret edildi (4 bit / hex hane, LSB ilk ekran)
+  var nib = [];
+  Object.keys(state.visited || {}).forEach(function (id) {
+    if (!state.visited[id]) return;
+    var j = idx[id];
+    if (j == null) { (extra.v = extra.v || []).push(id); return; }
+    nib[j >> 2] = (nib[j >> 2] || 0) | (1 << (j & 3));
+  });
+  var vis = "";
+  for (i = 0; i < nib.length; i++) vis += (nib[i] || 0).toString(16);
+
+  var hist = [];
+  (state.history || []).forEach(function (id) {
+    if (idx[id] != null) hist.push(_b36(idx[id]));   // order-dışı geçmiş girdisi zaten gezilemez → düşer
+  });
+
+  var res = [];
+  Object.keys(state.results || {}).forEach(function (id) {
+    var r = state.results[id] || {};
+    if (idx[id] == null) { (extra.r = extra.r || {})[id] = r; return; }
+    var f = (r.ok ? 1 : 0) | (r.answered ? 2 : 0);
+    res.push(_b36(idx[id]) + ":" + _numStr(r.points) + ":" + _numStr(r.max) + ":" + f);
+  });
+
+  var ixs = [];
+  Object.keys(state.ix || {}).forEach(function (id) {
+    if (idx[id] == null) { (extra.x = extra.x || {})[id] = state.ix[id]; return; }
+    ixs.push(_b36(idx[id]) + ":" + _b36(state.ix[id]));
+  });
+
+  if (state.vars && Object.keys(state.vars).length) extra.a = state.vars;
+  if (state.xp && Object.keys(state.xp).length) extra.p = state.xp;   // F2 — kimlik-anahtarlı
+  Object.keys(state).forEach(function (k) {           // gelecekteki alanlar sessizce KAYBOLMASIN
+    if (!_V2_KNOWN[k]) (extra.o = extra.o || {})[k] = state[k];
+  });
+
+  var tail = Object.keys(extra).length ? JSON.stringify(extra) : "";
+  return ["2", cur, state.reachedEnd ? "1" : "", vis, hist.join(","),
+          res.join(","), ixs.join(","), _b36(state.inext || 0), _fp(order), tail].join("|");
+}
+
+function _decodeV2(s, order) {
+  try {
+    var parts = s.split("|");
+    // orderFp (parts[8]) GÜNCEL order'ın özetiyle eşleşmeli; eşleşmezse (paket reorder/insert/delete
+    // edilmiş VEYA bu sürüm-öncesi/bozuk bir zarf) pozisyonel indeksler YANLIŞ ekrana atfeder →
+    // temiz başlangıç (null) döndür. Kayıp puandan/yanlış atıftan güvenli.
+    if (parts[8] !== _fp(order)) return null;
+    var tail = parts.slice(9).join("|");               // tail JSON "|" içerebilir → yeniden birleştir
+    var extra = tail ? JSON.parse(tail) : {};
+    var st = { visited: {}, results: {}, history: [] };
+
+    if (parts[1]) st.cursorId = order[_p36(parts[1])];
+    if (extra.c != null) st.cursorId = extra.c;
+    if (parts[2] === "1") st.reachedEnd = true;
+
+    var vis = parts[3] || "";
+    for (var j = 0; j < vis.length; j++) {
+      var nib = parseInt(vis.charAt(j), 16) || 0;
+      for (var k = 0; k < 4; k++) {
+        if (nib & (1 << k)) { var id = order[j * 4 + k]; if (id != null) st.visited[id] = true; }
+      }
+    }
+    (extra.v || []).forEach(function (vid) { st.visited[vid] = true; });
+
+    if (parts[4]) parts[4].split(",").forEach(function (t) {
+      var hid = order[_p36(t)]; if (hid != null) st.history.push(hid);
+    });
+
+    if (parts[5]) parts[5].split(",").forEach(function (t) {
+      var f = t.split(":");
+      var rid = order[_p36(f[0])]; if (rid == null) return;
+      var flags = parseInt(f[3], 10) || 0;
+      st.results[rid] = { points: parseFloat(f[1]) || 0, max: parseFloat(f[2]) || 0,
+                          ok: !!(flags & 1), answered: !!(flags & 2) };
+    });
+    if (extra.r) Object.keys(extra.r).forEach(function (rid) { st.results[rid] = extra.r[rid]; });
+
+    if (parts[6] || extra.x) {
+      st.ix = {};
+      if (parts[6]) parts[6].split(",").forEach(function (t) {
+        var f = t.split(":"); var xid = order[_p36(f[0])];
+        if (xid != null) st.ix[xid] = _p36(f[1]);
+      });
+      if (extra.x) Object.keys(extra.x).forEach(function (xid) { st.ix[xid] = extra.x[xid]; });
+    }
+    if (parts[7] != null && parts[7] !== "") st.inext = _p36(parts[7]);
+    if (extra.a) st.vars = extra.a;                    // vars boşsa YOK say → runtime varsayılanları kurar
+    if (extra.p) st.xp = extra.p;                      // F2 — exploration girdileri (store_key → değer)
+    if (extra.o) Object.keys(extra.o).forEach(function (ok_) { st[ok_] = extra.o[ok_]; });
+    return st;
+  } catch (e) { return null; }
+}
+
+// raw → state | null. v2 ("2|" öneki) ve v1 (düz JSON {visited:...}) formatlarını tanır.
+function decodeSuspend(raw, order) {
+  if (raw == null || raw === "") return null;
+  var s = String(raw);
+  if (s.slice(0, 2) === "2|") return _decodeV2(s, order || []);
+  try {                                                // v1 migrasyonu: eski JSON'u olduğu gibi kabul et
+    var d = JSON.parse(s);
+    if (d && typeof d === "object" && d.visited) {
+      d.history = d.history || [];
+      return d;
+    }
+  } catch (e) {}
+  return null;
+}
+
+// Sığdırarak kodla: limit aşılırsa önce history düşer (v1'deki davranışın kayıpsız hâli — vars ve
+// ix v2'de KORUNUR; v1 fallback ikisini de atardı → tekrar cevaplanan sorular kopya interaction
+// üretirdi). Hâlâ sığmıyorsa veri OLDUĞU GİBİ döner + truncated bayrağı (görünürlük katmanı uyarır).
+function encodeSuspendFit(state, order, limit) {
+  var lim = Number(limit) > 0 ? Number(limit) : SUSPEND_LIMIT_12;
+  var data = encodeSuspend(state, order);
+  var dropped = false;
+  if (data.length > lim && state && state.history && state.history.length) {
+    var slim = {}; for (var k in state) slim[k] = state[k];
+    slim.history = [];
+    data = encodeSuspend(slim, order);
+    dropped = true;
+  }
+  return { data: data, truncated: data.length > lim, historyDropped: dropped };
+}
+
+// SCORM API Set çağrısının dönüşü başarı mı? 1.2 LMSSetValue ve 2004 SetValue CMIBoolean
+// ("true"/"false") döndürür; bazı sahte/eksik API'ler gerçek boolean ya da boş döndürür.
+// YALNIZ açık "false" başarısızlıktır — boş/bilinmeyen dönüşte uyarı spam'i istemeyiz.
+function setResultOk(r) {
+  return !(r === false || String(r) === "false");
+}
+
+// persist sonrası görünürlük kararı (saf): hangi durumlar uyarı üretmeli?
+// { ok, size, limit, truncated } → [{kind, size, limit}, ...]. Runtime bunları console.warn +
+// (varsa) xAPI olayına çevirir; ASLA throw edilmez.
+function suspendWriteIssues(opts) {
+  var out = [];
+  if (!opts) return out;
+  var size = Number(opts.size) || 0, limit = Number(opts.limit) || 0;
+  if (opts.truncated) out.push({ kind: "truncated", size: size, limit: limit });
+  if (opts.ok === false) out.push({ kind: "write_failed", size: size, limit: limit });
+  return out;
+}
+
+// --------------------------------------------------------------------------- //
+// S1 — cmi.interactions.*
+// --------------------------------------------------------------------------- //
+
+// Ekran tipi → SCORM etkileşim tipi. 1.2 ve 2004 sözlükleri bu alt küme için aynı.
+const INTERACTION_TYPES = {
+  mcq: "choice",
+  true_false: "true-false",
+  fill_blank: "fill-in",
+  drag_drop: "matching",
+  hotspot: "choice",
+  matching: "matching",
+  sorting: "sequencing",
+  labeled_diagram: "matching",
+  simulation: "performance",
+  decision_scenario: "performance",
+  term_match_race: "matching",
+  escape_room: "performance",
+  game: "performance",
+  adaptive_practice: "choice",
+};
+
+function interactionType(screenType) {
+  return INTERACTION_TYPES[screenType] || "other";
+}
+
+// CMIIdentifier: boşluksuz, sınırlı alfabe, ≤255. Ekran id'leri genelde uygun; yine de temizle.
+function sanitizeId(id) {
+  var s = String(id == null ? "" : id).replace(/[^A-Za-z0-9_.-]/g, "_");
+  if (!s) s = "item";
+  return s.slice(0, 255);
+}
+
+function resultValue(ok, is2004) {
+  if (ok === "neutral" || ok === "unanticipated") return ok;
+  if (ok) return "correct";
+  return is2004 ? "incorrect" : "wrong";
+}
+
+function _bool(v, is2004) {
+  var t = v === true || v === "true" || v === "1" || v === 1;
+  return is2004 ? (t ? "true" : "false") : (t ? "1" : "0");
+}
+
+// Çok değerli cevaplarda ayraçlar sürüme göre değişir.
+function _sep(is2004) { return is2004 ? "[,]" : ","; }
+function _pairSep(is2004) { return is2004 ? "[.]" : "."; }
+
+// value → SCORM cevap deseni. Kabul edilen girdiler:
+//   choice/sequencing : dizi | tek değer
+//   matching          : {kaynak: hedef} nesnesi | [[kaynak,hedef],…] | dizi
+//   true-false        : bool benzeri
+//   fill-in           : string | dizi (çoklu boşluk → ayraçla birleştirilir)
+//   performance/other : string
+function formatResponse(type, value, is2004) {
+  if (value == null) return "";
+  if (type === "true-false") return _bool(value, is2004);
+
+  if (type === "matching") {
+    var pairs = [];
+    if (Array.isArray(value)) {
+      value.forEach(function (p) {
+        if (Array.isArray(p) && p.length >= 2) pairs.push([p[0], p[1]]);
+      });
+    } else if (typeof value === "object") {
+      Object.keys(value).forEach(function (k) { pairs.push([k, value[k]]); });
+    }
+    return pairs
+      .map(function (p) { return sanitizeId(p[0]) + _pairSep(is2004) + sanitizeId(p[1]); })
+      .join(_sep(is2004));
+  }
+
+  if (type === "choice" || type === "sequencing") {
+    var arr = Array.isArray(value) ? value : [value];
+    return arr.map(sanitizeId).join(_sep(is2004));
+  }
+
+  // fill-in / performance / other — serbest metin
+  var text = Array.isArray(value) ? value.join(_sep(is2004)) : String(value);
+  return text.slice(0, is2004 ? 250 : 255);
+}
+
+// Bir etkileşim kaydını, sSet ile yazılacak [anahtar, değer] çiftlerine çevirir.
+// rec: { id, screenType | type, response, correct, ok, latencyMs?, time?, description?, weighting? }
+// n:   cmi.interactions.n indeksi
+function interactionElements(rec, n, is2004) {
+  var t = rec.type || interactionType(rec.screenType);
+  var base = "cmi.interactions." + n + ".";
+  var out = [];
+
+  out.push([base + "id", sanitizeId(rec.id)]);
+  out.push([base + "type", t]);
+
+  // Sıra önemli: 1.2'de bazı LMS'ler .id yazılmadan alt elemanları reddeder → id ilk.
+  if (rec.correct != null) {
+    var pattern = formatResponse(t, rec.correct, is2004);
+    if (pattern !== "") out.push([base + "correct_responses.0.pattern", pattern]);
+  }
+
+  if (rec.weighting != null) out.push([base + "weighting", String(rec.weighting)]);
+
+  var resp = formatResponse(t, rec.response, is2004);
+  out.push([base + (is2004 ? "learner_response" : "student_response"), resp]);
+
+  if (rec.ok != null) out.push([base + "result", resultValue(rec.ok, is2004)]);
+
+  if (rec.latencyMs != null) {
+    out.push([base + "latency", is2004 ? duration2004(rec.latencyMs) : duration12(rec.latencyMs)]);
+  }
+
+  if (rec.time != null) {
+    out.push([base + (is2004 ? "timestamp" : "time"),
+      is2004 ? timestamp2004(rec.time) : timestamp12(rec.time)]);
+  }
+
+  // 1.2'de .description YOKTUR — yalnız 2004'te yaz.
+  if (is2004 && rec.description) {
+    out.push([base + "description", String(rec.description).slice(0, 250)]);
+  }
+
+  return out;
+}
+
+// --------------------------------------------------------------------------- //
+// S2 — cmi.objectives.*
+// --------------------------------------------------------------------------- //
+// Hedef toplama SAF ve deterministiktir: çıktı sırası HER ZAMAN kurs hedef sırasıdır
+// (objectiveIds), ekran/cevap sırasından bağımsız. POLİTİKA: yalnız en az bir puanlı ekrana
+// bağlı hedefler kayıt üretir — bağsız hedef yazarlık hatasıdır (antislop `unbound_objective`
+// WARN'ı yakalar), LMS'e boş kayıt yazılmaz.
+//
+// Referans farklar (S1 tablosuyla aynı ilke — sürüm farkı TEK yerde, burada):
+//   skor    1.2 .score.raw/min/max (0-100)  | 2004 .score.scaled (0-1)
+//   durum   1.2 .status (tek alan)          | 2004 .success_status + .completion_status
+
+// results: state.results ({screenId: {points,max,ok,answered}}); screenMap: {screenId: [objId,…]}.
+// → kurs sırasında [{id, correct, total, answered, scaled}] (correct/answered/total EKRAN sayısıdır;
+// bir ekran birden çok hedefe bağlıysa her birinde sayılır).
+function aggregateObjectives(objectiveIds, screenMap, results) {
+  objectiveIds = objectiveIds || []; screenMap = screenMap || {}; results = results || {};
+  var per = {};
+  Object.keys(screenMap).forEach(function (sid) {
+    var r = results[sid];
+    (screenMap[sid] || []).forEach(function (oid) {
+      var a = per[oid] || (per[oid] = { correct: 0, total: 0, answered: 0 });
+      a.total++;
+      if (r && r.answered) { a.answered++; if (r.ok) a.correct++; }
+    });
+  });
+  var out = [];
+  for (var i = 0; i < objectiveIds.length; i++) {
+    var oid = objectiveIds[i], a = per[oid];
+    if (!a) continue;                                  // bağsız hedef → kayıt yok (politika)
+    out.push({ id: oid, correct: a.correct, total: a.total, answered: a.answered,
+               scaled: a.total > 0 ? a.correct / a.total : 0 });
+  }
+  return out;
+}
+
+// LMS'te ÖNCEDEN var olan objective kayıtlarıyla (2004'te manifest imsss:objective'lerinden
+// pre-populate edilebilir) çarpışmadan deterministik indeks ata: mevcut id kendi indeksini
+// AYNEN korur (2004'te .id değiştirilemez), yeni id'ler sona sırayla eklenir.
+function objectiveIndices(existingIds, ids) {
+  existingIds = existingIds || []; ids = ids || [];
+  var pos = {}, i;
+  for (i = 0; i < existingIds.length; i++) {
+    if (pos[existingIds[i]] == null) pos[existingIds[i]] = i;
+  }
+  var map = {}, next = existingIds.length;
+  for (i = 0; i < ids.length; i++) {
+    map[ids[i]] = pos[ids[i]] != null ? pos[ids[i]] : next++;
+  }
+  return map;
+}
+
+// Bir hedef toplamını sSet ile yazılacak [anahtar, değer] çiftlerine çevirir (interactionElements
+// deseni). agg: aggregateObjectives çıktısı; n: cmi.objectives.n; passingRatio: kurs geçme notu
+// 0-1 (hedef başına ayrı eşik yok — S6 primaryObjective/minNormalizedMeasure ile tutarlı);
+// includeId=false → .id çifti atlanır (LMS'te aynı indekste id zaten kayıtlıysa 2004 yeniden
+// yazımı reddedebilir).
+function objectiveElements(agg, n, is2004, passingRatio, includeId) {
+  var base = "cmi.objectives." + n + ".";
+  var out = [];
+  if (includeId !== false) out.push([base + "id", sanitizeId(agg.id)]);   // id İLK (S1 kuralı)
+
+  var attempted = agg.answered > 0;
+  var done = agg.total > 0 && agg.answered >= agg.total;
+  var passed = agg.scaled >= (Number(passingRatio) || 0);
+
+  if (attempted) {
+    if (is2004) {
+      out.push([base + "score.scaled", (Math.round(agg.scaled * 10000) / 10000).toFixed(4)]);
+    } else {
+      out.push([base + "score.raw", String(Math.round(agg.scaled * 100))]);
+      out.push([base + "score.min", "0"]);
+      out.push([base + "score.max", "100"]);
+    }
+  }
+
+  if (is2004) {
+    out.push([base + "success_status", done ? (passed ? "passed" : "failed") : "unknown"]);
+    out.push([base + "completion_status",
+      done ? "completed" : (attempted ? "incomplete" : "not attempted")]);
+  } else {
+    out.push([base + "status",
+      done ? (passed ? "passed" : "failed") : (attempted ? "incomplete" : "not attempted")]);
+  }
+  return out;
+}
+
+__E.duration12 = duration12; __E.duration2004 = duration2004; __E.sessionTime = sessionTime; __E.timestamp12 = timestamp12; __E.timestamp2004 = timestamp2004; __E.exitValue = exitValue; __E.shouldRestore = shouldRestore; __E.SUSPEND_LIMIT_12 = SUSPEND_LIMIT_12; __E.SUSPEND_LIMIT_2004 = SUSPEND_LIMIT_2004; __E.suspendLimit = suspendLimit; __E.EXPLORATION_VALUE_MAX = EXPLORATION_VALUE_MAX; __E.setExploration = setExploration; __E.getExploration = getExploration; __E.encodeSuspend = encodeSuspend; __E.decodeSuspend = decodeSuspend; __E.encodeSuspendFit = encodeSuspendFit; __E.setResultOk = setResultOk; __E.suspendWriteIssues = suspendWriteIssues; __E.INTERACTION_TYPES = INTERACTION_TYPES; __E.interactionType = interactionType; __E.sanitizeId = sanitizeId; __E.resultValue = resultValue; __E.formatResponse = formatResponse; __E.interactionElements = interactionElements; __E.aggregateObjectives = aggregateObjectives; __E.objectiveIndices = objectiveIndices; __E.objectiveElements = objectiveElements;
+})();
+window.SCORMRT = __E;
+})();</script>
+<script>
+window.__COURSE__ = {"title": "SCORM'a Giriş", "language": "tr", "scorm_version": "1.2", "total_points": 10, "tracking": {"completion_rule": "viewed_all_and_passed", "passing_score": 50, "score_scaling": true}, "variables": [], "points_var": null, "levels": [], "lives_var": null, "max_lives": 0, "layout_mode": "stage", "stage_width": 960, "stage_height": 540, "screens": [{"id": "t1", "type": "title_slide", "index": 0, "is_quiz": false, "reveal": "auto"}, {"id": "c1", "type": "content_slide", "index": 1, "is_quiz": false, "reveal": "auto"}, {"id": "q1", "type": "mcq", "index": 2, "is_quiz": true, "title": "Mini Quiz", "points": 10, "multi": false, "correct": ["a"], "feedback": {"correct": "Doğru! 🎉", "incorrect": "Tekrar düşün.", "show_correct": true}, "reveal": "none"}, {"id": "s1", "type": "summary", "index": 3, "is_quiz": false, "reveal": "auto"}], "id_order": ["t1", "c1", "q1", "s1"]};
+window.__ASSETS__ = {};
+window.__SCORM_2004__ = false;
+window.__PREVIEW__ = true;
+window.__REVIEW__ = false;
+window.__I18N__ = {"summary_passed": "Başarıyla tamamladınız", "summary_failed": "Geçme notuna ulaşılamadı", "summary_completed": "Tamamlandı", "summary_in_progress": "Devam ediyor", "results_total": "Toplam: <b>%{pct}</b>", "scenario_result_score": "Skor: {score}", "term_race_result": "{correct}/{total}", "term_race_bonus": " · +{bonus} hız bonusu", "escape_win": "Tüm kilitleri açtın!", "escape_lose": "Canların bitti.", "game_engine_failed": "Oyun motoru yüklenemedi.", "game_result_score": "Skor: {score}", "adaptive_engine_failed": "Adaptif motor yüklenemedi.", "adaptive_mastery": "Ustalık: {pct}%", "adaptive_ability": "Seviye: {value}", "adaptive_result": "{correct} / {answered} doğru · {level}", "review_sending": "Gönderiliyor…", "review_sent": "Gönderildi", "review_error": "Hata — tekrar dene", "xp_not_answered": "henüz cevaplamadın"};
+</script>
+<script>
+
 (function(){
 "use strict";
 // 1.5 — gömme modu: sunucu ?embed=1'i hiç görmez (aynı önbellekli HTML), yalnız istemci burada
@@ -2195,160 +2712,9 @@ showAt(startIdx,false);
 fitStage();  // Faz 9 — ilk ölçekleme (layout görseli oturduktan sonra)
 window.__navReady=true;  // ilk render bitti → sonraki gezinmelerde focus aktif ekrana taşınır
 
-/*__REVIEW_JS_SLOT__*/
+
 })();
-"""
 
-# --------------------------------------------------------------------------- #
-# 1.1 — review/annotation JS'i ENGINE_JS'ten AYRILDI: renderer.py yalnız review=True iken
-# ENGINE_JS içindeki /*__REVIEW_JS_SLOT__*/ sentinelini bununla değiştirir (düz .replace(),
-# ENGINE_JS zaten .format() edilmediği için {{}} kaçışlama derdi yok). review=False'ta sentinel
-# boş dizgeyle değişir → çıktı HTML/JS'de "reviewBtn" vb. hiçbir iz kalmaz (yalnız markup değil,
-# JS de HİÇ basılmaz). T()/curScreen()/CHECK_SVG dış IIFE kapsamından geldiği için bu blok
-# ENGINE_JS'in ana IIFE'sinin İÇİNDE (kapanış })();'den önce) kalmak ZORUNDA.
-# ---- review/annotation: yalnız review=true render'da (örn. /preview); /demo ve pakette hiç yok ----
-REVIEW_JS = r"""if(window.__REVIEW__){
-  var rFab=document.getElementById("reviewFab"); if(rFab) rFab.hidden=false;
-  var rPanel=document.getElementById("reviewPanel"), rBtn=document.getElementById("reviewBtn"),
-      rTxt=document.getElementById("reviewText"), rSend=document.getElementById("reviewSend"),
-      rCancel=document.getElementById("reviewCancel"), rSt=document.getElementById("reviewStatus");
-  function rToken(){ var m=location.pathname.match(/\/preview\/([^\/]+)/); return m?m[1]:""; }
-  if(rBtn) rBtn.addEventListener("click",function(){ rPanel.hidden=!rPanel.hidden; if(!rPanel.hidden) rTxt.focus(); });
-  if(rCancel) rCancel.addEventListener("click",function(){ rPanel.hidden=true; });
-  if(rSend) rSend.addEventListener("click",function(){
-    var c=(rTxt.value||"").trim(); if(!c){ rTxt.focus(); return; }
-    rSt.textContent=T("review_sending"); rSend.disabled=true;
-    fetch("/feedback",{method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({preview_token:rToken(),screen_id:(curScreen()&&curScreen().id)||null,comment:c})})
-    .then(function(r){ return r.ok?r.json():Promise.reject(); })
-    .then(function(){ rSt.innerHTML=CHECK_SVG+" "+T("review_sent"); rTxt.value=""; rSend.disabled=false;
-      setTimeout(function(){ rPanel.hidden=true; rSt.textContent=""; },1200); })
-    .catch(function(){ rSt.textContent=T("review_error"); rSend.disabled=false; });
-  });
-}"""
-
-
-# --------------------------------------------------------------------------- #
-# Vendor henüz yapılmadıysa no-op SCORM shim (yalnız fallback; gerçek paket runtime'ı gerektirir)
-# --------------------------------------------------------------------------- #
-FALLBACK_RUNTIME_SHIM = r"""
-(function(){
-  function NoopAPI(){ this.data={}; }
-  var p=NoopAPI.prototype;
-  p.LMSInitialize=p.Initialize=function(){return "true";};
-  p.LMSFinish=p.Terminate=function(){return "true";};
-  p.LMSGetValue=p.GetValue=function(k){return this.data[k]||"";};
-  p.LMSSetValue=p.SetValue=function(k,v){this.data[k]=v;return "true";};
-  p.LMSCommit=p.Commit=function(){return "true";};
-  p.LMSGetLastError=p.GetLastError=function(){return "0";};
-  p.LMSGetErrorString=p.GetErrorString=function(){return "No error";};
-  p.LMSGetDiagnostic=p.GetDiagnostic=function(){return "";};
-  window.Scorm12API=window.Scorm2004API=NoopAPI;
-})();
-"""
-
-
-# --------------------------------------------------------------------------- #
-# Senaryo hattı Faz 1 — outline tree menü (CSS + JS). İKİSİ DE yalnız outline'lı kursta
-# basılır: CSS renderer'da BASE_CSS'e eklenir, JS review-slot deseniyle ENGINE_JS'in ana
-# IIFE'sine gömülür (yeni sentinel YOK — outline boşken çıktı BAYT-BAYT eski hâliyle aynı,
-# tests/test_outline_menu.py fixture testi bunu kilitler). Ağacın MARKUP'ı sunucuda render
-# edilir (components/renderer.py _render_menu_tree) — JS yalnız davranış: katlama, klavye
-# (APG tree deseni), aria-current/ziyaret tazeleme. Dizgeler i18n'den sunucuda çözülür;
-# bu JS'te kullanıcıya görünen sabit metin YOK.
-# --------------------------------------------------------------------------- #
-OUTLINE_CSS = r"""
-/* ===== OUTLINE TREE MENU (senaryo hatti Faz 1 — yalniz outline'li kurslarda) ===== */
-.slide-menu ul[role="group"]{list-style:none;margin:0;padding:0;padding-inline-start:16px}
-.slide-menu li.mtree-li{padding:0}
-.slide-menu li.mtree-li:hover{background:none;transform:none}
-.mtree-btn{display:flex;align-items:center;gap:8px;width:100%;background:none;border:0;
-  cursor:pointer;padding:9px 12px;border-radius:var(--r-md);font-family:inherit;
-  font-size:14px;line-height:1.4;color:var(--c-text);text-align:start}
-.mtree-btn:hover{background:color-mix(in srgb,var(--c-primary) 6%,transparent)}
-.mtree-btn:focus-visible{outline:3px solid color-mix(in srgb,var(--c-focus) 50%,transparent);
-  outline-offset:-2px}
-.mtree-node{font-weight:var(--w-strong)}
-.mtree-num{color:var(--c-muted);flex:none}
-.mtree-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.mtree-chevron{width:14px;height:14px;flex:none;transition:transform .15s ease}
-.mtree-btn[aria-expanded="false"] .mtree-chevron{transform:rotate(calc(-90deg * var(--dir-x)))}
-.mtree-btn[aria-expanded="false"]+ul[role="group"]{display:none}
-.mtree-bullet{width:14px;flex:none}
-.mtree-btn[aria-current="page"]{color:var(--c-primary);font-weight:var(--w-strong)}
-.mtree-btn .mi-done{color:var(--c-success);margin-inline-start:auto;display:inline-flex}
-@media(prefers-reduced-motion:reduce){.mtree-chevron{transition:none}}
-"""
-
-OUTLINE_JS = r"""
-/* ---- outline tree menü (senaryo hattı Faz 1): sunucu markup'ı statik, burada yalnız davranış ---- */
-(function mtreeInit(){
-  var tree=document.getElementById("slideMenuList");
-  if(!tree||tree.getAttribute("role")!=="tree") return;
-  function items(){ return Array.prototype.slice.call(tree.querySelectorAll(".mtree-btn")); }
-  function isVisible(b){
-    // yapısal görünürlük: kapalı (aria-expanded=false) bir atanın grubunda mı?
-    var el=b.parentElement;
-    while(el&&el!==tree){
-      if(el.tagName==="UL"&&el.getAttribute("role")==="group"){
-        var t=el.previousElementSibling;
-        if(t&&t.getAttribute("aria-expanded")==="false") return false;
-      }
-      el=el.parentElement;
-    }
-    return true;
-  }
-  function visible(){ return items().filter(isVisible); }
-  function setFocus(b){ items().forEach(function(x){ x.tabIndex=-1; }); b.tabIndex=0; b.focus(); }
-  function toggle(b){
-    b.setAttribute("aria-expanded", b.getAttribute("aria-expanded")==="false"?"true":"false"); }
-  tree.addEventListener("click",function(e){
-    var b=e.target.closest(".mtree-btn"); if(!b) return;
-    var id=b.getAttribute("data-goto");
-    if(id){ closeMenu(); goId(id,true); }
-    else if(b.hasAttribute("aria-expanded")) toggle(b);
-  });
-  // APG tree klavye deseni; RTL'de sağ/sol anlamı aynalanır. Enter/Space native button'da.
-  var rtl=document.documentElement.getAttribute("dir")==="rtl";
-  var K_EXPAND=rtl?"ArrowLeft":"ArrowRight", K_COLLAPSE=rtl?"ArrowRight":"ArrowLeft";
-  tree.addEventListener("keydown",function(e){
-    var b=e.target.closest(".mtree-btn"); if(!b||e.altKey||e.ctrlKey||e.metaKey) return;
-    var k=e.key, vis=visible(), i=vis.indexOf(b);
-    if(k===K_EXPAND){
-      if(b.getAttribute("aria-expanded")==="false") toggle(b);
-      else if(b.hasAttribute("aria-expanded")){
-        var g=b.nextElementSibling, f=g&&g.querySelector(".mtree-btn"); if(f) setFocus(f); }
-    } else if(k===K_COLLAPSE){
-      if(b.getAttribute("aria-expanded")==="true") toggle(b);
-      else{ var pg=b.parentElement&&b.parentElement.parentElement,
-            pb=pg&&pg!==tree&&pg.previousElementSibling;
-        if(pb&&pb.classList&&pb.classList.contains("mtree-btn")) setFocus(pb); }
-    } else if(k==="ArrowDown"){ if(i<vis.length-1) setFocus(vis[i+1]); }
-    else if(k==="ArrowUp"){ if(i>0) setFocus(vis[i-1]); }
-    else if(k==="Home"){ if(vis.length) setFocus(vis[0]); }
-    else if(k==="End"){ if(vis.length) setFocus(vis[vis.length-1]); }
-    else if(k.length===1&&k!==" "&&/\S/.test(k)){
-      // type-ahead: geçerli öğeden İLERİYE, başlığı bu harfle başlayan ilk görünür öğe
-      var q=k.toLowerCase();
-      for(var s=1;s<=vis.length;s++){
-        var cand=vis[(i+s)%vis.length], tt=cand.querySelector(".mtree-title");
-        if(tt&&tt.textContent.trim().toLowerCase().indexOf(q)===0){ setFocus(cand); break; } }
-      return;
-    } else return;
-    e.preventDefault();
-  });
-  // buildMenu'yü geçersiz kıl: ağaç yapısı statik — yalnız dinamik durum (aktif ekran +
-  // ziyaret işaretleri) tazelenir. Düz menünün innerHTML-yeniden-kurma yolu hiç çalışmaz.
-  buildMenu=function(){
-    var cur=order[cursor];
-    items().forEach(function(bt){
-      var id=bt.getAttribute("data-goto"); if(!id) return;
-      if(id===cur) bt.setAttribute("aria-current","page"); else bt.removeAttribute("aria-current");
-      var done=state.visited[id], has=bt.querySelector(".mi-done");
-      if(done&&!has){ var sp=document.createElement("span"); sp.className="mi-done";
-        sp.innerHTML=CHECK_SVG; bt.appendChild(sp); }
-      else if(!done&&has){ has.parentNode.removeChild(has); }
-    });
-  };
-})();
-"""
+</script>
+</body>
+</html>

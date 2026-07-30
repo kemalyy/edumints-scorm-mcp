@@ -85,6 +85,8 @@ _EN: dict[str, str] = {
     "menu_label": "Slide menu",
     "menu_heading": "Contents",
     "menu_close": "Close menu",
+    # senaryo hattı Faz 1 — outline tree menüsünde düğümsüz ekranların sondaki düz grubu
+    "menu_ungrouped": "Ungrouped screens",
     # --- HUD ---
     "hud_lives": "Lives",
     # --- geri bildirim paneli (yalnız önizleme) ---
@@ -176,6 +178,7 @@ _TR: dict[str, str] = {
     "menu_label": "Slayt menüsü",
     "menu_heading": "İçerik",
     "menu_close": "Menüyü kapat",
+    "menu_ungrouped": "Düğümsüz ekranlar",
     "hud_lives": "Can",
     "review_open": "Geri bildirim",
     "review_title": "Bu ekran için yorum bırak",

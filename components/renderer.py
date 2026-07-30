@@ -36,6 +36,8 @@ from .templates import (
     BASE_CSS,
     ENGINE_JS,
     FALLBACK_RUNTIME_SHIM,
+    OUTLINE_CSS,
+    OUTLINE_JS,
     REVIEW_JS,
     REVIEW_MARKUP,
     SHELL,
@@ -264,7 +266,12 @@ def _render_html_inner(
     # ENGINE_JS .format() edilmez (JS'in kendi {{}} kaçışlama derdi olmasın diye); review JS'i
     # düz .replace() ile sentinel'e gömülür → review=False'ta ENGINE_JS'te "reviewBtn" gibi
     # hiçbir iz kalmaz (yalnız markup değil, JS de fiziksel olarak yok).
-    engine_js = ENGINE_JS.replace(_REVIEW_JS_SLOT, REVIEW_JS if review else "")
+    # Senaryo hattı Faz 1: outline tree JS'i AYNI sentineli paylaşır (review'dan önce, ana
+    # IIFE kapsamında). Yeni sentinel eklemek outline'sız çıktının baytlarını değiştirirdi —
+    # geriye uyum (3.3) bayt-bayt fixture testiyle kilitli (tests/test_outline_menu.py).
+    outline_js = OUTLINE_JS if project.outline else ""
+    engine_js = ENGINE_JS.replace(_REVIEW_JS_SLOT, outline_js + (REVIEW_JS if review else ""))
+    menu_tree_attrs, menu_tree_items = _render_menu_tree(project)
 
     return SHELL.format(
         lang=_attr(project.language),
@@ -274,7 +281,8 @@ def _render_html_inner(
         title=_text(project.title),
         og_tags=_og_meta_tags(project, canonical_url),
         css_vars=css_vars,
-        base_css=BASE_CSS,
+        # outline tree CSS'i yalnız outline'lı kursa basılır (outline boş → bayt-bayt eski çıktı)
+        base_css=BASE_CSS + (OUTLINE_CSS if project.outline else ""),
         custom_css=theme.custom_css or "",
         bg_pattern=theme.background_pattern,
         layout_mode=project.layout_mode,
@@ -291,6 +299,8 @@ def _render_html_inner(
         review_markup=review_markup,
         extra_runtime=extra_runtime,
         engine_js=engine_js,
+        menu_tree_attrs=menu_tree_attrs,
+        menu_tree_items=menu_tree_items,
     )
 
 
@@ -326,6 +336,103 @@ def _css_vars(t: ThemeTokens) -> str:
   --d-fast:{m.duration_fast}; --d-base:{m.duration_base}; --d-slow:{m.duration_slow};
   --ease:{m.easing_standard}; --ease-emph:{m.easing_emphasized};
 """
+
+
+# --------------------------------------------------------------------------- #
+# Senaryo hattı Faz 1 — hiyerarşik menü ağacı (sunucuda render edilir)
+# --------------------------------------------------------------------------- #
+_MTREE_CHEVRON = ('<svg class="mtree-chevron" viewBox="0 0 24 24" fill="none" '
+                  'stroke="currentColor" stroke-width="2" stroke-linecap="round" '
+                  'stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>')
+
+
+def _render_menu_tree(project: Project) -> tuple[str, str]:
+    """Outline'lı kursta slayt menüsünün İÇERİĞİNİ APG tree deseniyle sunucuda üretir.
+
+    Dönüş: (ul öznitelik eki, iç markup). Outline boşsa ("", "") → SHELL'deki
+    `<ul id="slideMenuList"{menu_tree_attrs}>{menu_tree_items}</ul>` bugünkü
+    `<ul id="slideMenuList"></ul>`e bayt-bayt eşitlenir (geriye uyum 3.3).
+
+    Yapı kararları (Faz 1, PR gövdesinde belgelendi):
+      - li'ler role="none" (liste semantiği yerine tree); treeitem NATIVE button'dur
+        (klavye aktivasyonu + odak bedava), dallılarda aria-expanded (varsayılan açık).
+      - Düğüm sırası: düğümün KENDİ ekranları (kurs sırasıyla) önce, alt düğümler sonra.
+      - node_id'siz ekranlar (veya hiç ekransız kalanlar değil — o meşru) menünün SONUNDA
+        i18n başlıklı ("menu_ungrouped") düz bir grupta listelenir; ekran numarası
+        düz menüyle aynı global sıradır (konum duygusu korunur).
+      - aria-current="page" başlangıçta ilk ekranda; çalışma anında OUTLINE_JS tazeler.
+      - Roving tabindex: yalnız ilk treeitem tabindex=0.
+    Kilit/ilerleme yok — Faz 4. Sarkan node_id validator'da SERT hatadır; yine de burada
+    savunmacı davranılır (bilinmeyen düğüm → düğümsüz grup) çünkü render doğrulamadan
+    bağımsız çağrılabilir (preview)."""
+    if not project.outline:
+        return "", ""
+
+    node_ids = {n.id for n in project.outline}
+    children: dict[str | None, list] = {}
+    for n in project.outline:
+        # sarkan/döngülü parent'lı düğümler validator'da hata; render'da kök gibi ele alınır
+        key = n.parent_id if n.parent_id in node_ids else None
+        children.setdefault(key, []).append(n)
+    screens_by_node: dict[str, list[tuple[int, object]]] = {}
+    ungrouped: list[tuple[int, object]] = []
+    for i, s in enumerate(project.screens):
+        nid = getattr(s, "node_id", None)
+        if nid and nid in node_ids:
+            screens_by_node.setdefault(nid, []).append((i, s))
+        else:
+            ungrouped.append((i, s))
+
+    start_id = project.screens[0].id if project.screens else None
+    rov = {"first": True}
+
+    def _ti() -> str:
+        if rov["first"]:
+            rov["first"] = False
+            return "0"
+        return "-1"
+
+    def screen_li(i: int, s, level: int) -> str:
+        cur = ' aria-current="page"' if (s.id and s.id == start_id) else ""
+        return (
+            f'<li role="none" class="mtree-li">'
+            f'<button type="button" role="treeitem" class="mtree-btn mtree-screen" '
+            f'data-goto="{_attr(s.id or f"idx{i}")}" aria-level="{level}" tabindex="{_ti()}"{cur}>'
+            f'<span class="mtree-num">{i + 1}.</span>'
+            f'<span class="mtree-title">{_text(s.title)}</span></button></li>'
+        )
+
+    def node_li(n, level: int) -> str:
+        own = screens_by_node.get(n.id, [])
+        kids = children.get(n.id, [])
+        branch = bool(own or kids)
+        exp = ' aria-expanded="true"' if branch else ""
+        lead = _MTREE_CHEVRON if branch else '<span class="mtree-bullet" aria-hidden="true"></span>'
+        html = (
+            f'<li role="none" class="mtree-li">'
+            f'<button type="button" role="treeitem" '
+            f'class="mtree-btn mtree-node mtree-{n.kind}" '
+            f'data-node-id="{_attr(n.id)}" aria-level="{level}" tabindex="{_ti()}"{exp}>'
+            f'{lead}<span class="mtree-title">{_text(n.title)}</span></button>'
+        )
+        if branch:
+            inner = "".join(screen_li(i, s, level + 1) for i, s in own)
+            inner += "".join(node_li(k, level + 1) for k in kids)
+            html += f'<ul role="group">{inner}</ul>'
+        return html + "</li>"
+
+    items = "".join(node_li(n, 1) for n in children.get(None, []))
+    if ungrouped:
+        inner = "".join(screen_li(i, s, 2) for i, s in ungrouped)
+        items += (
+            f'<li role="none" class="mtree-li">'
+            f'<button type="button" role="treeitem" class="mtree-btn mtree-node mtree-other" '
+            f'aria-level="1" tabindex="{_ti()}" aria-expanded="true">'
+            f'{_MTREE_CHEVRON}<span class="mtree-title">{_text(_T("menu_ungrouped"))}</span>'
+            f'</button><ul role="group">{inner}</ul></li>'
+        )
+    attrs = f' role="tree" aria-label="{_attr(_T("menu_heading"))}"'
+    return attrs, items
 
 
 # --------------------------------------------------------------------------- #
@@ -444,6 +551,9 @@ def _course_config(project: Project) -> dict:
             item["has_captions"] = True
         if getattr(s, "section", None):
             item["section"] = s.section
+        # Senaryo hattı Faz 1 — ekran→outline düğümü bağı (yalnız doluysa; bayt tasarrufu)
+        if getattr(s, "node_id", None):
+            item["node_id"] = s.node_id
         screens.append(item)
     return {
         "title": project.title,
@@ -468,6 +578,10 @@ def _course_config(project: Project) -> dict:
         "id_order": [s.id or f"idx{i}" for i, s in enumerate(project.screens)],
         # S2 (2.4) — kurs hedef sırası (determinizm kaynağı); yalnız id'ler (runtime'a metin gerekmez)
         **({"objectives": [o.id for o in project.objectives]} if project.objectives else {}),
+        # Senaryo hattı Faz 1 — outline iskeleti (Faz 4 konum/resume için gerekli asgari alanlar;
+        # objective/pedagogy_pack yazarlık verisidir, runtime'a SIZDIRILMAZ). Boşsa anahtar hiç yok.
+        **({"outline": [{"id": n.id, "parent_id": n.parent_id, "kind": n.kind, "title": n.title}
+                        for n in project.outline]} if project.outline else {}),
         # W5 — xAPI/cmi5 telemetri config'i YALNIZ açıkken serileşir (kapalıysa runtime no-op)
         **({"xapi": {"enabled": True, "mode": project.xapi.mode,
                      "endpoint": project.xapi.endpoint, "activity_base": project.xapi.activity_base}}

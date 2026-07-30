@@ -23,6 +23,7 @@ from .project import (
 )
 
 SUSPEND_DATA_LIMIT_12 = 4096  # SCORM 1.2 char sınırı
+OUTLINE_MAX_DEPTH = 3  # senaryo hattı — outline derinlik sınırı (kök=1)
 
 
 def validate_project(project: Project, *, strict: bool = False) -> list[ValidationError]:
@@ -45,6 +46,10 @@ def validate_project(project: Project, *, strict: bool = False) -> list[Validati
             errors.append(ValidationError(code="validation_error",
                           message=f"Yinelenen hedef id'si: {o.id}", path=f"objectives[{j}]"))
         objective_ids.add(o.id)
+
+    # Senaryo hattı Faz 1 — outline yapısal bütünlüğü (sert hatalar). Outline boşsa bu blok
+    # TEK kalem bile üretmez (geriye uyum; yalnız sarkan node_id istisnası — o da veri hatasıdır).
+    errors.extend(_validate_outline(project, objective_ids))
 
     # F2 (#113) — exploration.store_key kurs genelinde TEKİL olmalı: geri-oynatma
     # (data-exploration-ref) referansının tek adresidir; çakışma sessiz veri karışmasıdır.
@@ -160,6 +165,80 @@ def validate_project(project: Project, *, strict: bool = False) -> list[Validati
     for li in lint_errors(project, strict=strict):
         msg = li.message if li.severity == "error" else f"[strict:{li.code}] {li.message}"
         errors.append(ValidationError(code="validation_error", message=msg, path=li.path))
+    return errors
+
+
+def _validate_outline(project: Project, objective_ids: set[str]) -> list[ValidationError]:
+    """Senaryo hattı Faz 1 — outline YAPISAL bütünlüğü (hepsi SERT hata, 3.8 veri bütünlüğü):
+
+      - yinelenen düğüm id'si
+      - sarkan parent_id
+      - döngü (self-parent dahil)
+      - derinlik > OUTLINE_MAX_DEPTH (kök=1)
+      - sarkan screen.node_id (outline hiç yokken node_id vermek de sarkan referanstır)
+      - hedef ad-alanı çakışması: düğüm objective.id'leri kurs hedef ad-alanına KAYDOLUR
+        (objective_ids kümesine eklenir → ekranların objective_ids'i bunlara referans
+        verebilir); course.objectives ile veya başka düğümle çakışan id sert hatadır.
+
+    KAPSAM NOTU: en-yakın-atadan hedef mirası ve ORPHAN_PAGE, Faz 2 derleme mantığıdır —
+    Faz 1'de ekranlar hâlâ doğrudan yazarlıdır, burada yalnız yapısal doğrulama yapılır.
+    Outline boş + hiçbir ekranda node_id yok → bu fonksiyon boş liste döndürür (geriye uyum)."""
+    errors: list[ValidationError] = []
+    outline = project.outline
+
+    node_ids: set[str] = set()
+    for j, n in enumerate(outline):
+        if n.id in node_ids:
+            errors.append(ValidationError(code="validation_error",
+                          message=f"Yinelenen outline düğüm id'si: {n.id}", path=f"outline[{j}]"))
+        node_ids.add(n.id)
+
+    by_id = {n.id: n for n in outline}
+    for j, n in enumerate(outline):
+        if n.parent_id is not None and n.parent_id not in node_ids:
+            errors.append(ValidationError(code="validation_error",
+                          message=f"Bilinmeyen outline parent_id referansı: {n.parent_id}",
+                          path=f"outline[{j}].parent_id"))
+
+    # döngü + derinlik — parent zincirini yürü (sarkan parent'ta zincir kesilir; o zaten hatalı)
+    for j, n in enumerate(outline):
+        depth, seen, cur = 1, {n.id}, n
+        while cur.parent_id is not None:
+            if cur.parent_id in seen:
+                errors.append(ValidationError(code="validation_error",
+                              message=f"Outline'da döngü: '{n.id}' düğümünün atalar zinciri kendine dönüyor",
+                              path=f"outline[{j}].parent_id"))
+                break
+            if cur.parent_id not in by_id:
+                break  # sarkan parent — yukarıda raporlandı
+            cur = by_id[cur.parent_id]
+            seen.add(cur.id)
+            depth += 1
+        else:
+            if depth > OUTLINE_MAX_DEPTH:
+                errors.append(ValidationError(code="validation_error",
+                              message=f"Outline derinlik sınırı aşıldı: '{n.id}' düğümü {depth}. "
+                                      f"kademede (en çok {OUTLINE_MAX_DEPTH}, kök=1)",
+                              path=f"outline[{j}]"))
+
+    # hedef ad-alanı: düğüm hedefleri kurs hedefleriyle AYNI ad-alanına kaydolur (Faz 2
+    # derleme birleşimi için ön koşul: id çakışması bugünden sert hata).
+    for j, n in enumerate(outline):
+        if n.objective is not None:
+            if n.objective.id in objective_ids:
+                errors.append(ValidationError(code="validation_error",
+                              message=f"Yinelenen hedef id'si: {n.objective.id} — outline "
+                                      f"'{n.id}' düğümünün hedefi kurs hedef ad-alanıyla çakışıyor",
+                              path=f"outline[{j}].objective"))
+            objective_ids.add(n.objective.id)
+
+    # ekran → düğüm bağı: sarkan node_id sert hata (outline hiç yokken node_id de sarkandır)
+    for i, s in enumerate(project.screens):
+        nid = getattr(s, "node_id", None)
+        if nid and nid not in node_ids:
+            errors.append(ValidationError(code="validation_error",
+                          message=f"Bilinmeyen outline node_id referansı: {nid}",
+                          path=f"screens[{i}].node_id"))
     return errors
 
 

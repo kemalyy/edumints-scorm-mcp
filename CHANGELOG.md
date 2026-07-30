@@ -5,6 +5,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — scenario line Faz 1: outline schema + hierarchical player menu
+- **`OutlineNode`** (additive): hierarchical course skeleton — flat list + `parent_id`
+  tree, `kind: "unit" | "section"` (no `"page"` on purpose — scenario pages are the Faz 2
+  schema), machine-friendly id (`[A-Za-z0-9_.-]{1,64}`), optional per-node `Objective`
+  (registers into the course objective NAMESPACE — id collisions with `course.objectives`
+  or other nodes are hard errors) and optional `pedagogy_pack` declaration (carried only;
+  no behavior in Faz 1).
+- **`CourseSpec.outline` / `Project.outline`** (additive, default `[]`) propagated through
+  `build_from_spec` like objectives; **`ScreenBase.node_id`** (additive) links a screen to
+  an outline node.
+- **Structural hard validation** (data integrity per non-negotiable 3.8): dangling
+  `parent_id`, cycles (incl. self-parent), depth > 3 (root=1), duplicate node ids, dangling
+  `screen.node_id`, objective-namespace collisions. Outline absent → zero new validation
+  output. Nearest-ancestor objective inheritance and `ORPHAN_PAGE` are Faz 2 compile logic
+  — deliberately NOT here (Faz 1 screens are still authored directly).
+- **Hierarchical player menu skeleton**: with a non-empty outline the slide menu renders as
+  a server-side APG tree (`role="tree"`/`treeitem`/`group`, native buttons, collapsible
+  `aria-expanded`, `aria-level` ≤3 + screen leaves, `aria-current="page"`, roving tabindex,
+  full keyboard incl. RTL-mirrored arrows, Home/End and first-letter type-ahead; RTL-safe
+  logical-property CSS + `prefers-reduced-motion`). Screens without `node_id` render in a
+  trailing flat group titled via new i18n key `menu_ungrouped` (tr+en). Behavior JS is
+  injected via the existing review-slot pattern; CSS/JS/config appear ONLY on outlined
+  courses — **with an empty outline the produced HTML is byte-identical to master**
+  (fixture-locked: `tests/fixtures/flat_menu_small.preview.html`). Locking/progress/resume
+  are Faz 4.
+- **`Objective.outcome_type`** (additive, optional, machine-friendly): outcome-kind
+  declaration; no behavior in Faz 1.
+- **`CourseSpec.audience_pack` RESERVED** (additive): accepted, stored, validated as a
+  machine-friendly string only — NO behavior until Faz 5. Distinct concept from
+  `pedagogy_pack`/`method_pack` (non-negotiable 3.4).
+- **scorm-probe**: new real-browser section proving tree collapse/expand, keyboard
+  navigation and `aria-current` refresh (10 checks).
+
 ### Added — pack conformance checker (E2 / #111)
 - **`Objective.method_pack`** (additive, optional): per-objective declaration of the pedagogy
   pack the objective follows (pack id, e.g. `"gagne-9"`). Objective-scoped on purpose — the
