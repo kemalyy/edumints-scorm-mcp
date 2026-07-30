@@ -7,6 +7,7 @@ import {
   SUSPEND_LIMIT_12, SUSPEND_LIMIT_2004, suspendLimit,
   encodeSuspend, decodeSuspend, encodeSuspendFit,
   setResultOk, suspendWriteIssues,
+  EXPLORATION_VALUE_MAX, setExploration, getExploration,
   aggregateObjectives, objectiveIndices, objectiveElements,
 } from "../../components/engine/scorm.js";
 
@@ -389,6 +390,72 @@ describe("S5 suspend_data kompakt kodlama", () => {
 // --------------------------------------------------------------------------- //
 // S5 (2.2c) — yazma hatası / kırpma görünürlüğü (saf karar katmanı)
 // --------------------------------------------------------------------------- //
+// --------------------------------------------------------------------------- //
+// F2 (#113) — exploration girdi saklama: xp haritası (store_key → değer), v2 kuyruk JSON'unda
+// --------------------------------------------------------------------------- //
+describe("F2 exploration xp codec (setExploration/getExploration + v2 kuyruk)", () => {
+  const ORDER = ["giris", "kesif", "acikla"];
+
+  it("setExploration saklar, getExploration okur; eksik anahtar boş string döner", () => {
+    const st = { visited: {}, results: {}, history: [] };
+    const r = setExploration(st, "kesif_tahmin", "yüzer");
+    expect(r.truncated).toBe(false);
+    expect(r.value).toBe("yüzer");
+    expect(getExploration(st, "kesif_tahmin")).toBe("yüzer");
+    expect(getExploration(st, "yok")).toBe("");
+    expect(getExploration(null, "yok")).toBe("");
+  });
+
+  it("değer 500 karakterde KIRPILIR (truncated bayrağıyla) — suspend bütçesi", () => {
+    const st = { visited: {}, results: {}, history: [] };
+    const long = "a".repeat(EXPLORATION_VALUE_MAX + 100);
+    const r = setExploration(st, "k", long);
+    expect(EXPLORATION_VALUE_MAX).toBe(500);
+    expect(r.truncated).toBe(true);
+    expect(r.value.length).toBe(EXPLORATION_VALUE_MAX);
+    expect(getExploration(st, "k").length).toBe(EXPLORATION_VALUE_MAX);
+  });
+
+  it("string olmayan değerler string'e çevrilir; null/undefined boş sayılır", () => {
+    const st = {};
+    expect(setExploration(st, "n", 42).value).toBe("42");
+    expect(setExploration(st, "b", null).value).toBe("");
+    expect(getExploration(st, "n")).toBe("42");
+  });
+
+  it("xp haritası v2 zarfının kuyruk JSON'unda gidiş-dönüş KAYIPSIZ", () => {
+    const st = { visited: { kesif: true }, results: {}, history: ["giris"], inext: 0,
+                 cursorId: "acikla", xp: { kesif_tahmin: "yüzer", deneme_notu: "kütle 2× → battı | not" } };
+    const enc = encodeSuspend(st, ORDER);
+    expect(enc.slice(0, 2)).toBe("2|");
+    const out = decodeSuspend(enc, ORDER);
+    expect(out.xp).toEqual({ kesif_tahmin: "yüzer", deneme_notu: "kütle 2× → battı | not" });
+    expect(out).toEqual(st);   // xp diğer alanları bozmadan taşınır
+  });
+
+  it("boş xp haritası kuyruğu ŞİŞİRMEZ (tail üretilmez)", () => {
+    const bare = { visited: {}, results: {}, history: [] };
+    expect(encodeSuspend({ ...bare, xp: {} }, ORDER)).toBe(encodeSuspend(bare, ORDER));
+  });
+
+  it("xp, sığdırma yolunda (encodeSuspendFit history düşse bile) KORUNUR", () => {
+    const order = Array.from({ length: 40 }, (_, i) => `ekran_uzun_kimlik_${i}`);
+    const st = { visited: {}, results: {}, history: [], xp: {} };
+    order.forEach((id) => { st.visited[id] = true; st.history.push(id); });
+    for (let i = 0; i < 6; i++) setExploration(st, `kesif_${i}`, "x".repeat(500));
+    const fit = encodeSuspendFit(st, order, 3000);
+    expect(fit.historyDropped).toBe(true);
+    const out = decodeSuspend(fit.data, order);
+    expect(Object.keys(out.xp)).toHaveLength(6);
+    expect(out.xp.kesif_0).toBe("x".repeat(500));
+  });
+
+  it("v1 (eski JSON) migrasyonu xp'yi olduğu gibi taşır", () => {
+    const st = { visited: { a: true }, results: {}, history: [], xp: { k: "v" } };
+    expect(decodeSuspend(JSON.stringify(st), ORDER).xp).toEqual({ k: "v" });
+  });
+});
+
 describe("S5 suspend_data yazma görünürlüğü", () => {
   it("başarısız sSet (mock API 'false' döner) uyarı yolunu tetikler", () => {
     // sahte 1.2 API: suspend_data yazımını reddeder (SPM aşımı senaryosu)

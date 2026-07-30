@@ -95,7 +95,8 @@ export function shouldRestore(entry, hasSuspendData) {
 //   2 | cursorIdx36 | reachedEnd("1"|"") | visitedHex | history(i36,",") |
 //   results(i36:puan:max:bayrak ",") | ix(i36:n36 ",") | inext36 | orderFp | tailJSON
 // tailJSON (yalnız gerekliyse): { a: vars, c: order-dışı cursorId, v: [order-dışı visited],
-//   r: {order-dışı results}, x: {order-dışı ix}, o: {bilinmeyen üst alanlar} } — kayıpsızlık garantisi.
+//   r: {order-dışı results}, x: {order-dışı ix}, p: xp (F2 exploration girdileri —
+//   store_key anahtarlı, pozisyonel DEĞİL), o: {bilinmeyen üst alanlar} } — kayıpsızlık garantisi.
 // tail SON alandır ve içindeki "|" karakterleri decode'da yeniden birleştirilir (split-limit hilesi).
 //
 // orderFp — SÜRÜM GÜVENLİĞİ: cursor/visited/results/ix POZİSYONEL indekstir (order dizisindeki
@@ -133,7 +134,34 @@ function _fp(order) {
   return h.toString(36) + "_" + (order || []).length.toString(36);
 }
 
-var _V2_KNOWN = { visited: 1, results: 1, history: 1, vars: 1, ix: 1, inext: 1, cursorId: 1, reachedEnd: 1 };
+var _V2_KNOWN = { visited: 1, results: 1, history: 1, vars: 1, ix: 1, inext: 1, cursorId: 1, reachedEnd: 1, xp: 1 };
+
+// --------------------------------------------------------------------------- //
+// F2 (#113) — exploration girdi saklama: state.xp = { store_key: değer }
+// --------------------------------------------------------------------------- //
+// Anahtarlar store_key'dir (ekran id'si DEĞİL) → pozisyonel indekse çevrilmez, v2 kuyruk
+// JSON'unda (extra.p) kimlik-anahtarlı taşınır; paket reorder'ında bile anlamı bozulmaz
+// (orderFp uyuşmazlığında zarfın tamamı temiz-başlangıca düşer — bilinçli güvenli taraf).
+// Değer 500 karakterde kırpılır: SCORM 1.2 suspend bütçesi (4096) birkaç keşif ekranını
+// kaldırabilsin; sunucu tarafı tahmin (core/antislop.py estimate_suspend_size) AYNI sabiti
+// kullanır — değişirse ikisi birlikte güncellenmeli.
+
+export var EXPLORATION_VALUE_MAX = 500;
+
+// state.xp[key] = String(value) (500'de kırp). Dönüş: { value, truncated } — çağıran
+// (bindExploration) truncated'ı console.warn'a çevirir; burada ASLA loglanmaz (saf).
+export function setExploration(state, key, value) {
+  var v = value == null ? "" : String(value);
+  var truncated = false;
+  if (v.length > EXPLORATION_VALUE_MAX) { v = v.slice(0, EXPLORATION_VALUE_MAX); truncated = true; }
+  if (state) (state.xp = state.xp || {})[String(key)] = v;
+  return { value: v, truncated: truncated };
+}
+
+export function getExploration(state, key) {
+  var v = state && state.xp ? state.xp[String(key)] : null;
+  return v == null ? "" : String(v);
+}
 
 export function encodeSuspend(state, order) {
   state = state || {}; order = order || [];
@@ -178,6 +206,7 @@ export function encodeSuspend(state, order) {
   });
 
   if (state.vars && Object.keys(state.vars).length) extra.a = state.vars;
+  if (state.xp && Object.keys(state.xp).length) extra.p = state.xp;   // F2 — kimlik-anahtarlı
   Object.keys(state).forEach(function (k) {           // gelecekteki alanlar sessizce KAYBOLMASIN
     if (!_V2_KNOWN[k]) (extra.o = extra.o || {})[k] = state[k];
   });
@@ -234,6 +263,7 @@ function _decodeV2(s, order) {
     }
     if (parts[7] != null && parts[7] !== "") st.inext = _p36(parts[7]);
     if (extra.a) st.vars = extra.a;                    // vars boşsa YOK say → runtime varsayılanları kurar
+    if (extra.p) st.xp = extra.p;                      // F2 — exploration girdileri (store_key → değer)
     if (extra.o) Object.keys(extra.o).forEach(function (ok_) { st[ok_] = extra.o[ok_]; });
     return st;
   } catch (e) { return null; }

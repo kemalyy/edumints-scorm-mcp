@@ -5,6 +5,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — `exploration` screen type (F2 / #113)
+- New 30th screen type `exploration`: the inquiry primitive — learner input (an attempt,
+  prediction or classification) is **stored** and **replayed on later screens** ("your
+  prediction was…" attribution). Unlocks the input-replay upgrade for the `5e-inquiry` and
+  `productive-failure` pedagogy packs; the learner's own output is K1 type-2 evidence.
+- **Input kinds** (`input_kind`): `text` (free-text observation/attempt note, optional
+  `placeholder`/`min_length`), `choice` (classification) and `prediction` (commit-then-see
+  prediction taken *before* the experiment) — the latter two require ≥2 `choices`
+  (model-validated).
+- **Replay surface**: `<span data-exploration-ref="store_key"></span>` inside any rich-HTML
+  field. The runtime injects the stored value as **textContent only** (never innerHTML —
+  browser-probe-verified with an XSS payload); an empty value falls back to an i18n
+  placeholder ("henüz cevaplamadın" / "not answered yet"). The sanitizer allowlist was
+  extended *narrowly*: only `span`, only this one `data-*` attribute.
+- **`store_key`**: machine-friendly replay address (`[a-z0-9_-]+`, ≤64), **unique across the
+  course** — duplicates are a hard `validate_project` error.
+- **Persistence**: new `xp` map ({store_key: value}) rides in the suspend v2 envelope tail
+  (`components/engine/scorm.js` `setExploration`/`getExploration`; identity-keyed, not
+  positional). Values are capped at **500 chars** (truncate + one console.warn);
+  `estimate_suspend_size` counts 500 + key per exploration so SCORM 1.2 courses with many
+  explorations trip the existing `suspend_size_risk` WARN. `encodeSuspendFit` keeps `xp`
+  even when history is dropped; v1-JSON migration carries it through (vitest-covered).
+- **Not scorable by design**: no `points` field, not in `QUIZ_TYPES`, never writes to score
+  state (probe-verified) — the technical counterpart of A4's unscored-early-attempt
+  exception (Z3: scoring the attempt turns exploration into a guessing contest).
+- **Lint integration**: added to the E1 evidentiary set (`_EVIDENCE_CONTENT_TYPES`,
+  unconditional — the learner's own artifact); not inherently visual.
+- a11y/i18n: labelled `<textarea>`, `role="radiogroup"` labelled by the prompt, live-region
+  saved indicator, RTL-safe CSS, all strings via the i18n table (tr/en).
+- Fixture course `examples/exploration-5e.tr.json` (5e mini loop: prediction + choice + text,
+  replay + evidence binding — lint-clean), `tests/test_exploration.py`, vitest codec coverage
+  and an end-to-end browser probe section (store → replay → resume → XSS-safety).
+
 ### Added — `worked_example` screen type (F1 / #112)
 - New 29th screen type `worked_example`: the authored-demonstration primitive (expert solution
   as a step list — each step is an **action + rationale + optional artifact** triple). Unlocks

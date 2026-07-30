@@ -1,0 +1,138 @@
+{
+  "title": "Neden Batıyor? Yoğunluk Mini-Döngüsü",
+  "description": "5e-inquiry mikrokursu — exploration fikstürü (F2 #113): tahmin taahhüdü + gözlem kaydı + geri oynatma ('senin tahminin şuydu') + kanıt bağı",
+  "scorm_version": "2004",
+  "language": "tr",
+  "theme": "default",
+  "tracking": {
+    "completion_rule": "viewed_all_and_passed",
+    "passing_score": 70
+  },
+  "screens": [
+    {
+      "type": "title_slide",
+      "id": "t1",
+      "title": "Neden Batıyor?",
+      "subtitle": "8 dk · bir tahminle başlıyoruz"
+    },
+    {
+      "type": "exploration",
+      "id": "kesif_kutle",
+      "title": "Tahmin et: kütle 2×, hacim sabit",
+      "input_kind": "prediction",
+      "store_key": "tahmin_kutle2x",
+      "prompt_html": "<p>Sanal küpün <b>kütlesini iki katına</b> çıkarıyoruz, hacmi aynı kalıyor. Suya bırakınca ne olur? Önce taahhüt et — tahminin saklanacak ve birazdan karşına gelecek.</p>",
+      "choices": [
+        {
+          "id": "yuzer",
+          "text_html": "Yüzer"
+        },
+        {
+          "id": "batar",
+          "text_html": "Batar"
+        }
+      ]
+    },
+    {
+      "type": "exploration",
+      "id": "kesif_hacim",
+      "title": "Sınıfla: hacim 2×, kütle sabit",
+      "input_kind": "choice",
+      "store_key": "tahmin_hacim2x",
+      "prompt_html": "<p>Şimdi tersini dene: <b>hacim iki katına</b> çıkıyor, kütle aynı. Bu durumda küp hangi sınıfa girer?</p>",
+      "choices": [
+        {
+          "id": "yuzer",
+          "text_html": "Yüzer"
+        },
+        {
+          "id": "batar",
+          "text_html": "Batar"
+        }
+      ]
+    },
+    {
+      "type": "data_chart",
+      "id": "yogunluk_grafik",
+      "title": "Veriye bak: bazı maddelerin yoğunlukları",
+      "chart_type": "bar",
+      "prompt_html": "<p>İki tahminini de verdin. Şimdi ölçüm verisine bak: suyun eşiği 1 g/cm³. Çubuklara göre hangileri yüzer, hangileri batar? Birazdan kendi gözlemini kaydedeceksin.</p>",
+      "caption": "Yoğunluklar (g/cm³): 1'in altındakiler suda yüzer, üstündekiler batar",
+      "data": [
+        {
+          "label": "Mantar",
+          "value": 0.24
+        },
+        {
+          "label": "Buz",
+          "value": 0.92
+        },
+        {
+          "label": "Su",
+          "value": 1.0
+        },
+        {
+          "label": "Alüminyum",
+          "value": 2.7
+        },
+        {
+          "label": "Demir",
+          "value": 7.9
+        }
+      ]
+    },
+    {
+      "type": "exploration",
+      "id": "kesif_gozlem",
+      "title": "Deneme notun: ne gözlemledin?",
+      "input_kind": "text",
+      "store_key": "gozlem_notu",
+      "min_length": 20,
+      "placeholder": "Kütleyi/hacmi değiştirince ne oldu? Kendi cümlelerinle…",
+      "prompt_html": "<p>İki denemeyi de yaptın. Gözlemini <b>kendi cümlelerinle</b> kaydet — bu not senin kanıtın; açıklama ekranında birlikte kullanacağız.</p>"
+    },
+    {
+      "type": "content_slide",
+      "id": "acikla",
+      "title": "Açıkla: yoğunluk = kütle / hacim",
+      "blocks": [
+        {
+          "html": "<p>İlk tahminin şuydu: <b><span data-exploration-ref=\"tahmin_kutle2x\"></span></b> · hacim denemesinde seçimin: <b><span data-exploration-ref=\"tahmin_hacim2x\"></span></b>. Kendi gözlem notun: <em><span data-exploration-ref=\"gozlem_notu\"></span></em></p>"
+        },
+        {
+          "html": "<p>Denemelerin gösterdiği desen tek değişkenle açıklanamaz: kütle TEK BAŞINA batırmadı, hacim TEK BAŞINA yüzdürmedi. Sonucu belirleyen ORAN'dır: <b>yoğunluk = kütle / hacim</b>. Oran suyun yoğunluğunu (1 g/cm³) aşarsa cisim batar; aşmazsa yüzer.</p>"
+        }
+      ]
+    },
+    {
+      "type": "mcq",
+      "id": "q_yogunluk",
+      "title": "Uygula: yeni cisim",
+      "points": 100,
+      "prompt_html": "<p>Kütlesi 300 g, hacmi 400 cm³ olan bir cisim suya bırakılıyor. Ne olur?</p>",
+      "evidence_screen_ids": [
+        "kesif_gozlem",
+        "acikla"
+      ],
+      "options": [
+        {
+          "id": "a",
+          "text_html": "Yüzer — yoğunluğu 0,75 g/cm³ &lt; 1 g/cm³",
+          "correct": true
+        },
+        {
+          "id": "b",
+          "text_html": "Batar — kütlesi 300 g'dan büyük sayılır"
+        },
+        {
+          "id": "c",
+          "text_html": "Askıda kalır — kütle ile hacim eşit değil"
+        }
+      ],
+      "feedback": {
+        "correct_html": "<p>Evet: 300/400 = 0,75 g/cm³ — kendi denemende gördüğün desenle aynı: oran 1'in altında kaldıkça cisim yüzer.</p>",
+        "incorrect_html": "<p>Gözlem notuna ve açıklama ekranındaki orana dön: kütle tek başına karar vermez — 300/400 oranını suyun 1 g/cm³ değeriyle karşılaştır.</p>"
+      }
+    }
+  ]
+}

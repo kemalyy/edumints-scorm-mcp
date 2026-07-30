@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Annotated, Literal, Union
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from ulid import ULID
 
 # W3b/W4/W5 — kompozisyonel oyun + adaptif + telemetri (additive). game_primitives project'i import ETMEZ → döngü yok.
@@ -305,6 +305,7 @@ class ScreenType(str, Enum):
     game = "game"  # W3b — kompozisyonel oyun: mekanik primitif (score/lives/timer/hint) + kural + dallanan düğüm
     adaptive_practice = "adaptive_practice"  # W4b — adaptif pratik: yeterlilik tahmini (Elo/BKT) → ZPD zorluk seçimi
     worked_example = "worked_example"  # F1 (#112) — çözümlü örnek: adım (eylem+gerekçe+artefakt) + fading; skorsuz kanıt kaynağı
+    exploration = "exploration"  # F2 (#113) — keşif: öğrenen girdisi saklanır + sonraki ekranlarda geri oynatılır; skorsuz
 
 
 class ScreenBase(BaseModel):
@@ -839,6 +840,38 @@ class WorkedExampleScreen(ScreenBase):
     self_explanation_prompt_html: str | None = None
 
 
+class ExplorationScreen(ScreenBase):
+    """F2 (#113) — keşif/sorgulama primitifi: öğrenen girdisi (deneme, tahmin, sınıflama)
+    SAKLANIR ve sonraki ekranlar `<span data-exploration-ref="store_key">` ile GERİ OYNATIR
+    ("senin tahminin şuydu" atfı — 5e-inquiry kanıt kaynağı 1, productive-failure deneme kaydı).
+
+    - `input_kind`: "text" (serbest metin) | "choice" (sınıflama/seçim) | "prediction"
+      (tahmin taahhüdü — choice ile aynı yüzey, pedagojik olarak commit-then-see; xAPI/lint
+      ayrımı için ayrı değer). choice/prediction ≥2 `choices` gerektirir (model doğrular).
+    - `store_key`: makine-dostu geri-oynatma adresi ([a-z0-9_-], kurs genelinde TEKİL —
+      core/validator.py çakışmayı SERT hatayla keser; sessiz veri karışması olmasın).
+    - Saklama: suspend v2 zarf kuyruğu `xp` haritası (components/engine/scorm.js
+      setExploration/getExploration; değer 500 karakterde kırpılır — 1.2 bütçesi).
+    - Geri oynatma HER ZAMAN textContent enjeksiyonu (innerHTML ASLA — XSS güvenli); boş
+      değer i18n yer tutucusuna düşer ("henüz cevaplamadın").
+    PUAN ALANI YOK: skorsuz/formatif (A4 skorsuz-erken-deneme istisnası; Z3 — denemeyi
+    puanlamak keşfi tahmin-yarışına çevirir). QUIZ_TYPES dışı, skor state'ine yazmaz."""
+    type: Literal[ScreenType.exploration] = ScreenType.exploration
+    prompt_html: str
+    input_kind: Literal["text", "choice", "prediction"] = "text"
+    choices: list[Choice] | None = None      # choice/prediction için zorunlu (≥2)
+    placeholder: str | None = None           # text: boşsa i18n varsayılanı
+    min_length: int | None = None            # text: ops. asgari uzunluk ipucu
+    store_key: str = Field(pattern=r"^[a-z0-9_-]+$", max_length=64)
+
+    @model_validator(mode="after")
+    def _check_choices(self) -> "ExplorationScreen":
+        if self.input_kind in ("choice", "prediction") and len(self.choices or []) < 2:
+            raise ValueError(
+                f"input_kind='{self.input_kind}' en az 2 seçenek (choices) gerektirir")
+        return self
+
+
 Screen = Annotated[
     Union[
         TitleSlide,
@@ -870,6 +903,7 @@ Screen = Annotated[
         GameScreen,
         AdaptivePracticeScreen,
         WorkedExampleScreen,
+        ExplorationScreen,
     ],
     Field(discriminator="type"),
 ]
