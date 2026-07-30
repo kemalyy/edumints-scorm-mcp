@@ -58,6 +58,22 @@ p = Project(id=new_project_id(), title="probe-xp", scorm_version=ver, screens=[
 open(out, "w", encoding="utf-8").write(render_html(p, mode="preview", runtime_js="/*probe*/"))
 `;
 
+// Senaryo hattı Faz 1 — outline'lı kurs: hiyerarşik menü (role=tree) davranış kanıtı.
+const TREE_RENDER_PY = `
+import sys
+from components.renderer import render_html
+from core.project import (Project, new_project_id, TitleSlide, ContentSlide,
+                          SummaryScreen, OutlineNode)
+out, ver = sys.argv[1], sys.argv[2]
+p = Project(id=new_project_id(), title="probe-tree", scorm_version=ver,
+    outline=[OutlineNode(id="u1", kind="unit", title="Unite 1"),
+             OutlineNode(id="b1", parent_id="u1", kind="section", title="Bolum 1.1")],
+    screens=[TitleSlide(id="t1", title="Giris", node_id="u1"),
+             ContentSlide(id="c1", title="Konu", body_html="<p>a</p>", node_id="b1"),
+             SummaryScreen(id="s1", title="Ozet")])
+open(out, "w", encoding="utf-8").write(render_html(p, mode="preview", runtime_js="/*probe*/"))
+`;
+
 const failures = [];
 function check(label, actual, expected) {
   const ok = actual === expected;
@@ -270,6 +286,66 @@ async function main() {
     const empty = await xpSession({ act: async (p) => { await p.click("#btnNext"); await p.waitForTimeout(120); } },
       () => document.querySelector('[data-exploration-ref="kesif_tahmin"]').textContent);
     check("bos deger yer tutucuya duser", empty.dom, "henüz cevaplamadın");
+
+    // --- Senaryo hattı Faz 1: outline tree menü — katlama + klavye + aria-current ---
+    console.log("\n== Faz 1 — outline tree menü (katlanır + klavye + aria-current) ==");
+    const tfile = path.join(tmp, "tree12.html");
+    execFileSync("python3", ["-c", TREE_RENDER_PY, tfile, "1.2"], { cwd: process.cwd() });
+    const tctx = await browser.newContext();
+    try {
+      const tpage = await tctx.newPage();
+      await tpage.addInitScript(lmsInit, [false, "", "", null]);
+      await tpage.goto(`file://${tfile}`);
+      await tpage.waitForTimeout(150);
+      await tpage.click("#btnMenu");
+      await tpage.waitForTimeout(120);
+      const t0 = await tpage.evaluate(() => {
+        const tree = document.getElementById("slideMenuList");
+        const cur = tree.querySelector('[aria-current="page"]');
+        return { role: tree.getAttribute("role"),
+                 items: tree.querySelectorAll('[role="treeitem"]').length,
+                 groups: tree.querySelectorAll('ul[role="group"]').length,
+                 cur: cur && cur.getAttribute("data-goto") };
+      });
+      check("menü role=tree", t0.role, "tree");
+      check("treeitem sayisi (2 dugum + 3 ekran + 1 dugumsuz grubu)", t0.items, 6);
+      check("aria-current baslangic ekraninda", t0.cur, "t1");
+      // katlama (fare): u1 kapat → alt agac gizli
+      await tpage.click('[data-node-id="u1"]');
+      const t1 = await tpage.evaluate(() => ({
+        exp: document.querySelector('[data-node-id="u1"]').getAttribute("aria-expanded"),
+        c1Visible: document.querySelector('[data-goto="c1"]').offsetParent !== null,
+      }));
+      check("katlanan dugum aria-expanded=false", t1.exp, "false");
+      check("kapali dugumun torunu gizli", t1.c1Visible, false);
+      // klavye: SagOk ac → AsagiOk cocuga in → End son gorunur ogeye → Enter ekrana git
+      await tpage.focus('[data-node-id="u1"]');
+      await tpage.keyboard.press("ArrowRight");   // ac
+      await tpage.keyboard.press("ArrowDown");    // ilk cocuk: t1 ekrani
+      const t2 = await tpage.evaluate(() => document.activeElement.getAttribute("data-goto"));
+      check("ArrowRight acar + ArrowDown cocuga iner", t2, "t1");
+      await tpage.keyboard.press("End");          // son gorunur oge: dugumsuz gruptaki s1
+      const t3 = await tpage.evaluate(() => document.activeElement.getAttribute("data-goto"));
+      check("End son gorunur ogeye gider (dugumsuz grup)", t3, "s1");
+      await tpage.keyboard.press("Enter");        // native button aktivasyonu → ekrana git
+      await tpage.waitForTimeout(150);
+      const t4 = await tpage.evaluate(() => {
+        const v = document.querySelector('.screen[aria-hidden="false"]');
+        return { shown: v ? v.dataset.screenId : "?",
+                 menuOpen: document.getElementById("slideMenu").classList.contains("open") };
+      });
+      check("Enter ekrana goturur", t4.shown, "s1");
+      check("menu kapanir", t4.menuOpen, false);
+      await tpage.click("#btnMenu");              // yeniden ac → aria-current tazelenmis olmali
+      await tpage.waitForTimeout(120);
+      const t5 = await tpage.evaluate(() => {
+        const cur = document.querySelector('#slideMenuList [aria-current="page"]');
+        return cur && cur.getAttribute("data-goto");
+      });
+      check("aria-current yeni ekrana tasinir", t5, "s1");
+    } finally {
+      await tctx.close();
+    }
   } finally {
     if (browser) await browser.close();
     rmSync(tmp, { recursive: true, force: true });

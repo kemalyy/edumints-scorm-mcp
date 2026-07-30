@@ -174,6 +174,10 @@ class Objective(BaseModel):
     # hedef = bir paket; çelişen paketler farklı hedeflerde meşru birlikte yaşar. Bilinmeyen id
     # SERT hata değil `unknown_method_pack` WARN'dır (danışsal dalga — core/antislop.py E2).
     method_pack: str | None = None
+    # Senaryo hattı Faz 1 (additive) — kazanım TÜRÜ beyanı (ör. "knowledge", "skill", "attitude").
+    # Serbest ama makine-dostu string; kapalı sözlük DAYATILMAZ (alan/kuruma göre taksonomi değişir).
+    # Faz 1'de yalnız taşınır/saklanır; derleme/lint davranışı sonraki fazların işi.
+    outcome_type: str | None = Field(default=None, pattern=r"^[a-z0-9_-]{1,64}$")
 
     @field_validator("id")
     @classmethod
@@ -182,6 +186,44 @@ class Objective(BaseModel):
             raise ValueError(
                 "Objective.id makine-dostu olmalı: yalnız [A-Za-z0-9_.-], 1-255 karakter "
                 f"(alınan: {v!r}) — cmi.objectives.n.id ve imsss objectiveID'ye aynen yazılır"
+            )
+        return v
+
+
+# --------------------------------------------------------------------------- #
+# Senaryo hattı Faz 1 — hiyerarşik kurs iskeleti (outline)
+# --------------------------------------------------------------------------- #
+# Makine-dostu düğüm id'si: suspend_data kısa-anahtarlarına (Faz 4: {"n",...}) ve menü DOM
+# özniteliklerine aynen yazılır → kısa ve dar alfabe (SCORM 1.2 4096 bütçesi).
+_OUTLINE_NODE_ID_RE = re.compile(r"^[A-Za-z0-9_.-]{1,64}$")
+
+
+class OutlineNode(BaseModel):
+    """Senaryo hattı Faz 1 — hiyerarşik kurs iskeletinin bir düğümü (ünite/bölüm).
+
+    Düz liste + parent_id ile ağaç kurulur (derinlik ≤3, kök=1 — core/validator.py sert
+    doğrular: sarkan parent_id, döngü, derinlik, yinelenen id). Ekranlar `ScreenBase.node_id`
+    ile düğüme bağlanır. `objective` verilirse kurs hedef AD-ALANINA kaydolur (id'si
+    course.objectives ile ve diğer düğümlerle çakışamaz — sert hata); en-yakın-atadan miras
+    ve ORPHAN_PAGE Faz 2 derleme mantığıdır, burada yok.
+
+    kind: "page" KASITLI olarak yok — senaryo sayfaları Faz 2'nin ayrı şemasıdır.
+    pedagogy_pack: düğümün beyan ettiği pedagoji paketi (Objective.method_pack paraleli;
+    Faz 1'de yalnız taşınır, davranış yok). audience_pack İLE KARIŞTIRMA (3.4)."""
+    id: str
+    parent_id: str | None = None
+    kind: Literal["unit", "section"]
+    title: str
+    objective: Objective | None = None
+    pedagogy_pack: str | None = None
+
+    @field_validator("id")
+    @classmethod
+    def _validate_id(cls, v: str) -> str:
+        if not _OUTLINE_NODE_ID_RE.match(v):
+            raise ValueError(
+                "OutlineNode.id makine-dostu olmalı: yalnız [A-Za-z0-9_.-], 1-64 karakter "
+                f"(alınan: {v!r}) — suspend_data ve menü DOM'una aynen yazılır"
             )
         return v
 
@@ -337,6 +379,11 @@ class ScreenBase(BaseModel):
     block_sec: float | None = None  # ses yokken paced reveal aralığı (vars. 2.5)
     lock_until_complete: bool = False  # timeline bitmeden İleri kilitli
     section: str | None = None  # Faz 9.1 — bölüm/ünite adı (menü bölümlere göre gruplanır)
+    # Senaryo hattı Faz 1 (additive) — ekranın bağlı olduğu outline düğümü (OutlineNode.id).
+    # Sarkan referans SERT hatadır (core/validator.py). None → düğümsüz; outline'lı kursta
+    # menüde sondaki "diğer ekranlar" düz grubunda gösterilir. `section` (düz metin gruplama)
+    # eski mekanizmadır; outline varken menü node_id'yi esas alır.
+    node_id: str | None = None
 
 
 class TitleSlide(ScreenBase):
@@ -1010,6 +1057,10 @@ class Project(BaseModel):
     xapi: XapiConfig | None = None  # W5 — xAPI/cmi5 telemetri (kurs düzeyinde; varsayılan kapalı)
     metadata: CourseMetadata | None = None  # S7 (2.3) — opsiyonel LOM (imsmd) meta verisi
     objectives: list[Objective] = Field(default_factory=list)  # S2 (2.4) — cmi.objectives.* kaynağı
+    # Senaryo hattı Faz 1 (additive) — hiyerarşik kurs iskeleti; boş = bugünkü düz davranış.
+    outline: list[OutlineNode] = Field(default_factory=list)
+    # Senaryo hattı Faz 1 — REZERVE alan (CourseSpec.audience_pack aynası); davranış Faz 5.
+    audience_pack: str | None = Field(default=None, pattern=r"^[a-z0-9_-]{1,64}$")
     # E1 (#110) — beyan-temelli: kursun türetildiği kaynak dokümanın madde/başlık sayısı.
     # Lint `source_item_parity` (1:1 kopya kokusu) yalnız beyan varsa çalışır; None = denetim yok.
     source_item_count: int | None = Field(default=None, ge=1)
@@ -1056,6 +1107,14 @@ class CourseSpec(BaseModel):
     xapi: XapiConfig | None = None  # W5 — xAPI/cmi5 telemetri (kurs düzeyinde; varsayılan kapalı)
     metadata: CourseMetadata | None = None  # S7 (2.3) — opsiyonel LOM (imsmd) meta verisi
     objectives: list[Objective] = Field(default_factory=list)  # S2 (2.4) — cmi.objectives.* kaynağı
+    # Senaryo hattı Faz 1 (additive) — hiyerarşik kurs iskeleti (Project.outline'a taşınır).
+    # Ekranlar ScreenBase.node_id ile düğümlere bağlanır; boş liste = bugünkü düz davranış.
+    outline: list[OutlineNode] = Field(default_factory=list)
+    # Senaryo hattı Faz 1 — REZERVE alan: kitle paketi kimliği (ör. "k12-lise", "yetiskin").
+    # Faz 1'de yalnız kabul edilir, saklanır ve makine-dostu string olarak doğrulanır —
+    # HİÇBİR davranışı yoktur (davranış Faz 5'in işi). pedagogy_pack/method_pack'ten AYRI
+    # kavramdır (3.4: audience_pack ≠ pedagogy_pack; yalın "pack" adı yasak).
+    audience_pack: str | None = Field(default=None, pattern=r"^[a-z0-9_-]{1,64}$")
     # E1 (#110) — beyan-temelli kaynak-doküman madde sayısı (Project.source_item_count'a taşınır).
     source_item_count: int | None = Field(default=None, ge=1)
     auto_tts: bool = False  # opt-in: narration_text dolu ekranlar için otomatik Piper TTS (Piper yoksa atlanır)

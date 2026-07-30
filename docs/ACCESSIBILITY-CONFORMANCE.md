@@ -30,6 +30,20 @@ Player-wide behaviors verified in code:
 - **Navigation:** Prev/Next/Play/Menu buttons are real `<button>`s with `aria-label`s; the
   slide menu is a labelled `<nav>` with Enter-key activation and `aria-current` on the
   active item.
+- **Hierarchical menu (outlined courses — scenario line Faz 1):** when `Project.outline` is
+  non-empty the slide menu renders as a server-side APG **tree**: `role="tree"` (labelled),
+  `role="treeitem"` on native `<button>`s (`<li role="none">` wrappers), `role="group"` for
+  children, `aria-level` (nodes ≤3 + screen leaves), collapsible branches via
+  `aria-expanded`, `aria-current="page"` on the active screen, roving tabindex (single tab
+  stop). Keyboard per the APG tree pattern: Up/Down move through visible items, Right/Left
+  expand/collapse or descend/ascend (mirrored in RTL), Home/End, Enter/Space activate
+  (native button), first-letter type-ahead. Indentation uses logical properties and the
+  chevron rotation respects `prefers-reduced-motion`. Verified in a real browser by
+  `npm run scorm-probe` (collapse hides descendants, keyboard traversal, `aria-current`
+  refresh after navigation); markup asserted in `tests/test_outline_menu.py`. Recommended
+  manual pass (Section 4) still applies — notably a screen-reader walkthrough of the tree.
+  With an empty outline the flat menu is byte-identical to the previous release
+  (fixture-locked).
 - **Reduced motion:** `@media (prefers-reduced-motion: reduce)` disables flashcard flip
   transition, timeline block reveal animation, escape-room shake, game-choice hover
   transform, and simulation pulse. (Exception: Lottie — see Section 3.)
