@@ -21,6 +21,8 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
 
 from .project import (
     QUIZ_TYPES,
@@ -97,6 +99,7 @@ def lint_course(project: Project) -> list[LintIssue]:
     issues += _lint_evidence_binding(project)
     issues += _lint_scored_over_objectives(project)
     issues += _lint_source_parity(project)
+    issues += _lint_pack_conformance(project)
     return issues
 
 
@@ -752,6 +755,180 @@ def _lint_scored_over_objectives(project: Project) -> list[LintIssue]:
         "pre-flight'a tek cümle yaz",
         "screens",
     )]
+
+
+# --- E2 (#111): paket uygunluk denetimleri (danışsal dalga — hepsi WARN, strict-terfisiz) ---
+# Beyan birimi: `Objective.method_pack` (paket id) — kapsam HEDEFTİR (_SCHEMA.md conflicts_with
+# sözleşmesi). Ekran-düzeyi faz etiketi YOK (bilinçli erteleme): faz etiketi olmadan doğrulanabilir
+# üç yaklaşık denetim + bilinmeyen-paket sağlamlığı. Paket tanımları vendored
+# `runtime/pedagogy-packs.json`dan okunur (tools/gen_packs_manifest.py üretir; sunucu skill
+# reposunu runtime'da OKUMAZ). Beyan yoksa SIFIR çıktı — geriye uyumluluk değişmezi.
+
+_PACKS_MANIFEST_PATH = Path(__file__).resolve().parent.parent / "runtime" / "pedagogy-packs.json"
+
+
+@lru_cache(maxsize=1)
+def _load_packs() -> dict:
+    """Vendored paket manifesti (pack id → E2 projeksiyonu). Dosya yoksa/bozuksa {} — denetim
+    `unknown_method_pack`a düşer (lint asla crash ile susmaz; manifest yokluğu deploy hatasıdır,
+    kurs hatası değil)."""
+    try:
+        data = json.loads(_PACKS_MANIFEST_PATH.read_text(encoding="utf-8"))
+        packs = data.get("packs")
+        return packs if isinstance(packs, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+@lru_cache(maxsize=1)
+def _objective_bindable_types() -> frozenset[str]:
+    """`objective_ids` alanı TAŞIYAN ekran tipleri (Screen union'dan türetilir — elle liste
+    sürüklenmez). Bağ modeli gerçeği: content_slide/worked_example/exploration/branching gibi
+    tipler hedefe bağlanamaz; platform denetimi bu tipler için kurs-geneli varlığa düşer."""
+    from typing import get_args
+
+    from .project import Screen
+    union = get_args(Screen)[0]
+    out: set[str] = set()
+    for cls in get_args(union):
+        if "objective_ids" in cls.model_fields:
+            t = cls.model_fields["type"].default
+            out.add(str(getattr(t, "value", t)))
+    return frozenset(out)
+
+
+def _screen_type_str(s) -> str:
+    t = s.type
+    return str(getattr(t, "value", t))
+
+
+def _evidence_allowed_types(pack: dict) -> set[str] | None:
+    """Paketin kanıt fazlarında izinli ekran tiplerinin birleşimi; herhangi bir kanıt fazı
+    `hepsi` ise None (= kısıt yok, denetim uygulanamaz)."""
+    allowed: set[str] = set()
+    evidence = set(pack.get("evidence_phases") or [])
+    for ph in pack.get("phases") or []:
+        if ph.get("id") not in evidence:
+            continue
+        ekr = ph.get("izinli_ekran_tipleri")
+        if ekr == "hepsi":
+            return None
+        allowed |= set(ekr or [])
+    return allowed
+
+
+def _lint_pack_conformance(project: Project) -> list[LintIssue]:
+    """E2 (#111) — kursun BEYAN ETTİĞİ paket(ler)in sözleşmesine uygunluk. Faz etiketi olmadan
+    doğrulanabilir yaklaşık denetimler (hepsi WARN, danışsal):
+
+    1. `unknown_method_pack` — beyan edilen paket manifest'te yok (yazım hatası / manifest bayat);
+       o hedef için diğer denetimler çalıştırılamaz, atlanır.
+    2. `pack_conflict_on_screen` — AYNI ekran, paketleri `conflicts_with` ile çelişen iki hedefe
+       bağlı (objective_ids). Kapsam hedeftir: çelişen paketler AYRI hedeflerin AYRI ekranlarında
+       meşru birlikte yaşar (B2 — karma kurs); ihlal yalnız paylaşılan ekrandır.
+    3. `pack_platform_missing` — paket `requires_platform` beyan ediyor ama gerekli tip hedefin
+       kullanımında yok (faz-etiketsiz yaklaşık: paketin akış iskeleti kurulmamış). Karşılanma:
+       (i) o tipte ekran hedefe bağlı (objective_ids), YA DA (ii) o tipte ekran hedefin skorlu
+       ekranlarının kanıt hedefi (evidence_screen_ids), YA DA (iii) tip HİÇ bağlanamıyorsa
+       (`objective_ids` alanı yok — worked_example/exploration/branching...) kurs genelinde ≥1.
+    4. `evidence_type_outside_pack` — hedefe bağlı SKORLU ekranın `evidence_screen_ids` hedefi,
+       paketin kanıt fazlarında izinli olmayan tipte (yaklaşık-2: kanıt, paketin kanıt-üreten
+       fazının dışından geliyor). Sarkan/öz id E1'in işi (`evidence_screen_missing` ERROR) —
+       burada çifte raporlanmaz; kanıt fazı `hepsi` ise kısıt yok.
+    """
+    declared = {o.id: o.method_pack for o in project.objectives if o.method_pack}
+    if not declared:
+        return []
+    out: list[LintIssue] = []
+    packs = _load_packs()
+
+    for oid, pid in declared.items():
+        if pid not in packs:
+            out.append(LintIssue("warn", "unknown_method_pack",
+                                 f"Hedef '{oid}' bilinmeyen paket beyan ediyor: '{pid}' — "
+                                 "runtime/pedagogy-packs.json'da yok (yazım hatası mı, manifest "
+                                 "bayat mı? tools/gen_packs_manifest.py ile yeniden üret)",
+                                 f"objectives[{oid}]"))
+    known = {oid: pid for oid, pid in declared.items() if pid in packs}
+
+    # 2 — pack_conflict_on_screen: paylaşılan ekranda çelişen paketli hedef çifti
+    for i, s in enumerate(project.screens):
+        oids = [oid for oid in (getattr(s, "objective_ids", None) or []) if oid in known]
+        seen_pairs: set[frozenset[str]] = set()
+        for a_idx, oa in enumerate(oids):
+            for ob in oids[a_idx + 1:]:
+                pa, pb = known[oa], known[ob]
+                pair = frozenset((pa, pb))
+                if pa == pb or pair in seen_pairs:
+                    continue
+                if pb in (packs[pa].get("conflicts_with") or []) or \
+                        pa in (packs[pb].get("conflicts_with") or []):
+                    seen_pairs.add(pair)
+                    out.append(LintIssue(
+                        "warn", "pack_conflict_on_screen",
+                        f"Ekran '{s.id or i}' çelişen paketli iki hedefe bağlı: '{oa}' "
+                        f"({pa}) + '{ob}' ({pb}) — bu paketler AYNI hedef/ekran üzerinde "
+                        "birleştirilemez (conflicts_with). Farklı hedeflerde ayrı ekranlarla "
+                        "meşrudur; ekranı tek pakete ait hedefe bırak ya da hedef beyanını gözden "
+                        "geçir", f"screens[{i}]"))
+
+    # hedef → bağlı ekranlar (3 ve 4 için tek geçiş)
+    bound: dict[str, list] = {oid: [] for oid in known}
+    for s in project.screens:
+        for oid in getattr(s, "objective_ids", None) or []:
+            if oid in bound:
+                bound[oid].append(s)
+
+    by_id = {s.id: s for s in project.screens if s.id}
+    course_types = {_screen_type_str(s) for s in project.screens}
+    for oid, pid in known.items():
+        pack = packs[pid]
+
+        # 3 — pack_platform_missing: gerekli tip hedefin kullanımında yok (kurallar i/ii/iii)
+        bound_types = {_screen_type_str(s) for s in bound[oid]}
+        evidence_ref_types = {
+            _screen_type_str(by_id[eid])
+            for s in bound[oid] if _is_scored(s, project)
+            for eid in (getattr(s, "evidence_screen_ids", None) or []) if eid in by_id
+        }
+        for req in pack.get("requires_platform") or []:
+            if req in bound_types or req in evidence_ref_types:
+                continue
+            if req not in _objective_bindable_types() and req in course_types:
+                continue  # tip hedefe bağlanamıyor → kurs-geneli varlık yeter
+            out.append(LintIssue(
+                "warn", "pack_platform_missing",
+                f"Hedef '{oid}' paketi '{pid}' zorunlu platform yeteneği istiyor: "
+                f"'{req}' — ama bu tipte ekran hedefe bağlı değil (objective_ids), hedefin "
+                "kanıt hedeflerinde yok" + (
+                    "" if req in _objective_bindable_types()
+                    else " ve kursta hiç yok") +
+                f". Bir '{req}' ekranı ekle ve hedefin akışına bağla ya da paketi yeniden seç "
+                "(paket iskeleti bu yetenek üstüne kurulu)", f"objectives[{oid}]"))
+
+        # 4 — evidence_type_outside_pack: skorlu ekranın kanıt hedefi, kanıt fazı tipleri dışında
+        allowed = _evidence_allowed_types(pack)
+        if allowed is None:
+            continue
+        for s in bound[oid]:
+            if not _is_scored(s, project):
+                continue
+            si = project.screens.index(s)
+            for eid in getattr(s, "evidence_screen_ids", None) or []:
+                target = by_id.get(eid)
+                if target is None or eid == (s.id or ""):
+                    continue  # sarkan/öz referans E1'in işi (ERROR) — çifte raporlama yok
+                ttype = str(target.type.value if hasattr(target.type, "value") else target.type)
+                if ttype not in allowed:
+                    out.append(LintIssue(
+                        "warn", "evidence_type_outside_pack",
+                        f"Skorlu ekran '{s.id or si}' kanıtı '{eid}' (tip: {ttype}) — bu tip, "
+                        f"'{pid}' paketinin kanıt fazlarında "
+                        f"({', '.join(pack.get('evidence_phases') or [])}) izinli değil "
+                        f"(izinli: {', '.join(sorted(allowed))}). Kanıt, paketin kanıt-üreten "
+                        "fazından gelmeli — kanıt ekranının tipini paket fazına uydur ya da bağı "
+                        "doğru ekrana taşı", f"screens[{si}].evidence_screen_ids"))
+    return out
 
 
 def _lint_source_parity(project: Project) -> list[LintIssue]:

@@ -168,6 +168,12 @@ class Objective(BaseModel):
     id: str
     description: str | None = None
     success_criteria: str | None = None
+    # E2 (#111) — hedefin BEYAN ETTİĞİ pedagoji paketi (runtime/pedagogy-packs.json'daki pack id,
+    # ör. "gagne-9"). Additive/opsiyonel: None = beyan yok → E2 paket-uygunluk denetimleri bu hedef
+    # için sessiz (geriye uyumlu). Kapsam HEDEFTİR (_SCHEMA.md conflicts_with sözleşmesi): bir
+    # hedef = bir paket; çelişen paketler farklı hedeflerde meşru birlikte yaşar. Bilinmeyen id
+    # SERT hata değil `unknown_method_pack` WARN'dır (danışsal dalga — core/antislop.py E2).
+    method_pack: str | None = None
 
     @field_validator("id")
     @classmethod
