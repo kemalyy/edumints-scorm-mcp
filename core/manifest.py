@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from lxml import etree
 
-from .project import QUIZ_TYPES, Project
+from .project import QUIZ_TYPES, Project, is_display_diagram
 
 # Namespace'ler
 NS_IMSCP_12 = "http://www.imsproject.org/xsd/imscp_rootv1p1p2"
@@ -99,7 +99,9 @@ def _has_scored_content(project: Project) -> bool:
     (geriye-dönük regresyon). objective_ids alanı YALNIZ QUIZ_TYPES ekran sınıflarında var
     (core/project.py) — puanlı ekran yoksa zaten bağlı hedef de olamaz, bu yüzden sequencing
     bloğunu burada atlamak 2.4 non-primary imsss:objective girdilerini de kaybettirmez."""
-    return any(s.type in QUIZ_TYPES for s in project.screens)
+    # #126 — display-modlu labeled_diagram QUIZ_TYPES üyesi olsa da runtime'a puan yazmaz →
+    # tek-başına "puanlı içerik" saydırmamalı (aksi halde mastery/threshold regresyonu geri gelir).
+    return any(s.type in QUIZ_TYPES and not is_display_diagram(s) for s in project.screens)
 
 
 def _bound_objective_ids(project: Project) -> list[str]:

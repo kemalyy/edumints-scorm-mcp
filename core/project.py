@@ -744,12 +744,21 @@ class DiagramLabel(BaseModel):
 
 class LabeledDiagramScreen(ScreenBase):
     """Faz 13 — etiketli diyagram: görseldeki numaralı işaretçilere doğru etiketi ata
-    (anatomi/şema/harita). Görsel öğrenme; skorlanır."""
+    (anatomi/şema/harita). Görsel öğrenme; skorlanır.
+
+    #126 (Faz 6b, Kol D) — `mode`:
+    - `"quiz"` (varsayılan): bugünkü davranış BAYT-BAYT (geriye uyum 3.3). İşaretçiler
+      etkileşimli; her işaretçi için `<select>` ile etiket eşleştirilir, skorlanır.
+    - `"display"`: SALT-GÖSTERİM callout modu (split-attention "exhibit" çözümü, ölçüm
+      raporu §5.3). Her işaretçinin `text`'i görsel ÜSTÜNDE statik callout kutusu olarak
+      (leader line ile koordinatına bağlı) render edilir — cevap seçtirme/skor/feedback YOK.
+      Skorlanmaz (`total_points` dışı, `is_quiz=false`) ama kanıt-taşıyabilir hedef (E1)."""
     type: Literal[ScreenType.labeled_diagram] = ScreenType.labeled_diagram
     prompt_html: str | None = None
     image_asset_id: str
     image_alt: str | None = None  # W9 — WCAG alt text
     labels: list[DiagramLabel] = Field(min_length=2)
+    mode: Literal["quiz", "display"] = "quiz"  # #126 — quiz (vars.) | display (statik callout)
     points: int = 15
     objective_ids: list[str] = Field(default_factory=list)  # S2 (2.4) — kurs hedef(ler)ine bağ
     # E1 (#110) — K1 kanıt bağı: cevabın türetildiği kurs-içi kanıt-kaynağı ekran id'leri.
@@ -994,6 +1003,17 @@ QUIZ_TYPES = {
     ScreenType.game,
     ScreenType.adaptive_practice,
 }
+
+
+def is_display_diagram(s) -> bool:
+    """#126 — `labeled_diagram` SALT-GÖSTERİM (callout) modunda mı? Bu modda ekran
+    QUIZ_TYPES üyesi olsa da skorlanmaz/etkileşimsiz davranır (skor, is_quiz, feedback,
+    JS bağlama dışı) ama kanıt-taşıyabilir hedeftir (E1). Tek doğruluk kaynağı: tüm
+    skor/etkileşim kapıları bu yardımcıyla `labeled_diagram` display'i istisna eder."""
+    return (
+        getattr(s, "type", None) == ScreenType.labeled_diagram
+        and getattr(s, "mode", "quiz") == "display"
+    )
 
 
 # --------------------------------------------------------------------------- #
