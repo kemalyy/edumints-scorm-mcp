@@ -1066,6 +1066,10 @@ class Project(BaseModel):
     source_item_count: int | None = Field(default=None, ge=1)
     screens: list[Screen] = Field(default_factory=list)
     assets: list[AssetRef] = Field(default_factory=list)
+    # Senaryo hattı Faz 3 (additive) — dolu medya yuvası başına provenance kaydı
+    # (scenario_compile üretir). Boş DEĞİLSE paket assets/PROVENANCE.json içerir;
+    # boş = bugünkü davranış birebir (düz kurslar dosya KAZANMAZ — geriye-uyum/bayt-parite).
+    media_provenance: list[dict] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)
     owner_key_id: str = ""
@@ -1121,6 +1125,9 @@ class CourseSpec(BaseModel):
     tts_voice: str | None = None  # auto_tts ses modeli (boşsa varsayılan Türkçe)
     screens: list[Screen]
     assets: list[AssetInput] = Field(default_factory=list)
+    # Senaryo hattı Faz 3 (additive) — scenario_compile'ın ürettiği provenance kayıtları
+    # (Project.media_provenance'a taşınır; paketleyici assets/PROVENANCE.json yazar).
+    media_provenance: list[dict] = Field(default_factory=list)
 
 
 # --------------------------------------------------------------------------- #

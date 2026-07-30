@@ -5,6 +5,50 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — scenario line Faz 3: media federation (fill/match/provenance) — 3/6
+- **`fill_media_slot`** (39th tool): fills a scenario page's media slot from a `data:` URI or
+  https URL — DELEGATES to the same ingest internals as `add_asset` (SSRF guard + quota). Assets
+  live in the **scenario asset home** (`ScenarioDocument.assets`, same `AssetRef` shape +
+  `Store.put_asset` mechanics namespaced by `scenario_id`; scenario asset bytes now count into
+  the storage quota). Hard gates (data-integrity class): **sniffed-MIME ↔ kind mismatch**
+  (`kind_mime_mismatch` — magic bytes, declared MIME is never trusted) and **`A11Y_NO_TEXT_ALT`**
+  for `role="kanit"` slots missing `alt_text` (plus `transcript_html` for audio/video), rejected
+  before any byte is fetched. **sha256 content-dedup** (acceptance #9): same bytes → same
+  `asset_id`, single storage. `provenance` (plan §5.4: source/tool/ref/generated_at/license_note)
+  stored as given; `generated_at` server-stamped when absent.
+- **`match_media_manifest`** (40th tool): matches a **metadata-only** manifest
+  (`[{name,size,sha256,mime}]`) against unfilled slots — the server NEVER touches a filesystem
+  path (acceptance #10: schema has no path field; negative grep test proves no directory-scan
+  call in the federation module or the two tools). Signals: filename↔slot_id/spec/source_hint
+  token overlap (Turkish chars ASCII-folded), MIME↔kind, size sanity, sha256 already-ingested
+  ("already_ingested_dedup"). **Proposes, never assigns**: ambiguous → `proposed: null` +
+  scored candidate list; deterministic ordering.
+- **Client script `scripts/import_media_folder.py`**: standalone (stdlib; `requests` optional,
+  NO server imports — tested), scans a local folder, builds the manifest, calls
+  `match_media_manifest` over MCP HTTP, renders a proposal table, and on confirm (`--yes`)
+  base64s files into `fill_media_slot` per approved match. `--dry-run` supported; without server
+  info it prints the manifest + manual instructions. Fixture folder
+  `tests/fixtures/media_folder/` (1px PNG + tiny mp3 + txt).
+- **`assets/PROVENANCE.json` in the package** (acceptance #11): compiled courses embed one
+  record per filled slot (`{page_id, slot_id, asset_id, role, kind, sha256, provenance}`,
+  deterministic order, listed in the manifest). New additive `CourseSpec/Project
+  .media_provenance` (default `[]`) — plain `build_from_spec` courses do NOT gain the file
+  (backward-compat byte-parity class, tested).
+- **Compile mapping per kind + asset injection**: `scenario_compile` injects REFERENCED scenario
+  assets into `spec.assets[]` as `data:` URIs with ids preserved (slot references stay valid;
+  refill leftovers never leak into packages). Slot→field mapping: image AND **data_chart →
+  image fields** (DECISION: a data_chart slot carries a *rendered chart image* — the data_chart
+  *screen* carries inline data, no asset field → `SLOT_NOT_ATTACHED` warn there); audio/video/
+  lottie → their asset fields; **model_3d → `fallback_image_asset_id`** attached as image, else
+  `SLOT_KIND_UNSUPPORTED` warn + slot skipped. A `role="kanit"` slot keeps the compiled
+  content_slide in the evidence-capable set (media present — aligns with E1), tested.
+- **Contract amendment (flagged)**: `MediaSlot.fallback_image_asset_id: str | None` — the ONE
+  additive addition to the Faz-2-frozen MediaSlot contract (2D stand-in for kinds without a
+  render path today). `scenario_gaps` warns `SLOT_KIND_UNSUPPORTED` when a model_3d slot lacks it.
+- **Fix**: `scenario_compile(compile_and_build=True)` called `build_from_spec.fn` — an
+  `AttributeError` under fastmcp 3.x (decorator returns the plain function); now a direct call,
+  covered end-to-end by the PROVENANCE zip test.
+
 ### Added — scenario line Faz 2: scenario tools + gap report + compiler
 - **Scenario document** (`core/scenario.py`, new — keeps hot files thin): `ScenarioDocument`
   (`schema_version: 1`, owner-scoped JSON blob, quota-counted) = hierarchical outline + pages.
