@@ -26,6 +26,7 @@ from pathlib import Path
 
 from .project import (
     QUIZ_TYPES,
+    is_display_diagram,
     AccordionScreen,
     AdaptivePracticeScreen,
     DecisionScenarioScreen,
@@ -684,6 +685,8 @@ _EVIDENCE_CONTENT_TYPES = {
 def _is_scored(s, project: Project) -> bool:
     """Z1 — summatif (skorlu) ekran: `points` > 0 YA DA `on_correct` ile puan değişkenine yazan.
     points=0 + puana yazmayan = formatif (deneme-güvenli), kanıt şartı uygulanmaz (Z3)."""
+    if is_display_diagram(s):  # #126 — salt-gösterim callout: skorlanmaz içerik (points'i yoksay)
+        return False
     if s.type not in QUIZ_TYPES:
         return False
     if (getattr(s, "points", 0) or 0) > 0:
@@ -707,6 +710,8 @@ def _is_evidentiary_target(s, project: Project) -> bool:
     - quiz/oyun tipleri YALNIZ formatifken (points=0, puana yazmıyor) — deneme çıktısı /
       başarısız deneme + kanonik çözüm (K1 tür 3/5, Z3)
     Kanıt-taşıyamaz: title_slide, summary, results_breakdown, poll, branching, SKORLU her ekran."""
+    if is_display_diagram(s):  # #126 — display callout: annotasyon yorumu taşır → kanıt-taşıyabilir
+        return True
     if s.type in _EVIDENCE_CONTENT_TYPES:
         return True
     if s.type == ScreenType.content_slide:

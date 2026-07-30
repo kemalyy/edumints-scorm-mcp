@@ -29,6 +29,9 @@ BİLİNÇLİ KAPSAM DIŞI (rapor edilir, iddia edilmez):
   - --c-border çerçeveleri: 1.4.11 "sınır çizgisi, bileşen başka yolla tanımlanabiliyorsa
     gerekli değildir" (etiketli inputlar, dolgulu kartlar) — tüm temaların kenarlıklarını
     koyulaştırmak ayrı bir tasarım kararı olur; Faz 6 düzen ölçümüyle birlikte ele alınmalı.
+  - #126 .ld-leader (display callout leader line, var(--c-primary)): görsel üstünde saf
+    dekoratif bağlayıcı çizgi; callout bileşeni metin kutusu + numara ile başka yolla
+    tanımlanabildiğinden 1.4.11 muafiyeti (border çerçeveleriyle aynı gerekçe) — çift eklenmez.
   - accent/secondary/info/text_on_dark: renderer bunları metin×zemin çifti olarak
     KULLANMIYOR (accent yalnız degrade/dekor ucu; info hiç; on-dark yalnız sabit #fff'li
     cc-bar'a benzer statik bağlamlar). Kullanım eklendiği gün çift buraya eklenmek zorunda.
@@ -94,7 +97,8 @@ PAIRS = [
     ("text_on_surface", TEXT, lambda c: c.text, lambda c: c.surface,
      ".screen-inner/.app-header/.app-footer/.slide-menu (background:surface)"),
     ("text_on_surface_alt", TEXT, lambda c: c.text, lambda c: c.surface_alt,
-     ".rich code/.rich thead th/.we-rationale/.btn-ghost:hover (background:surface-alt)"),
+     ".rich code/.rich thead th/.we-rationale/.btn-ghost:hover/.ld-callout-text "
+     "(#126 display callout kutusu bg:surface-alt,color:text) (background:surface-alt)"),
     # --- ikincil/yardımcı + placeholder (durum 2-3) ---
     ("muted_on_bg", TEXT, lambda c: c.text_muted, lambda c: c.bg,
      "::placeholder + .blank>label/.drop-label/.xp-hint (muted, input bg=bg)"),
@@ -119,7 +123,8 @@ PAIRS = [
      ".title-kicker (title_slide inner: mix(primary 4%,surface); opacity kaldırıldı — Faz 5)"),
     # --- primary üzerinde metin (+ hover durumu 5) ---
     ("contrast_on_primary", TEXT, lambda c: c.primary_contrast, lambda c: c.primary,
-     ".btn-primary/.btn-check/.skip-link/.ld-pin/.we-num/.pl-btn[aria-pressed]/.review-btn"),
+     ".btn-primary/.btn-check/.skip-link/.ld-pin/.ld-callout-num (#126 display num dot)/"
+     ".we-num/.pl-btn[aria-pressed]/.review-btn"),
     ("contrast_on_primary_hover", TEXT, lambda c: c.primary_contrast, lambda c: c.primary_hover,
      ".btn-primary:hover{background:primary-hover} — HOVER durumu"),
     # --- durum renkleri metin olarak ---

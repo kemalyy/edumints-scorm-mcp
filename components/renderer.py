@@ -33,7 +33,7 @@ from core.engine_bundle import (  # W3b — motor lazy, SCORM RT hep; Faz 4 — 
     load_progress_bundle,
     load_scorm_bundle,
 )
-from core.project import Project, QUIZ_TYPES, ScreenType, ThemeTokens
+from core.project import Project, QUIZ_TYPES, ScreenType, ThemeTokens, is_display_diagram
 
 from . import i18n
 from .templates import (
@@ -521,15 +521,18 @@ def _course_config(project: Project) -> dict:
     screens = []
     total_points = 0
     for idx, s in enumerate(project.screens):
+        # #126 — display-modlu labeled_diagram QUIZ_TYPES üyesidir ama skorlanmaz/etkileşimsizdir:
+        # is_quiz/skor/feedback/başlık-interaksiyon kapılarında quiz-DIŞI sayılır (tek istisna helper).
+        _is_quiz = s.type in QUIZ_TYPES and not is_display_diagram(s)
         item: dict = {"id": s.id or f"idx{idx}", "type": s.type.value, "index": idx,
-                      "is_quiz": s.type in QUIZ_TYPES}
+                      "is_quiz": _is_quiz}
         # S1 — cmi.interactions.n.description (yalnız 2004'te yazılır; puanlanan ekranlarda anlamlı).
-        if s.type in QUIZ_TYPES and getattr(s, "title", None):
+        if _is_quiz and getattr(s, "title", None):
             item["title"] = s.title
         # S2 (2.4) — hedef bağları (yalnız puanlı ekranlar taşır; boşsa anahtar hiç serileşmez).
         # dict.fromkeys: ekran-içi yinelenen id çift sayılmasın (sıra korunur).
         obj_ids = list(dict.fromkeys(getattr(s, "objective_ids", None) or []))
-        if s.type in QUIZ_TYPES and obj_ids:
+        if _is_quiz and obj_ids:
             item["objective_ids"] = obj_ids
         if s.type == ScreenType.mcq:
             item["points"] = s.points
@@ -578,9 +581,10 @@ def _course_config(project: Project) -> dict:
             item["case_sensitive"] = [p.case_sensitive for p in s.puzzles]
             item["accepted"] = [list(p.accepted) for p in s.puzzles]  # adım sırasıyla
             total_points += s.points
-        elif s.type == ScreenType.labeled_diagram:
+        elif s.type == ScreenType.labeled_diagram and not is_display_diagram(s):
             item["points"] = s.points
             total_points += s.points  # doğru = her işaretçinin select'i kendi label id'si (DOM)
+        # #126 — display-modlu labeled_diagram: skor/feedback config'e yazılmaz (skorlanmaz içerik)
         elif s.type == ScreenType.game:
             item["points"] = s.points
             item["game"] = _game_cfg(s)  # mekanik specs + kurallar + düğüm-mantığı (runtime kurar)
@@ -597,7 +601,7 @@ def _course_config(project: Project) -> dict:
                 item["choice_vars"] = cv
         elif s.type == ScreenType.video:
             item["require_complete"] = s.require_complete
-        if s.type in QUIZ_TYPES:
+        if _is_quiz:
             item["feedback"] = {
                 # I1 — yazar doldurmadıysa (None) kurs dilindeki jenerik metne düş.
                 "correct": sanitize(s.feedback.correct_html or _T("feedback_correct")),
@@ -1217,7 +1221,35 @@ def _r_escape_room(s) -> str:
     )
 
 
+def _r_labeled_diagram_display(s) -> str:
+    """#126 — SALT-GÖSTERİM callout modu: her işaretçinin etiketi görsel ÜSTÜNDE statik,
+    daima görünür bir callout kutusu (num dot @koordinat + leader line + metin kutusu).
+    Cevap/skor/feedback/select YOK; _quiz_shell KULLANILMAZ. Metin gerçek DOM metnidir
+    (tooltip DEĞİL) → klavye/dokunma/ekran-okuyucuda okunur (rapor §4.3 a11y ilkesi).
+    Renkler yalnız gated token'lardan akar: kutu bg=surface-alt/metin=text (text_on_surface_alt),
+    num dot=primary/primary-contrast (contrast_on_primary), leader=primary — AA matris deltası 0."""
+    callouts = "".join(
+        f'<div class="ld-callout" style="left:{lb.x / 10:.2f}%;top:{lb.y / 10:.2f}%">'
+        f'<span class="ld-callout-num" aria-hidden="true">{i + 1}</span>'
+        f'<span class="ld-leader" aria-hidden="true"></span>'
+        f'<span class="ld-callout-text">{_text(lb.text)}</span></div>'
+        for i, lb in enumerate(s.labels)
+    )
+    img = f'<img class="hotspot-img" data-asset="{_attr(s.image_asset_id)}" alt="{_attr(s.image_alt or "")}">'
+    head = f'<h2 class="screen-title">{_text(s.title)}</h2>'
+    if s.prompt_html:
+        head += f'<div class="rich prompt">{sanitize(s.prompt_html)}</div>'
+    stage = (
+        f'<div class="labeled-diagram ld-display">'
+        f'<div class="ld-stage hotspot-stage" role="group" aria-label="{_attr(s.image_alt or s.title)}">'
+        f'{img}{callouts}</div></div>'
+    )
+    return head + stage
+
+
 def _r_labeled_diagram(s) -> str:
+    if is_display_diagram(s):
+        return _r_labeled_diagram_display(s)
     pins = "".join(
         f'<button class="ld-pin" type="button" data-label="{_attr(lb.id)}"'
         f' style="left:{lb.x / 10:.2f}%;top:{lb.y / 10:.2f}%" aria-label="{_attr(_T("diagram_pin", n=i + 1))}">{i + 1}</button>'

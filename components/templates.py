@@ -508,6 +508,25 @@ body[data-bg="grid"]{background-image:linear-gradient(color-mix(in srgb,var(--c-
   padding:0 var(--space-3);background:var(--c-bg);color:var(--c-text)}
 .ld-row.correct .ld-select{border-color:var(--c-success,#16a34a)}
 .ld-row.wrong .ld-select{border-color:var(--c-danger,#dc2626)}
+/* #126 labeled_diagram display (callout) modu — statik, daima-görünür açıklama kutuları
+   görsel ÜSTÜNDE (split-attention exhibit çözümü): yorum görselle BİRLİKTE durur, göz
+   gidiş-gelişini elder. num dot @koordinat + leader line + metin kutusu. Renkler yalnız
+   gated token'dan: kutu=surface-alt/text (text_on_surface_alt), num=primary/contrast. */
+.ld-display .ld-stage{overflow:visible}
+.ld-callout{position:absolute;transform:translateY(-50%);display:flex;align-items:center;
+  gap:0;max-width:min(48%,320px);z-index:1;pointer-events:none}
+.ld-callout-num{flex:0 0 24px;height:24px;border-radius:50%;background:var(--c-primary);
+  color:var(--c-primary-contrast);font-weight:var(--w-strong);font-size:12px;display:grid;
+  place-items:center;border:2px solid #fff;box-shadow:var(--e2)}
+.ld-leader{flex:0 0 18px;height:2px;background:var(--c-primary);align-self:center}
+.ld-callout-text{background:var(--c-surface-alt);color:var(--c-text);border:1.5px solid var(--c-border);
+  border-radius:var(--r-md);padding:var(--space-2) var(--space-3);font-size:14px;line-height:1.35;
+  box-shadow:var(--e1)}
+@media(max-width:640px){
+  .ld-display .ld-stage{display:block}
+  .ld-display .ld-callout{position:static;transform:none;max-width:100%;margin-top:var(--space-2);gap:var(--space-2)}
+  .ld-display .ld-leader{display:none}
+}
 
 /* data_chart */
 .data-chart{margin:0;text-align:center}
@@ -1847,6 +1866,8 @@ function bindAdaptive(el,s){
 // Faz 13 — etiketli diyagram (görsel öğrenme; select == pin id ise doğru)
 function bindLabeledDiagram(el,s){
   var ld=el.querySelector(".labeled-diagram"); if(!ld) return;
+  // #126 — display (callout) modu: statik, etkileşimsiz. Select/check yok → hiç bağlama.
+  if(ld.classList.contains("ld-display")) return;
   // pin <-> select karşılıklı vurgulama
   ld.querySelectorAll(".ld-select").forEach(function(sel){
     var id=sel.dataset.label; var pin=ld.querySelector('.ld-pin[data-label="'+id+'"]');

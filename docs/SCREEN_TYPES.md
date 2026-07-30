@@ -306,9 +306,40 @@ Her işaretçi için bir `<select>` (klavye-erişilebilir); seçim işaretçi id
 | `prompt_html` | `str` | Hayır | Talimat. |
 | `image_asset_id` | `str` | Evet | Diyagram görseli. |
 | `labels` | `list[DiagramLabel]` | Evet | İşaretçiler (≥2). |
-| `points` | `int` | Hayır | Soru puanı (Varsayılan: 15). |
+| `mode` | `"quiz"｜"display"` | Hayır | Davranış modu (Varsayılan: `quiz`). Bkz. aşağıda. |
+| `points` | `int` | Hayır | Soru puanı (Varsayılan: 15; `display` modunda yok sayılır). |
 
 **`DiagramLabel`:** `id`, `text`, `x`, `y` (0–1000 normalize konum).
+
+### `mode` — quiz (varsayılan) vs display (salt-gösterim callout) — #126
+
+- **`quiz`** (varsayılan): bugünkü davranış, **bayt-bayt** değişmez. Etkileşimli; her
+  işaretçi için `<select>`, skorlanır.
+- **`display`**: **salt-gösterim callout** modu — split-attention "exhibit" deseninin
+  çözümü (ölçüm raporu §5.3). Her işaretçinin `text`'i görselin **ÜSTÜNDE** statik, daima
+  görünür bir callout kutusu olarak (koordinatına bağlı num dot + leader line + metin
+  kutusu) render edilir. Cevap seçtirme / select / skor / feedback **YOK**. Metin gerçek
+  DOM metnidir (yalnız `title` tooltip **DEĞİL**) → klavye + dokunma + ekran-okuyucuda
+  erişilebilir; renkler AA kontrast token'larından akar. Ekran **skorlanmaz** (`total_points`
+  dışı) ama **kanıt-taşıyabilir** hedeftir — skorlu bir soru `evidence_screen_ids` ile bu
+  exhibit'e yaslanabilir (K1, `references/core/evidence-binding.md`). ≤640px'te callout'lar
+  görsel altında dikey listeye dönüşür (reflow).
+
+  **Yazım örneği** (spot-the-phish/c_email okuma protokolünü görsel üstüne taşır):
+
+  ```json
+  {
+    "type": "labeled_diagram", "id": "c_email", "title": "Bu e-postayı incele",
+    "mode": "display", "image_asset_id": "email_mock",
+    "image_alt": "şüpheli e-posta ekran görüntüsü",
+    "labels": [
+      {"id": "p0", "text": "Gönderen satırı sahte mi?", "x": 150, "y": 150},
+      {"id": "p1", "text": "Ton aciliyet dayatıyor mu?", "x": 150, "y": 330},
+      {"id": "p2", "text": "Butonun gerçek hedefi ne?", "x": 150, "y": 510},
+      {"id": "p3", "text": "Ek güvenli mi?", "x": 150, "y": 690}
+    ]
+  }
+  ```
 
 ## 23. Veri Grafiği (data_chart)
 

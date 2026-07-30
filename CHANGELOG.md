@@ -5,6 +5,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — #126: `labeled_diagram` salt-gösterim (callout) modu — split-attention exhibit çözümü
+Ölçüm raporunun (`docs/research/2026-07-30-layout-split-attention-measurement.md` §5.3)
+belgelediği "exhibit okuma-protokolü" deseninin (3/6 sınıf-b split) kalıcı çözümü. Yeni ekran
+tipi DEĞİL (tip enflasyonu 3.7) — mevcut `labeled_diagram`'a **parametre**.
+- **`labeled_diagram.mode: "quiz" | "display" = "quiz"`.** `quiz` (varsayılan) etkileşimli/skorlu
+  davranış **bayt-bayt** korunur (3.3 — regresyon testiyle kilitli; flat_menu fixture'ı kasıtlı
+  yenilendi, diff = yalnız additive CSS bloğu + JS guard).
+- **`display` = salt-gösterim callout:** her işaretçinin `text`'i görsel ÜSTÜNDE statik, daima
+  görünür callout kutusu olarak (koordinat @num dot + leader line + metin) render edilir → yorum
+  görselle BİRLİKTE durur, göz gidiş-gelişi (split-attention) elenir. select/skor/feedback YOK;
+  `_quiz_shell` kullanılmaz. Metin gerçek DOM metni (yalnız `title` tooltip DEĞİL) →
+  klavye + dokunma + ekran-okuyucu erişilebilir; ≤640px'te dikey listeye reflow.
+- **Skor semantiği:** `display` ekranı skorlanmaz — `total_points` dışı, `is_quiz=false`,
+  feedback config'e yazılmaz, `_has_scored_content` tek-başına puanlı-içerik saymaz (mastery/
+  threshold regresyonu önlenir). Tek doğruluk kaynağı `core.project.is_display_diagram`.
+- **Kanıt (E1):** `display` diyagram kanıt-taşıyabilir hedef (annotasyon yorum taşır) ama
+  skorlanmaz → skorlu bir soru `evidence_screen_ids` ile bu exhibit'e yaslanabilir (K1).
+- **AA:** callout renkleri yalnız gated token'dan (kutu surface-alt/text = `text_on_surface_alt`,
+  num dot primary/contrast = `contrast_on_primary`); leader line dekoratif (1.4.11 muaf) →
+  **kontrast matris deltası 0** (yeni çift yok; ref'ler dokümante edildi).
+- Contract: CONTRACTS §labeled_diagram.mode + E1 kanıt listesi; `docs/SCREEN_TYPES.md` §22
+  (yazım örneğiyle). Tests: `tests/test_labeled_diagram_callout.py` (14 — model/render/byte-parite/
+  skor/kanıt + ölçülen exhibit c_email regresyonu).
+
 ### Added — Faz 6 (senaryo hattı 6/6): grafik okunabilirliği + dar lint'ler + karanlık mod
 Grounded in the layout/split-attention measurement report
 (`docs/research/2026-07-30-layout-split-attention-measurement.md`) — the generic
