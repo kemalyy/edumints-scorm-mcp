@@ -64,43 +64,50 @@ def test_theme_schema_integrity(theme_path):
     extra_top = top_keys - ALLOWED_TOP_LEVEL
     assert not extra_top, f"{theme_path.name} bilinmeyen üst düzey anahtarlar: {extra_top}"
 
-    # 3. Typography detayları (YALNIZ mevcutsa kontrol edilir — extends'te olmayabilir)
+    # 3. Typography detayları — Faz 5: extends'li dosyada grup KISMİ olabilir (derin merge
+    # alan-bazlıdır; eksikler zincirden gelir). Tabanda (_tokens, extends yok) tam olmalı.
     if "typography" in data:
         typo = data["typography"]
-        missing_typo = MANDATORY_TYPOGRAPHY - set(typo.keys())
-        assert not missing_typo, f"{theme_path.name} eksik typography anahtarları: {missing_typo}"
+        if not extends:
+            missing_typo = MANDATORY_TYPOGRAPHY - set(typo.keys())
+            assert not missing_typo, f"{theme_path.name} eksik typography anahtarları: {missing_typo}"
         extra_typo = set(typo.keys()) - MANDATORY_TYPOGRAPHY
         assert not extra_typo, f"{theme_path.name} bilinmeyen typography anahtarları: {extra_typo}"
 
-    # 4. Color detayları (YALNIZ mevcutsa kontrol edilir — extends'te olmayabilir)
+    # 4. Color detayları — aynı Faz 5 kuralı: extends'li dosyada kısmi olabilir
     if "color" in data:
         color = data["color"]
-        missing_color = MANDATORY_COLOR - set(color.keys())
-        assert not missing_color, f"{theme_path.name} eksik color anahtarları: {missing_color}"
+        if not extends:
+            missing_color = MANDATORY_COLOR - set(color.keys())
+            assert not missing_color, f"{theme_path.name} eksik color anahtarları: {missing_color}"
         extra_color = set(color.keys()) - MANDATORY_COLOR
         assert not extra_color, f"{theme_path.name} bilinmeyen color anahtarları: {extra_color}"
 
     # 5. Opsiyonel grupların iç bütünlüğü (varsa tam olmalı)
     if "spacing" in data:
-        missing_sp = ALLOWED_SPACING - set(data["spacing"].keys())
-        assert not missing_sp, f"{theme_path.name} spacing grubu eksik: {missing_sp}"
+        if not extends:
+            missing_sp = ALLOWED_SPACING - set(data["spacing"].keys())
+            assert not missing_sp, f"{theme_path.name} spacing grubu eksik: {missing_sp}"
         extra_sp = set(data["spacing"].keys()) - ALLOWED_SPACING
         assert not extra_sp, f"{theme_path.name} spacing grubu bilinmeyen anahtar: {extra_sp}"
 
     if "radii" in data:
-        missing_rd = ALLOWED_RADII - set(data["radii"].keys())
-        assert not missing_rd, f"{theme_path.name} radii grubu eksik: {missing_rd}"
+        if not extends:
+            missing_rd = ALLOWED_RADII - set(data["radii"].keys())
+            assert not missing_rd, f"{theme_path.name} radii grubu eksik: {missing_rd}"
         extra_rd = set(data["radii"].keys()) - ALLOWED_RADII
         assert not extra_rd, f"{theme_path.name} radii grubu bilinmeyen anahtar: {extra_rd}"
 
     if "elevation" in data:
-        missing_el = ALLOWED_ELEVATION - set(data["elevation"].keys())
-        assert not missing_el, f"{theme_path.name} elevation grubu eksik: {missing_el}"
+        if not extends:
+            missing_el = ALLOWED_ELEVATION - set(data["elevation"].keys())
+            assert not missing_el, f"{theme_path.name} elevation grubu eksik: {missing_el}"
         extra_el = set(data["elevation"].keys()) - ALLOWED_ELEVATION
         assert not extra_el, f"{theme_path.name} elevation grubu bilinmeyen anahtar: {extra_el}"
 
     if "motion" in data:
-        missing_mt = ALLOWED_MOTION - set(data["motion"].keys())
-        assert not missing_mt, f"{theme_path.name} motion grubu eksik: {missing_mt}"
+        if not extends:
+            missing_mt = ALLOWED_MOTION - set(data["motion"].keys())
+            assert not missing_mt, f"{theme_path.name} motion grubu eksik: {missing_mt}"
         extra_mt = set(data["motion"].keys()) - ALLOWED_MOTION
         assert not extra_mt, f"{theme_path.name} motion grubu bilinmeyen anahtar: {extra_mt}"

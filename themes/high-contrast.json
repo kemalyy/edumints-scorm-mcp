@@ -1,11 +1,10 @@
 {
+  "extends": "_tokens",
   "name": "high-contrast",
   "typography": {
     "font_heading": "'Atkinson Hyperlegible', 'Inter', system-ui, -apple-system, sans-serif",
     "font_body": "'Atkinson Hyperlegible', 'Inter', system-ui, -apple-system, sans-serif",
-    "font_mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace",
     "base_size_px": 18,
-    "scale_ratio": 1.25,
     "weight_heading": 800,
     "weight_body": 500,
     "weight_strong": 700,
@@ -16,11 +15,9 @@
   "color": {
     "primary": "#0b3d91",
     "primary_hover": "#082d6e",
-    "primary_contrast": "#ffffff",
     "secondary": "#0b3d91",
     "accent": "#b30021",
     "bg": "#ffffff",
-    "surface": "#ffffff",
     "surface_alt": "#f0f0f0",
     "border": "#1a1a1a",
     "text": "#000000",
@@ -33,6 +30,5 @@
     "warning": "#7a4a00",
     "info": "#0b3d91",
     "focus_ring": "#b30021"
-  },
-  "background_pattern": "none"
+  }
 }
