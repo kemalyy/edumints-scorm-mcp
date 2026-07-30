@@ -437,13 +437,19 @@ class SqliteStore(Store):
         return int(pr["s"]) + int(pk["s"]) + int(dm["s"]) + int(sc["s"])
 
     # -- senaryo dokümanları (Faz 2) --
+    @staticmethod
+    def _scenario_bytes(d: ScenarioDocument, blob: str) -> int:
+        # Faz 3: kota dürüstlüğü — blob + senaryo varlık baytları (projelerdeki
+        # _project_bytes ile aynı ilke; varlıklar fs'te ama kotaya burada sayılır).
+        return len(blob.encode("utf-8")) + sum(a.size_bytes for a in d.assets)
+
     async def create_scenario(self, d: ScenarioDocument) -> None:
         blob = d.model_dump_json()
         async with self._wlock:
             await self.db.execute(
                 "INSERT INTO scenarios(id,owner_key_id,data,size_bytes,created_at,updated_at)"
                 " VALUES(?,?,?,?,?,?)",
-                (d.id, d.owner_key_id, blob, len(blob.encode("utf-8")),
+                (d.id, d.owner_key_id, blob, self._scenario_bytes(d, blob),
                  d.created_at.isoformat(), d.updated_at.isoformat()),
             )
             await self.db.commit()
@@ -462,7 +468,7 @@ class SqliteStore(Store):
         async with self._wlock:
             await self.db.execute(
                 "UPDATE scenarios SET data=?,size_bytes=?,updated_at=? WHERE id=? AND owner_key_id=?",
-                (blob, len(blob.encode("utf-8")), d.updated_at.isoformat(), d.id, d.owner_key_id),
+                (blob, self._scenario_bytes(d, blob), d.updated_at.isoformat(), d.id, d.owner_key_id),
             )
             await self.db.commit()
 

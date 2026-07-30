@@ -45,6 +45,7 @@ from ulid import ULID
 
 from core.project import (
     QUIZ_TYPES,
+    AssetRef,
     Objective,
     OutlineNode,
     Screen,
@@ -80,9 +81,10 @@ class MediaSlotA11y(BaseModel):
 
 class MediaSlot(BaseModel):
     """Sayfanın medya yuvası. role: kanit|aciklayici — DEKORATİF YOK (3.6; süs medya
-    reddedilir). kind=model_3d renderer'da henüz desteklenmez → derlemede
-    SLOT_KIND_UNSUPPORTED uyarısı. asset_id None = boş slot (derlemede asset alanı hiç
-    basılmaz; ekran anlamlı kalır). provenance Faz 3'te pakete gömülür."""
+    reddedilir). kind=model_3d renderer'da henüz desteklenmez → fallback_image_asset_id
+    verilmezse SLOT_KIND_UNSUPPORTED uyarısı (gaps + derleme). asset_id None = boş slot
+    (derlemede asset alanı hiç basılmaz; ekran anlamlı kalır). provenance Faz 3'te pakete
+    gömülür (assets/PROVENANCE.json)."""
     slot_id: str
     role: Literal["kanit", "aciklayici"]
     kind: Literal["image", "audio", "video", "lottie", "model_3d", "data_chart"]
@@ -91,6 +93,10 @@ class MediaSlot(BaseModel):
     asset_id: str | None = None
     a11y: MediaSlotA11y = Field(default_factory=MediaSlotA11y)
     provenance: dict | None = None
+    # Faz 3 — donmuş sözleşmeye TEK ek (additive; PR'da bayraklı): render yolu olmayan
+    # kind'lar (bugün model_3d) için 2D yedek görsel. Derleme, model_3d yuvasını bu görselle
+    # image olarak bağlar; yoksa yuva atlanır + SLOT_KIND_UNSUPPORTED uyarısı.
+    fallback_image_asset_id: str | None = None
 
     @field_validator("slot_id")
     @classmethod
@@ -236,6 +242,11 @@ class ScenarioDocument(BaseModel):
     dial_overrides: dict | None = None
     outline: list[OutlineNode] = Field(default_factory=list)
     pages: list[Page] = Field(default_factory=list)
+    # Faz 3 — senaryo VARLIK EVİ: projelerle aynı AssetRef şekli, aynı Store.put_asset
+    # mekaniği (ad-alanı = scenario_id). fill_media_slot buraya yazar; sha256 içerik-dedup
+    # bu listede yapılır. Derlemede server katmanı bunları build_from_spec assets[]'ine
+    # data: URI olarak enjekte eder (asset id'ler korunur → slot referansları geçerli kalır).
+    assets: list[AssetRef] = Field(default_factory=list)
     owner_key_id: str = ""
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)
@@ -245,6 +256,10 @@ class ScenarioDocument(BaseModel):
 
     def node_by_id(self, node_id: str) -> OutlineNode | None:
         return next((n for n in self.outline if n.id == node_id), None)
+
+    def asset_by_sha256(self, sha256: str) -> AssetRef | None:
+        """İçerik-hash indeksi (kabul #9): aynı bayt → aynı asset (dedup fill'de)."""
+        return next((a for a in self.assets if a.sha256 == sha256), None)
 
 
 # --------------------------------------------------------------------------- #
@@ -509,6 +524,15 @@ def gaps_report(doc: ScenarioDocument) -> dict:
                             f"paketinin fazlarında yok ({', '.join(sorted(filter(None, phase_ids)))})",
                             f"{path}.phase"))
 
+        # ⚠ render yolu olmayan kind (Faz 3): model_3d, fallback görsel ister
+        for s in p.media_slots:
+            if s.kind == "model_3d" and not s.fallback_image_asset_id:
+                warnings.append(_item(
+                    "SLOT_KIND_UNSUPPORTED",
+                    f"Sayfa '{p.id}' yuvası '{s.slot_id}' model_3d — renderer'da render yolu "
+                    "yok; fallback_image_asset_id (2D yedek görsel) ekle, yoksa derlemede "
+                    "yuva atlanır", f"{path}.media_slots[{s.slot_id}]"))
+
         # ⚠ narration ↔ gövde yankısı
         if p.copy.narration and p.copy.body_md:
             ratio = _narration_echo_ratio(p.copy.narration, p.copy.body_md)
@@ -681,38 +705,45 @@ def _store_key_from(page_id: str) -> str:
 
 def _attach_slots(page: Page, scr: dict, cls: type[BaseModel], warnings: list[dict]) -> None:
     """Dolu slotları ekran alanlarına bağla; BOŞ slot → asset alanı hiç basılmaz (ekran
-    anlamlı kalır). model_3d desteklenene dek SLOT_KIND_UNSUPPORTED uyarısı."""
+    anlamlı kalır). Kind→alan eşlemesi (Faz 3): image VE data_chart → görsel alanları
+    (data_chart slotu render edilmiş GRAFİK GÖRSELİ taşır — data_chart EKRANI veri taşır,
+    orada bağlanacak alan yoktur → SLOT_NOT_ATTACHED); model_3d → fallback_image_asset_id
+    görsel olarak bağlanır, yoksa SLOT_KIND_UNSUPPORTED uyarısıyla atlanır."""
     fields = cls.model_fields
     for s in page.media_slots:
         path = f"pages[{page.id}].media_slots[{s.slot_id}]"
-        if s.kind == "model_3d":
-            warnings.append(_item(
-                "SLOT_KIND_UNSUPPORTED",
-                f"'{s.slot_id}' yuvası model_3d — renderer henüz desteklemiyor; yuva atlandı",
-                path))
-            continue
-        if not s.asset_id:
-            continue  # boş slot → omit (Faz 3 dolduracak)
+        kind, asset_id = s.kind, s.asset_id
+        if kind == "model_3d":
+            if s.fallback_image_asset_id:
+                kind, asset_id = "image", s.fallback_image_asset_id  # render yolu = 2D yedek
+            else:
+                warnings.append(_item(
+                    "SLOT_KIND_UNSUPPORTED",
+                    f"'{s.slot_id}' yuvası model_3d — render yolu yok; "
+                    "fallback_image_asset_id ekle (yuva atlandı)", path))
+                continue
+        if not asset_id:
+            continue  # boş slot → omit (fill_media_slot dolduracak)
         attached = False
-        if s.kind == "image":
+        if kind in ("image", "data_chart"):
             for fld, alt in (("media_asset_id", "media_alt"), ("image_asset_id", "image_alt")):
                 if fld in fields and not scr.get(fld):
-                    scr[fld] = s.asset_id
+                    scr[fld] = asset_id
                     if alt in fields and s.a11y.alt_text:
                         scr[alt] = s.a11y.alt_text
                     attached = True
                     break
-        elif s.kind == "audio":
+        elif kind == "audio":
             if not scr.get("narration_asset_id"):
-                scr["narration_asset_id"] = s.asset_id
+                scr["narration_asset_id"] = asset_id
                 attached = True
-        elif s.kind == "video":
+        elif kind == "video":
             if "video_asset_id" in fields and not scr.get("video_asset_id"):
-                scr["video_asset_id"] = s.asset_id
+                scr["video_asset_id"] = asset_id
                 attached = True
-        elif s.kind == "lottie":
+        elif kind == "lottie":
             if "lottie_asset_id" in fields and not scr.get("lottie_asset_id"):
-                scr["lottie_asset_id"] = s.asset_id
+                scr["lottie_asset_id"] = asset_id
                 attached = True
         if not attached:
             warnings.append(_item(
@@ -847,4 +878,10 @@ def compile_scenario(doc: ScenarioDocument) -> tuple[dict, list[dict]]:
     }
     if doc.audience_pack:
         spec["audience_pack"] = doc.audience_pack
+    # Faz 3 — kabul #11: dolu slot başına provenance kaydı (paketleyici
+    # assets/PROVENANCE.json yazar). Boş → anahtar HİÇ basılmaz (düz kurs bayt-paritesi).
+    from core.media_federation import provenance_records
+    records = provenance_records(doc)
+    if records:
+        spec["media_provenance"] = records
     return spec, warnings

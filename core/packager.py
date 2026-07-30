@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import io
+import json
 import os
 import secrets
 import zipfile
@@ -27,6 +28,7 @@ from .store import BuildJob, PackageMeta, Store
 from .validator import validate_zip
 
 RUNTIME_REL = "runtime/scorm-again.min.js"
+PROVENANCE_REL = "assets/PROVENANCE.json"  # Faz 3 — yalnız media_provenance doluysa yazılır
 
 _ARTIFACT_WARN_CAP = 512  # in-process uyarı defteri sınırı (job başına küçük string listesi)
 
@@ -177,6 +179,13 @@ class Packager:
         file_list = ["index.html", RUNTIME_REL] + [rel for rel, _ in extra]
         for a in project.assets:
             file_list.append(a.rel_path)
+        # Faz 3 (kabul #11) — dolu medya yuvası provenance'ı pakete gömülür. YALNIZ kayıt
+        # varsa: düz (senaryosuz) kurslar bu dosyayı KAZANMAZ (geriye-uyum/bayt-parite).
+        prov = getattr(project, "media_provenance", None) or []
+        prov_json = None
+        if prov:
+            prov_json = json.dumps(prov, ensure_ascii=False, sort_keys=True, indent=2)
+            file_list.append(PROVENANCE_REL)
         manifest_xml = build_manifest(project, file_list=file_list)
 
         buf = io.BytesIO()
@@ -190,6 +199,8 @@ class Packager:
                 data = assets.get(a.id)
                 if data is not None:
                     zf.writestr(a.rel_path, data)
+            if prov_json is not None:
+                zf.writestr(PROVENANCE_REL, prov_json)
         data = buf.getvalue()
 
         pkg_id = new_package_id()

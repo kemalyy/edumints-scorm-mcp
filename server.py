@@ -9,6 +9,7 @@ Mimari ilke: sunucu LLM çağırmaz; yalnız iskele + bileşen + runtime + paket
 from __future__ import annotations
 
 import asyncio
+import base64
 import hashlib
 import json
 import logging
@@ -1180,6 +1181,7 @@ async def build_from_spec(spec: dict, strict: bool | None = None) -> BuildFromSp
             outline=list(spec.outline),  # senaryo hattı Faz 1 — hiyerarşik iskelet
             audience_pack=spec.audience_pack,  # Faz 1 REZERVE (davranış Faz 5)
             source_item_count=spec.source_item_count,  # E1 (#110)
+            media_provenance=list(spec.media_provenance),  # senaryo hattı Faz 3 (kabul #11)
             screens=list(spec.screens),
             owner_key_id=owner.id,
         )
@@ -1592,10 +1594,33 @@ async def scenario_compile(scenario_id: str, compile_and_build: bool = False,
             "issues": [{"severity": i.severity, "code": i.code, "message": i.message,
                         "path": i.path} for i in issues],
         }
+        # Faz 3 — senaryo varlıklarını build_from_spec assets[]'ine data: URI olarak enjekte
+        # et (id KORUNUR → ekranlardaki *_asset_id referansları geçerli kalır). Yalnız
+        # REFERANSLI varlıklar geçer (yeniden-doldurma artıkları pakete sızmaz).
+        referenced: set[str] = set()
+        for pg in doc.pages:
+            for sl in pg.media_slots:
+                for aid in (sl.asset_id, sl.fallback_image_asset_id,
+                            sl.a11y.captions_asset_id):
+                    if aid:
+                        referenced.add(aid)
+        spec_assets = []
+        for a in doc.assets:
+            if a.id not in referenced:
+                continue
+            data = await SVC.store.get_asset_bytes(doc.id, a.id)
+            spec_assets.append({
+                "id": a.id, "filename": a.filename,
+                "source": f"data:{a.mime};base64," + base64.b64encode(data).decode(),
+            })
+        if spec_assets:
+            spec["assets"] = spec_assets
         out = {"scenario_id": scenario_id, "spec": spec,
                "compile_warnings": warnings, "lint_course": lint_report}
         if compile_and_build:
-            built = await build_from_spec.fn(spec, strict=strict)
+            # not: fastmcp 3.x'te @mcp.tool dekoratörü fonksiyonun KENDİSİNİ döndürür
+            # (FunctionTool değil) — doğrudan çağrı doğru yoldur (.fn AttributeError'du).
+            built = await build_from_spec(spec, strict=strict)
             out["build"] = built.model_dump()
         return out
     except ToolError as e:
@@ -1675,6 +1700,119 @@ async def scenario_delete_page(scenario_id: str, page_id: str) -> OkOut:
                 p.evidence_from = [e for e in p.evidence_from if e != page_id]
         await SVC.store.update_scenario(doc)
         return OkOut()
+    except ToolError as e:
+        raise _wrap(e)
+
+
+# --------------------------------------------------------------------------- #
+# Medya federasyonu araçları (Faz 3 — core/media_federation.py mantık)
+# --------------------------------------------------------------------------- #
+@mcp.tool
+async def fill_media_slot(scenario_id: str, page_id: str, slot_id: str, source: str,
+                          provenance: dict | None = None, alt_text: str | None = None,
+                          transcript_html: str | None = None) -> dict:
+    """Senaryo sayfasındaki medya yuvasını doldurur. `source`: "data:<mime>;base64,..." veya
+    https URL (indirme+SSRF denetimi add_asset ile AYNI iç yoldan). Varlık SENARYO evine yazılır
+    (doküman `assets` listesi + store; derlemede build_from_spec assets[]'ine geçer).
+
+    Sert kapılar (3.8 veri bütünlüğü): (1) sniff edilen MIME yuva `kind`'ıyla uyuşmazsa
+    kind_mime_mismatch — bildirilen MIME'a değil BAYTA bakılır; (2) role="kanit" yuvada
+    alt_text (audio/video için ek olarak transcript_html) yoksa A11Y_NO_TEXT_ALT.
+    sha256 içerik-dedup: aynı bayt daha önce eklendiyse AYNI asset_id döner (deduped=true),
+    yeni depolama yapılmaz. `provenance` (plan §5.4: source/tool/ref/generated_at/license_note)
+    verildiği gibi saklanır; generated_at yoksa sunucu damgalar. Pakete assets/PROVENANCE.json
+    olarak gömülür. Dolu yuvayı yeniden doldurmak asset_id'yi değiştirir (bilinçli işlem)."""
+    await SVC.ensure()
+    try:
+        from core.media_federation import (
+            ext_for_mime,
+            kind_matches_mime,
+            missing_a11y,
+            normalize_provenance,
+            sniff_mime,
+        )
+        owner = await _owner()
+        doc = await _load_scenario(scenario_id, owner)
+        page = doc.page_by_id(page_id)
+        if page is None:
+            raise ToolError("not_found", f"Sayfa bulunamadı: {page_id}")
+        slot = next((s for s in page.media_slots if s.slot_id == slot_id), None)
+        if slot is None:
+            raise ToolError("not_found", f"Medya yuvası bulunamadı: {page_id}/{slot_id}")
+
+        # a11y kapısı ÖNCE (baytı çekmeden reddet): parametre > yuvadaki mevcut değer
+        eff_alt = alt_text if alt_text is not None else slot.a11y.alt_text
+        eff_tr = transcript_html if transcript_html is not None else slot.a11y.transcript_html
+        eksik = missing_a11y(slot.role, slot.kind, eff_alt, eff_tr)
+        if eksik:
+            raise ToolError(
+                "A11Y_NO_TEXT_ALT",
+                f"Kanıt-rolü yuva '{slot_id}' için zorunlu erişilebilirlik metni eksik: "
+                f"{', '.join(eksik)} (3.5 — erişilebilirlik zemindir; kanıt medyası metinsiz "
+                "olamaz)")
+
+        # ingest — add_asset ile aynı iç yol (decode_data_uri / safe_fetch_asset + kota)
+        max_bytes = SETTINGS.max_asset_mb * 1024 * 1024
+        if source.startswith("data:"):
+            data, _declared = decode_data_uri(source, max_bytes=max_bytes)
+        else:
+            data, _declared = await safe_fetch_asset(source, max_bytes=max_bytes)
+
+        mime = sniff_mime(data)
+        if not kind_matches_mime(slot.kind, mime):
+            raise ToolError(
+                "kind_mime_mismatch",
+                f"Yuva '{slot_id}' kind={slot.kind} ama içerik {mime} olarak tespit edildi "
+                "(bildirilen değil SNIFF edilen MIME esastır) — doğru türde dosya ver")
+
+        sha = hashlib.sha256(data).hexdigest()
+        existing = doc.asset_by_sha256(sha)
+        if existing is not None:
+            ref, deduped = existing, True  # kabul #9 — aynı bayt → aynı id, tek depolama
+        else:
+            await enforce_size_quota(SVC.store, owner, len(data))
+            taken = {a.rel_path for a in doc.assets}
+            rel = _safe_filename(f"{slot_id}{ext_for_mime(mime)}", taken)
+            ref = AssetRef(id=new_asset_id(), filename=os.path.basename(rel), mime=mime,
+                           size_bytes=len(data), sha256=sha, rel_path=rel)
+            await SVC.store.put_asset(doc.id, data, ref)
+            doc.assets.append(ref)
+            deduped = False
+
+        slot.asset_id = ref.id
+        if alt_text is not None:
+            slot.a11y.alt_text = alt_text
+        if transcript_html is not None:
+            slot.a11y.transcript_html = transcript_html
+        slot.provenance = normalize_provenance(
+            provenance if provenance is not None else slot.provenance)
+        await SVC.store.update_scenario(doc)
+        logger.info("event=fill_media_slot owner=%s scenario_id=%s page=%s slot=%s asset=%s dedup=%s",
+                    owner.id, scenario_id, page_id, slot_id, ref.id, deduped)
+        return {"asset_id": ref.id, "deduped": deduped, "sha256": sha, "mime": mime,
+                "size_bytes": ref.size_bytes, "rel_path": ref.rel_path}
+    except ToolError as e:
+        raise _wrap(e)
+
+
+@mcp.tool
+async def match_media_manifest(scenario_id: str, files: list[dict]) -> dict:
+    """Yerel medya klasörünün METADATA manifestini senaryonun BOŞ yuvalarıyla eşleştirir.
+    `files`: [{name, size, sha256, mime}] — SUNUCU HİÇBİR DOSYA YOLUNA DOKUNMAZ (kabul #10;
+    klasörü İSTEMCİ tarar: scripts/import_media_folder.py). Sinyaller: dosya adı ↔
+    slot_id/spec/source_hint token örtüşmesi, MIME ↔ kind, boyut makullüğü, sha256 zaten
+    içeride mi ("dedup" — fill aynı id'yi döndürür). → {proposals: [{page_id, slot_id, role,
+    kind, spec, proposed, candidates: [{name, score, reasons}]}], unmatched_files}.
+    Belirsizlikte proposed=null + skorlu aday listesi — OTOMATİK ATAMA YAPILMAZ; onaylanan
+    eşleşmeler fill_media_slot ile tek tek doldurulur. Sıra deterministiktir."""
+    await SVC.ensure()
+    try:
+        from core.media_federation import match_manifest
+        owner = await _owner()
+        doc = await _load_scenario(scenario_id, owner)
+        result = match_manifest(doc, files,
+                                max_bytes=SETTINGS.max_asset_mb * 1024 * 1024)
+        return {"scenario_id": scenario_id, **result}
     except ToolError as e:
         raise _wrap(e)
 
