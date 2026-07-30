@@ -134,7 +134,13 @@ _EN: dict[str, str] = {
     "we_selfexp_label": "Your explanation",
     "we_selfexp_placeholder": "Explain in your own words…",
     "we_unscored": "Not graded",
+    "xp_input_label": "Your answer",
+    "xp_input_placeholder": "Write your observation or prediction…",
+    "xp_min_hint": "At least {n} characters",
+    "xp_saved": "Saved",
+    "xp_unscored": "Not graded",
     # --- çalışma anında üretilen metinler (ENGINE_JS) ---
+    "xp_not_answered": "not answered yet",
     "summary_passed": "You passed",
     "summary_failed": "Passing score not reached",
     "summary_completed": "Completed",
@@ -216,6 +222,12 @@ _TR: dict[str, str] = {
     "we_selfexp_label": "Senin açıklaman",
     "we_selfexp_placeholder": "Kendi cümlelerinle açıkla…",
     "we_unscored": "Puanlanmaz",
+    "xp_input_label": "Senin cevabın",
+    "xp_input_placeholder": "Gözlemini ya da tahminini yaz…",
+    "xp_min_hint": "En az {n} karakter",
+    "xp_saved": "Kaydedildi",
+    "xp_unscored": "Puanlanmaz",
+    "xp_not_answered": "henüz cevaplamadın",
     "summary_passed": "Başarıyla tamamladınız",
     "summary_failed": "Geçme notuna ulaşılamadı",
     "summary_completed": "Tamamlandı",
@@ -250,6 +262,7 @@ RUNTIME_KEYS: tuple[str, ...] = (
     "escape_win", "escape_lose", "game_engine_failed", "game_result_score",
     "adaptive_engine_failed", "adaptive_mastery", "adaptive_ability", "adaptive_result",
     "review_sending", "review_sent", "review_error",
+    "xp_not_answered",  # F2 (#113) — boş exploration referansının yer tutucusu
 )
 
 

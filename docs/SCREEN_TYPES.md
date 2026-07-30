@@ -1,6 +1,6 @@
 # Ekran Tipleri (Screen Types)
 
-`edumints-scorm-mcp` içerisinde tanımlı 29 ekran tipi bulunmaktadır. Her ekran tipi `core/project.py` içerisindeki modellerden türetilmiştir.
+`edumints-scorm-mcp` içerisinde tanımlı 30 ekran tipi bulunmaktadır. Her ekran tipi `core/project.py` içerisindeki modellerden türetilmiştir.
 
 ## Ortak Alanlar (Base Fields)
 
@@ -471,6 +471,72 @@ ops. `artifact_asset_id` + `artifact_caption` (ekran görüntüsü/kod çıktıs
       "artifact_asset_id": "cikti1", "artifact_caption": "Sorgu çıktısı" }
   ],
   "self_explanation_prompt_html": "<p>AND neden zorunlu? Kendi cümlelerinle açıkla.</p>"
+}
+```
+
+## 30. Keşif (exploration)
+
+Keşif/sorgulama primitifi (F2 #113): öğrenen girdisi (deneme, tahmin, sınıflama)
+**SAKLANIR** ve sonraki ekranlar bu girdiyi **GERİ OYNATIR** — "senin tahminin şuydu"
+atfı (`5e-inquiry` keşfet fazının kanıt kaynağı 1; `productive-failure` deneme kaydı).
+
+- `input_kind: "text"` — serbest metin (gözlem/deneme notu; `placeholder`, ops. `min_length`).
+- `input_kind: "choice"` — sınıflama/seçim (`choices`, ≥2).
+- `input_kind: "prediction"` — tahmin taahhüdü (choice ile aynı yüzey; pedagojik olarak
+  commit-then-see — deneme ÖNCESİ alınan tahmin).
+
+**Geri oynatma:** herhangi bir ekranın zengin HTML'inde
+`<span data-exploration-ref="store_key"></span>` — runtime saklanan değeri **textContent**
+olarak enjekte eder (innerHTML asla — XSS-güvenli); boş değer i18n yer tutucusuna düşer
+("henüz cevaplamadın"). `store_key` makine-dostudur (`[a-z0-9_-]+`, ≤64) ve kurs genelinde
+**TEKİL** olmalıdır (`validate_project` çakışmayı SERT hatayla keser).
+
+**Saklama:** suspend v2 zarf kuyruğundaki `xp` haritası (`components/engine/scorm.js`
+`setExploration`/`getExploration`); değer **500 karakterde kırpılır** (SCORM 1.2 bütçesi).
+1.2 hedefinde çok keşifli kurs `suspend_size_risk` WARN'ına düşer (`estimate_suspend_size`
+keşif başına 500 + anahtar maliyeti sayar).
+
+**Skorlanmaz** — `points` alanı YOK (A4 skorsuz-erken-deneme istisnasının teknik karşılığı;
+denemeyi puanlamak keşfi tahmin-yarışına çevirir, Z3). E1 kanıt-bağlama denetiminde
+**koşulsuz kanıt-taşıyabilir** ekrandır (K1 tür 2: öğrenenin KENDİ ürettiği artefakt —
+skorlu sorular `evidence_screen_ids` ile buna bağlanabilir).
+
+**Model:** `ExplorationScreen`
+
+| Alan | Tip | Zorunlu mu? | Açıklama |
+| :--- | :--- | :---: | :--- |
+| `prompt_html` | `str` | Evet | Keşif yönergesi (choice/prediction'da radiogroup'u da etiketler). |
+| `store_key` | `str` | Evet | Geri-oynatma adresi (`[a-z0-9_-]+`, ≤64, kurs genelinde tekil). |
+| `input_kind` | `str` | Hayır | `text` (vars.), `choice`, `prediction`. |
+| `choices` | `list[Choice]` | choice/prediction'da | Seçenekler (≥2; `correct` alanı YOK sayılır — skorsuz). |
+| `placeholder` | `str` | Hayır | text: girdi yer tutucusu (boşsa i18n varsayılanı). |
+| `min_length` | `int` | Hayır | text: asgari uzunluk ipucu (`minlength` + görünür ipucu). |
+
+**Örnek:** `examples/exploration-5e.tr.json` (5e mini-döngü: prediction + choice + text,
+geri oynatma + kanıt bağı, lint-temiz).
+
+```json
+{
+  "type": "exploration",
+  "id": "kesif_kutle",
+  "title": "Tahmin et: kütle 2×, hacim sabit",
+  "input_kind": "prediction",
+  "store_key": "tahmin_kutle2x",
+  "prompt_html": "<p>Küpün kütlesini iki katına çıkarıyoruz. Suya bırakınca ne olur?</p>",
+  "choices": [
+    { "id": "yuzer", "text_html": "Yüzer" },
+    { "id": "batar", "text_html": "Batar" }
+  ]
+}
+```
+
+Sonraki ekranda geri oynatma:
+
+```json
+{
+  "type": "content_slide",
+  "title": "Açıkla",
+  "body_html": "<p>Senin tahminin şuydu: <b><span data-exploration-ref=\"tahmin_kutle2x\"></span></b>.</p>"
 }
 ```
 

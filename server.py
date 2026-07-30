@@ -1319,6 +1319,8 @@ _SCREEN_TYPE_DESC: dict[str, str] = {
                          "hedefine en yakın zorlukta sıradaki öğeyi seçer (öğrenciye kalibre).",
     "worked_example": "Çözümlü örnek — adım listesi (eylem + gerekçe + ops. artefakt) + soluklaştırma "
                       "(full/partial/problem_only) + skorsuz öz-açıklama istemi; E1 kanıt kaynağı.",
+    "exploration": "Keşif — öğrenen girdisi (tahmin/deneme/sınıflama) saklanır, sonraki ekranlarda "
+                   "data-exploration-ref ile geri oynatılır ('senin tahminin şuydu'); skorsuz, E1 kanıt kaynağı.",
 }
 
 _THEME_DESC: dict[str, str] = {

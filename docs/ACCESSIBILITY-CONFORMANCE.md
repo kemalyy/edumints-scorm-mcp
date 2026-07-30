@@ -79,6 +79,7 @@ Status values: **Supports** / **Partial** / **Does not support** / **N/A**.
 | 27 | `game` | Supports | Supports | Supports | **Supports** | Choices are `<button>`s; HUD is `role="status" aria-live`; hints are text; timer has visible **+30 s extend** and **disable (∞)** buttons, and `core/validator.py` rejects builds where the timer allows neither (`allow_extend`/`allow_disable`). |
 | 28 | `adaptive_practice` | Supports | Supports | Supports | N/A¹ | Option `<button>`s; mastery HUD is a live region. |
 | 29 | `worked_example` | Supports | Supports | Supports | N/A¹ | Fading reveals are native `<button>`s with `aria-expanded`/`aria-controls`; reveal animation disabled under reduced motion; artifact alt comes from `artifact_caption` (linted); self-explanation textarea has an `aria-label`. |
+| 30 | `exploration` | Supports | Supports | Supports | N/A¹ | Text input is a `<textarea>` with an explicit `<label for>`; choice/prediction is a `role="radiogroup"` of native radio inputs labelled by the prompt (`aria-labelledby`); saved indicator is `role="status" aria-live="polite"`; replayed values are injected as textContent only. |
 
 ¹ **N/A only while no `timer_sec` is set.** Any screen type can carry an author-set
 countdown (`timer_sec`), which is announced via the `aria-live` timer HUD but **cannot be

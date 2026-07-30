@@ -455,6 +455,7 @@ def _lint_text_only_runs(project: Project) -> list[LintIssue]:
 # senkron kalmalı (encoder alan düzeni yorumu scorm.js'te).
 _SUSPEND_LIMIT_12 = 4096          # scorm.js SUSPEND_LIMIT_12 ile senkron
 _SUSPEND_WARN_RATIO = 0.9         # sınıra "yaklaşınca" da uyar (öğrenci verisi büyümeden önce)
+_EXPLORATION_VALUE_MAX = 500      # F2 (#113) — scorm.js EXPLORATION_VALUE_MAX ile senkron
 
 
 def _b36_len(n: int) -> int:
@@ -495,6 +496,12 @@ def estimate_suspend_size(project: Project) -> int:
         size += iw * 2 + 2                           # ix: i36:n36 + virgül
     if project.variables:
         size += 8 + sum(len(v.name) + len(str(v.default)) + 8 for v in project.variables)
+    # F2 (#113) — exploration girdileri kuyruk JSON'unda kimlik-anahtarlı taşınır:
+    # kötü-durum = değer tavanı (runtime 500'de kırpar — scorm.js EXPLORATION_VALUE_MAX ile
+    # senkron sabit) + anahtar + JSON zarf payı (tırnaklar/iki nokta/virgül).
+    for s in project.screens:
+        if s.type == ScreenType.exploration:
+            size += _EXPLORATION_VALUE_MAX + len(s.store_key) + 8
     return size
 
 
@@ -591,6 +598,10 @@ _EVIDENCE_CONTENT_TYPES = {
     # çifti artefaktın kendisidir (görsel şart değil) → koşulsuz kanıt-taşıyabilir. Şema zaten
     # ≥2 adım + zorunlu gerekçe ister; boş gerekçe ayrıca step_without_rationale WARN'ı üretir.
     ScreenType.worked_example,
+    # F2 (#113) — keşif: öğrenenin KENDİ ürettiği tahmin/gözlem çıktısı (K1 tür 2) →
+    # koşulsuz kanıt-taşıyabilir. Skorsuz (puan alanı yok) — Z1 formatiflik şartı yapısal
+    # olarak garanti; sonraki ekran data-exploration-ref ile bu çıktıya atıf yapar.
+    ScreenType.exploration,
 }
 
 

@@ -550,6 +550,19 @@ body[data-bg="grid"]{background-image:linear-gradient(color-mix(in srgb,var(--c-
   background:var(--c-bg);color:var(--c-text);font-family:inherit;font-size:15px}
 .we-unscored{color:var(--c-muted)}
 
+/* exploration (F2 #113) — RTL-güvenli: logical property'ler / yön-bağımsız akış */
+.exploration{display:flex;flex-direction:column;gap:var(--space-3);align-items:flex-start}
+.xp-label{font-weight:var(--w-strong);font-size:14px}
+.xp-text{width:100%;padding:var(--space-3);border:1.5px solid var(--c-border);border-radius:var(--r-md);
+  background:var(--c-bg);color:var(--c-text);font-family:inherit;font-size:15px}
+.xp-hint{color:var(--c-muted);font-size:13px}
+.xp-opts{display:flex;flex-direction:column;gap:var(--space-2);width:100%}
+.xp-meta{display:flex;gap:var(--space-2);align-items:center}
+.xp-saved{color:var(--c-primary)}
+.xp-unscored{color:var(--c-muted)}
+[data-exploration-ref]{font-weight:var(--w-strong)}
+.xp-ref-empty{color:var(--c-muted);font-style:italic;font-weight:normal}
+
 /* image_compare (Faz 14) */
 .img-compare-wrap{margin:0;text-align:center}
 .img-compare{position:relative;display:inline-block;max-width:100%;user-select:none;line-height:0}
@@ -953,6 +966,8 @@ var state={visited:{},results:{},history:[]};
 
 // ---- Faz 5: değişken/durum motoru (state.vars → suspend_data'da persist) ----
 if(!state.vars){ state.vars={}; (COURSE.variables||[]).forEach(function(v){ state.vars[v.name]=v.default; }); }
+// F2 (#113) — keşif girdileri (store_key → değer); suspend v2 kuyruğunda persist edilir (scorm.js).
+if(!state.xp) state.xp={};
 function _vnum(x){ var n=parseFloat(x); return isNaN(n)?0:n; }
 function applyActions(acts){ if(!acts||!acts.length) return; acts.forEach(function(a){
   if(a.op==="add"){ state.vars[a.var]=_vnum(state.vars[a.var])+_vnum(a.value); }
@@ -1152,6 +1167,7 @@ function showAt(idx,push){
   if(_shownAt[id]==null) _shownAt[id]=Date.now();  // S1 — latency başlangıcı (ilk gösterim)
   var _sc=byId[id]; if(_sc&&_sc.on_enter) applyActions(_sc.on_enter);  // Faz 5
   interpolateScreen(secById[id]);
+  resolveExplorationRefs(secById[id]);  // F2 — saklanan keşif girdilerini geri oynat
   startTimer(_sc); updateHud();  // Faz 6 + Faz 15 (G1)
   if(_sc&&_sc.type==="lottie") initLottie(secById[id],_sc);  // Faz 7
   if(cursor===order.length-1) state.reachedEnd=true;
@@ -1179,6 +1195,7 @@ function prev(){ if(state.history.length){ var id=state.history.pop(); var i=ind
   state.cursorId=id;
   updateVideos(id);
   sections.forEach(function(el){ el.setAttribute("aria-hidden", el.dataset.screenId===id?"false":"true"); });
+  resolveExplorationRefs(secById[id]);  // F2 — geri dönüşte de referanslar taze
   applyAnsweredState(secById[id], byId[id]); updateChrome(); persist(); focusActive(id); return; } } showAt(cursor-1,false); }
 
 function updateChrome(){
@@ -1327,6 +1344,7 @@ sections.forEach(function(el){
   else if(t==="labeled_diagram"){ bindLabeledDiagram(el,s); }
   else if(t==="poll"){ bindPoll(el); }
   else if(t==="worked_example"){ bindWorkedExample(el); }
+  else if(t==="exploration"){ bindExploration(el); }
   else if(t==="image_compare"){ bindImageCompare(el); }
   else if(t==="game"){ bindGame(el,s); }
   else if(t==="adaptive_practice"){ bindAdaptive(el,s); }
@@ -1804,6 +1822,47 @@ function bindPoll(el){
       setTimeout(function(){ o.classList.remove("poll-nudge"); },600); return; }
     poll.querySelectorAll(".poll-opts input, .poll-text").forEach(function(i){ i.disabled=true; });
     btn.disabled=true; if(refl) refl.hidden=false;
+  });
+}
+// F2 (#113) — keşif: girdi saklama + geri oynatma. Değer HER ZAMAN textContent olarak
+// enjekte edilir (innerHTML ASLA — saklanan metin HTML olarak yorumlanamaz, XSS-güvenli).
+// Boş değer i18n yer tutucusuna düşer ("henüz cevaplamadın"). Skora/LMS puanına yazım YOK.
+function resolveExplorationRefs(root){ if(!root||!root.querySelectorAll) return;
+  root.querySelectorAll("[data-exploration-ref]").forEach(function(n){
+    var k=n.getAttribute("data-exploration-ref");
+    var v=RT.getExploration?RT.getExploration(state,k):((state.xp&&state.xp[k])||"");
+    n.textContent = v || T("xp_not_answered");
+    n.classList.toggle("xp-ref-empty", !v);
+  });
+}
+var _xpWarned={};
+function bindExploration(el){
+  var box=el.querySelector("[data-exploration]"); if(!box) return;
+  var key=box.dataset.storeKey, min=parseInt(box.dataset.min||"0",10)||0;
+  var saved=box.querySelector(".xp-saved");
+  function cur(){ return RT.getExploration?RT.getExploration(state,key):((state.xp&&state.xp[key])||""); }
+  function store(v,doPersist){
+    var r; if(RT.setExploration){ r=RT.setExploration(state,key,v); }
+    else { r={value:String(v==null?"":v).slice(0,500),truncated:false}; state.xp=state.xp||{}; state.xp[key]=r.value; }
+    if(r.truncated && !_xpWarned[key]){ _xpWarned[key]=true;
+      try{ console.warn("[exploration] '"+key+"' value truncated at 500 chars (suspend budget)"); }catch(e){} }
+    // aynı ekrandaki VE önceden gösterilmiş ekranlardaki referanslar canlı güncellenir
+    document.querySelectorAll('[data-exploration-ref="'+key+'"]').forEach(function(n){
+      n.textContent = r.value || T("xp_not_answered"); n.classList.toggle("xp-ref-empty", !r.value); });
+    if(saved) saved.hidden = !r.value || (min>0 && r.value.length<min);
+    if(doPersist) persist();
+  }
+  var ta=box.querySelector(".xp-text");
+  if(ta){
+    var v0=cur(); if(v0){ ta.value=v0; if(saved) saved.hidden=(min>0 && v0.length<min); }
+    ta.addEventListener("input",function(){ store(ta.value,false); });   // canlı state + referans
+    ta.addEventListener("change",function(){ store(ta.value,true); });   // blur'da persist (commit spam'i yok)
+  }
+  box.querySelectorAll('.xp-opts input[type="radio"]').forEach(function(r){
+    var lbl=r.closest("label");
+    var txt=lbl?lbl.textContent.replace(/\s+/g," ").trim():r.value;   // saklanan = görünen etiket metni
+    if(cur() && cur()===txt) r.checked=true;                          // resume: seçimi geri kur
+    r.addEventListener("change",function(){ if(r.checked) store(txt,true); });
   });
 }
 // F1 (#112) — çözümlü örnek: fading reveal butonları (aria-expanded toggle; klavye = native buton).

@@ -68,7 +68,10 @@ _ALLOWED_TAGS = {
 _ALLOWED_ATTRS = {
     "a": {"href", "title", "target"},
     "img": {"src", "alt", "width", "height"},
-    "span": {"class"},
+    # F2 (#113) — data-exploration-ref: geri-oynatma yüzeyi. DAR genişletme: yalnız span,
+    # yalnız bu tek data-* attribute. Runtime değeri HER ZAMAN textContent olarak enjekte
+    # eder (innerHTML asla) — attribute'un kendisi zararsız bir işaretçidir.
+    "span": {"class", "data-exploration-ref"},
     "div": {"class"},
     "td": {"colspan", "rowspan"},
     "th": {"colspan", "rowspan"},
@@ -1277,6 +1280,45 @@ def _r_worked_example(s) -> str:
             f'{steps}</ol>{selfexp}')
 
 
+def _r_exploration(s) -> str:
+    """F2 (#113) — keşif: öğrenen girdisi saklanır + geri oynatılır. İçerik statik HTML'de
+    (deterministik); saklama/geri-oynatma mantığı bindExploration + resolveExplorationRefs
+    (templates.py — state.xp üzerinden, scorm.js codec'iyle persist). Skor YOK: config'e
+    puan/feedback yazılmaz (poll deseni — LMS skoruna asla dokunmaz)."""
+    sid = _attr(s.id or "xp")
+    pid = f"xp-{sid}-prompt"
+    head = (f'<h2 class="screen-title">{_text(s.title)}</h2>'
+            f'<div class="rich prompt" id="{pid}">{sanitize(s.prompt_html)}</div>')
+    if s.input_kind == "text":
+        iid = f"xp-{sid}-input"
+        minattr = f' minlength="{int(s.min_length)}"' if s.min_length else ""
+        hint = (f'<span class="xp-hint">{_text(_T("xp_min_hint", n=s.min_length))}</span>'
+                if s.min_length else "")
+        field = (
+            f'<label class="xp-label" for="{iid}">{_text(_T("xp_input_label"))}</label>'
+            f'<textarea class="xp-text" id="{iid}" rows="4"'
+            f' placeholder="{_attr(s.placeholder or _T("xp_input_placeholder"))}"{minattr}>'
+            f'</textarea>{hint}'
+        )
+    else:  # choice / prediction — radiogroup (taahhüt yüzeyi; prompt grubu etiketler)
+        opts = "".join(
+            f'<label class="xp-opt poll-opt"><input type="radio" name="xp-{sid}"'
+            f' value="{_attr(o.id)}"><span class="rich">{sanitize(o.text_html)}</span></label>'
+            for o in (s.choices or [])
+        )
+        field = f'<div class="xp-opts" role="radiogroup" aria-labelledby="{pid}">{opts}</div>'
+    meta = (
+        f'<div class="xp-meta">'
+        f'<span class="xp-saved ui-chip" role="status" aria-live="polite" hidden>'
+        f'{_text(_T("xp_saved"))}</span>'
+        f'<span class="xp-unscored ui-chip">{_text(_T("xp_unscored"))}</span></div>'
+    )
+    mind = f' data-min="{int(s.min_length)}"' if s.min_length else ""
+    return (f'{head}<div class="exploration" data-exploration'
+            f' data-store-key="{_attr(s.store_key)}" data-kind="{s.input_kind}"{mind}>'
+            f'{field}{meta}</div>')
+
+
 def _render_unknown(s) -> str:
     return f'<h2 class="screen-title">{_text(getattr(s, "title", "?"))}</h2>'
 
@@ -1321,6 +1363,7 @@ _SCREEN_DISPATCH = {
     ScreenType.game: _r_game,
     ScreenType.adaptive_practice: _r_adaptive_practice,
     ScreenType.worked_example: _r_worked_example,
+    ScreenType.exploration: _r_exploration,
 }
 
 

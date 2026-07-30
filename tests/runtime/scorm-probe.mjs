@@ -43,6 +43,21 @@ p = Project(id=new_project_id(), title="probe-obj", scorm_version=ver, screens=s
 open(out, "w", encoding="utf-8").write(render_html(p, mode="preview", runtime_js="/*probe*/"))
 `;
 
+// F2 (#113) — exploration: girdi saklama + sonraki ekranda geri oynatma ("senin tahminin şuydu").
+const XP_RENDER_PY = `
+import sys
+from components.renderer import render_html
+from core.project import Project, new_project_id, ContentSlide, ExplorationScreen
+out, ver = sys.argv[1], sys.argv[2]
+p = Project(id=new_project_id(), title="probe-xp", scorm_version=ver, screens=[
+    ExplorationScreen(id="kesif", title="Dene", store_key="kesif_tahmin",
+                      prompt_html="<p>Once tahmin et.</p>"),
+    ContentSlide(id="acikla", title="Acikla",
+                 body_html='<p>Senin tahminin suydu: <span data-exploration-ref="kesif_tahmin"></span></p>'),
+])
+open(out, "w", encoding="utf-8").write(render_html(p, mode="preview", runtime_js="/*probe*/"))
+`;
+
 const failures = [];
 function check(label, actual, expected) {
   const ok = actual === expected;
@@ -207,6 +222,54 @@ async function main() {
     check("o3 sona eklenir (indeks 2)", k.last["cmi.objectives.2.id"], "o3");
     check("o3 completion_status", k.last["cmi.objectives.2.completion_status"], "not attempted");
     check("2004'te 1.2 sozlugu YOK (.status)", k.last["cmi.objectives.1.status"], undefined);
+
+    // --- F2 (#113): exploration — sakla, geri oynat, resume et; XSS'e karsi textContent ---
+    console.log("\n== F2 — exploration: girdi saklama + sonraki ekranda geri oynatma ==");
+    const xf = path.join(tmp, "xp12.html");
+    execFileSync("python3", ["-c", XP_RENDER_PY, xf, "1.2"], { cwd: process.cwd() });
+    const XP_VAL = "<img src=x onerror=alert(1)> yuzer";   // kasitli XSS payload'lu girdi
+    const typeAndAdvance = async (p) => {
+      await p.fill(".xp-text", XP_VAL);
+      await p.dispatchEvent(".xp-text", "change");         // blur/persist yolu
+      await p.click("#btnNext");
+      await p.waitForTimeout(120);
+    };
+    async function xpSession(opts, evalFn) {
+      const context = await browser.newContext();
+      try {
+        const page = await context.newPage();
+        await page.addInitScript(lmsInit, [false, opts.entry || "", opts.suspend || "", null]);
+        await page.goto(`file://${xf}`);
+        await page.waitForTimeout(150);
+        if (opts.act) await opts.act(page);
+        const dom = await page.evaluate(evalFn);
+        const log = await page.evaluate(() => window.__LMS__);
+        const last = {}; for (const [kk, vv] of log) last[kk] = vv;
+        return { dom, last };
+      } finally { await context.close(); }
+    }
+    const x = await xpSession({ act: typeAndAdvance }, () => {
+      const s = document.querySelector('[data-exploration-ref="kesif_tahmin"]');
+      const v = document.querySelector('.screen[aria-hidden="false"]');
+      return { text: s.textContent, imgCount: s.querySelectorAll("img").length,
+               shown: v ? v.dataset.screenId : "?" };
+    });
+    check("sonraki ekrana gecildi", x.dom.shown, "acikla");
+    check("referans metni birebir atif", x.dom.text, XP_VAL);
+    check("HTML yorumlanMADI (XSS-guvenli textContent)", x.dom.imgCount, 0);
+    check("deger suspend_data'da tasinir", (x.last["cmi.suspend_data"] || "").includes("yuzer"), true);
+    check("skorsuz: puanli ekran yok, skor 0 kalir", x.last["cmi.core.score.raw"], "0");
+    // resume: yeni oturum suspend ile acilir → hem textarea hem referans geri gelir
+    const rz = await xpSession({ entry: "resume", suspend: x.last["cmi.suspend_data"] }, () => ({
+      ta: document.querySelector(".xp-text").value,
+      ref: document.querySelector('[data-exploration-ref="kesif_tahmin"]').textContent,
+    }));
+    check("resume: textarea degeri geri geldi", rz.dom.ta, XP_VAL);
+    check("resume: referans dolu (geri oynatma)", rz.dom.ref, XP_VAL);
+    // bos deger → i18n yer tutucusu ("henüz cevaplamadın")
+    const empty = await xpSession({ act: async (p) => { await p.click("#btnNext"); await p.waitForTimeout(120); } },
+      () => document.querySelector('[data-exploration-ref="kesif_tahmin"]').textContent);
+    check("bos deger yer tutucuya duser", empty.dom, "henüz cevaplamadın");
   } finally {
     if (browser) await browser.close();
     rmSync(tmp, { recursive: true, force: true });

@@ -14,6 +14,7 @@ from lxml import etree
 from .project import (
     AdaptivePracticeScreen,
     BranchingScreen,
+    ExplorationScreen,
     GameScreen,
     Project,
     ScreenType,
@@ -45,8 +46,20 @@ def validate_project(project: Project, *, strict: bool = False) -> list[Validati
                           message=f"Yinelenen hedef id'si: {o.id}", path=f"objectives[{j}]"))
         objective_ids.add(o.id)
 
+    # F2 (#113) — exploration.store_key kurs genelinde TEKİL olmalı: geri-oynatma
+    # (data-exploration-ref) referansının tek adresidir; çakışma sessiz veri karışmasıdır.
+    seen_store_keys: set[str] = set()
+
     for i, s in enumerate(project.screens):
         path = f"screens[{i}]"
+
+        if isinstance(s, ExplorationScreen):
+            if s.store_key in seen_store_keys:
+                errors.append(ValidationError(code="validation_error",
+                              message=f"Yinelenen exploration store_key: '{s.store_key}' — "
+                                      "kurs genelinde tekil olmalı (geri-oynatma adresi)",
+                              path=f"{path}.store_key"))
+            seen_store_keys.add(s.store_key)
         # asset referansları
         for field in ("background_asset_id", "media_asset_id", "image_asset_id",
                       "video_asset_id", "poster_asset_id"):
