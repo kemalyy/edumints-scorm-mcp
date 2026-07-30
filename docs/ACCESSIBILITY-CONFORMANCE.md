@@ -44,6 +44,25 @@ Player-wide behaviors verified in code:
   manual pass (Section 4) still applies — notably a screen-reader walkthrough of the tree.
   With an empty outline the flat menu is byte-identical to the previous release
   (fixture-locked).
+- **Sequential locks & position (outlined courses — scenario line Faz 4):** a node with
+  `unlock_rule="sequential"` stays **visible** in the tree but carries `aria-disabled="true"`
+  until every screen in its previous sibling's subtree has been *visited* — score thresholds
+  can never lock navigation (accessibility floor; score gates live on results screens only).
+  The lock **reason is server-rendered inside the treeitem button** and made visible while
+  locked ("Unlocks after completing “<blocking node>”", i18n tr/en), so it is both visible
+  text and part of the button's accessible name — screen readers announce it on focus, no
+  `aria-describedby` indirection. Locked items remain **focusable but not activatable**:
+  arrow-key traversal, Tab and type-ahead all pass through them (no keyboard trap); Enter,
+  Space and pointer clicks are ignored (Playwright's actionability check independently
+  confirms the disabled semantics are machine-readable). The locked branch is kept collapsed
+  so unreachable content is not browsable; on unlock the reason hides and `aria-disabled` is
+  removed. A header **position strip** (`#posStrip`, `aria-live="polite"`) announces
+  "Unit · Section · n/m" only when the text actually changes; the numeric fragment is
+  isolated with `dir="ltr"` so it renders correctly in RTL scripts. On resume the player
+  returns to the stored screen, expands the node chain (`aria-expanded`) and re-seats
+  `aria-current="page"`; the user's own collapse choices are never overridden. Verified in a
+  real browser by `npm run scorm-probe` (23 checks: lock visibility, reason announcement,
+  focusable-not-activatable, resume expansion, strip content/`aria-live`/`dir`).
 - **Reduced motion:** `@media (prefers-reduced-motion: reduce)` disables flashcard flip
   transition, timeline block reveal animation, escape-room shake, game-choice hover
   transform, and simulation pulse. (Exception: Lottie — see Section 3.)

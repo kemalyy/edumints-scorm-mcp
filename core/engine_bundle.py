@@ -65,3 +65,13 @@ def load_scorm_bundle() -> str:
     gerekir (oyun bundle'ı yalnız game/adaptive/xAPI kursunda yüklenir). ~3 KB.
     """
     return _bundle(("scorm.js",), "SCORMRT")
+
+
+@lru_cache(maxsize=1)
+def load_progress_bundle() -> str:
+    """Senaryo hattı Faz 4 — oynatıcı konum/ilerleme/kilit yardımcıları → window.SCORMP.
+
+    scorm bundle'ından AYRI ve KOŞULLU: yalnız outline'lı pakete inline edilir. scorm.js'e
+    eklenmeleri outline'sız kurs çıktısını değiştirirdi (3.3 bayt-parite, fixture kilidi).
+    """
+    return _bundle(("progress.js",), "SCORMP")

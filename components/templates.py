@@ -33,7 +33,7 @@ SHELL = """<!DOCTYPE html>
     <span class="level-hud" id="levelHud" aria-live="polite" hidden></span>
     <span class="lives-hud" id="livesHud" aria-label="{t[hud_lives]}" hidden></span>
     <span class="points-hud" id="pointsHud" aria-live="polite" hidden></span>
-    <div class="status-pill" aria-live="polite"></div>
+    <div class="status-pill" aria-live="polite"></div>{position_strip}
   </header>
   <main class="stage" id="stage" tabindex="-1">
     <div class="stage-scaler" id="stageScaler">
@@ -2278,6 +2278,17 @@ OUTLINE_CSS = r"""
 .mtree-btn[aria-current="page"]{color:var(--c-primary);font-weight:var(--w-strong)}
 .mtree-btn .mi-done{color:var(--c-success);margin-inline-start:auto;display:inline-flex}
 @media(prefers-reduced-motion:reduce){.mtree-chevron{transition:none}}
+/* ===== Faz 4: konum seridi + dugum ilerlemesi + kilit (yalniz outline'li kurslarda) ===== */
+.pos-strip{font-size:12px;color:var(--c-muted);white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;max-width:34ch;margin-inline-start:var(--space-2,8px);flex:0 1 auto}
+@media(max-width:640px){.pos-strip{display:none}}
+.mtree-progress{margin-inline-start:auto;flex:none;font-size:12px;color:var(--c-muted);
+  font-weight:var(--w-body);font-variant-numeric:tabular-nums}
+.mtree-node{flex-wrap:wrap}
+.mtree-lockreason{flex-basis:100%;font-size:11px;color:var(--c-muted);
+  font-weight:var(--w-body);text-align:start;padding-inline-start:22px}
+.mtree-btn[aria-disabled="true"]{opacity:.55;cursor:not-allowed}
+.mtree-btn[aria-disabled="true"]:hover{background:none}
 """
 
 OUTLINE_JS = r"""
@@ -2301,9 +2312,13 @@ OUTLINE_JS = r"""
   function visible(){ return items().filter(isVisible); }
   function setFocus(b){ items().forEach(function(x){ x.tabIndex=-1; }); b.tabIndex=0; b.focus(); }
   function toggle(b){
+    if(b.getAttribute("aria-disabled")==="true") return;   // Faz 4 kilit: aç/kapa da etkinleştirmedir
     b.setAttribute("aria-expanded", b.getAttribute("aria-expanded")==="false"?"true":"false"); }
   tree.addEventListener("click",function(e){
     var b=e.target.closest(".mtree-btn"); if(!b) return;
+    // Faz 4 kilit (§6.1): kilitli öğe ODAKLANILIR (sebep SR'a okunur) ama ETKİNLEŞTİRİLEMEZ.
+    // Ok tuşları/Tab serbest kalır — klavye tuzağı YOK (yalnız aktivasyon engellenir).
+    if(b.getAttribute("aria-disabled")==="true") return;
     var id=b.getAttribute("data-goto");
     if(id){ closeMenu(); goId(id,true); }
     else if(b.hasAttribute("aria-expanded")) toggle(b);
@@ -2337,18 +2352,109 @@ OUTLINE_JS = r"""
     } else return;
     e.preventDefault();
   });
-  // buildMenu'yü geçersiz kıl: ağaç yapısı statik — yalnız dinamik durum (aktif ekran +
-  // ziyaret işaretleri) tazelenir. Düz menünün innerHTML-yeniden-kurma yolu hiç çalışmaz.
-  buildMenu=function(){
-    var cur=order[cursor];
+  // ---- Faz 4 (§6.2-6.3): konum şeridi + düğüm ilerlemesi + kilit + düğüme devam ----
+  // Saf mantık window.SCORMP'ta (components/engine/progress.js, vitest'li); burada YALNIZ DOM.
+  var RTP=window.SCORMP||{};
+  var OUT=COURSE.outline||[];
+  var SN={}; COURSE.screens.forEach(function(s){ if(s.node_id!=null) SN[s.id]=s.node_id; });
+  var NBID={}; OUT.forEach(function(n){ NBID[n.id]=n; });
+  function chainOf(nid){ var c=[],seen={},n=nid!=null?NBID[nid]:null;
+    while(n&&!seen[n.id]){ seen[n.id]=1; c.unshift(n.id); n=n.parent_id!=null?NBID[n.parent_id]:null; }
+    return c; }
+  // Konum şeridi: "Ünite 1 · Bölüm 1.1 · 2/4". aria-live=polite yalnız metin DEĞİŞİNCE
+  // duyursun diye önceki içerik karşılaştırılır. n/m parçası dir=ltr span'da (RTL'de "4/7"
+  // ayracının yönü bozulmaz); düğümsüz ekranların başlığı sunucudan data özniteliğiyle gelir.
+  var strip=document.getElementById("posStrip"), _stripKey=null;
+  function refreshStrip(){
+    if(!strip||!RTP.positionInfo) return;
+    var info=RTP.positionInfo(OUT,SN,order,order[cursor]); if(!info) return;
+    var path=info.chain.length?info.chain.join(" · "):(strip.getAttribute("data-ungrouped-label")||"");
+    var key=path+"|"+info.index+"/"+info.total;
+    if(key===_stripKey) return;
+    _stripKey=key;
+    strip.textContent="";
+    var t=document.createElement("span"); t.textContent=path+" · "; strip.appendChild(t);
+    var c=document.createElement("span"); c.dir="ltr";
+    c.textContent=info.index+"/"+info.total; strip.appendChild(c);
+  }
+  // Ağaç tazeleme: aria-current + ziyaret işaretleri (Faz 1) + n/m ilerleme + kilit + zincir
+  // açma (Faz 4). Kilitli düğüm GÖRÜNÜR + aria-disabled + sebep görünür (buton adının parçası
+  // → SR odakta okur) + KATLI (içerik kilit açılmadan gezilmez); ok tuşları/Tab serbest —
+  // odaklanılır ama etkinleştirilemez, klavye tuzağı yok. Kullanıcının el katlaması korunur:
+  // yalnız AKTİF ekranın düğüm zinciri açılır, başka dal kapatılmaz.
+  function refreshTree(){
+    var prog=RTP.nodeProgress?RTP.nodeProgress(OUT,SN,state.visited):{};
+    var locked=RTP.lockedNodes?RTP.lockedNodes(OUT,SN,state.visited):{};
+    var cur=order[cursor], curChain=chainOf(SN[cur]);
     items().forEach(function(bt){
+      var nid=bt.getAttribute("data-node-id");
+      if(nid){
+        var pr=prog[nid];
+        if(pr&&pr.total>0){
+          var pe=bt.querySelector(".mtree-progress");
+          if(!pe){ pe=document.createElement("span"); pe.className="mtree-progress"; pe.dir="ltr";
+            bt.insertBefore(pe, bt.querySelector(".mtree-lockreason")); }
+          pe.textContent=pr.done+"/"+pr.total;
+        }
+        var rs=bt.querySelector(".mtree-lockreason");
+        if(locked[nid]){
+          bt.setAttribute("aria-disabled","true"); if(rs) rs.hidden=false;
+          if(bt.getAttribute("aria-expanded")==="true") bt.setAttribute("aria-expanded","false");
+        } else {
+          bt.removeAttribute("aria-disabled"); if(rs) rs.hidden=true;
+          if(curChain.indexOf(nid)>=0 && bt.hasAttribute("aria-expanded"))
+            bt.setAttribute("aria-expanded","true");   // düğüme devam: zincir açılır
+        }
+        return;
+      }
       var id=bt.getAttribute("data-goto"); if(!id) return;
+      if(locked[SN[id]]) bt.setAttribute("aria-disabled","true");
+      else bt.removeAttribute("aria-disabled");
       if(id===cur) bt.setAttribute("aria-current","page"); else bt.removeAttribute("aria-current");
       var done=state.visited[id], has=bt.querySelector(".mi-done");
       if(done&&!has){ var sp=document.createElement("span"); sp.className="mi-done";
         sp.innerHTML=CHECK_SVG; bt.appendChild(sp); }
       else if(!done&&has){ has.parentNode.removeChild(has); }
     });
+    refreshStrip();
+  }
+  // buildMenu'yü geçersiz kıl: ağaç yapısı statik — yalnız dinamik durum tazelenir. Düz
+  // menünün innerHTML-yeniden-kurma yolu hiç çalışmaz.
+  buildMenu=function(){ refreshTree(); };
+  // Her gezinmede tazele (showAt/prev → updateChrome): konum şeridi + kilit durumu güncel kalır.
+  var _updateChrome0=updateChrome;
+  updateChrome=function(){ _updateChrome0(); refreshTree(); };
+  // results_breakdown bölüm TAMAMLANMASI: skorla AYNI data-screens mekanizması (paralel hedef-
+  // ilerleme makinesi YOK) — sectionCompletion saf, burada yalnız .rb-comp basımı. ENGINE_JS'e
+  // konmadı: outline'sız kursun çıktısı bayt-bayt eski hâlinde kalmalı (3.3).
+  var _rr0=renderResultsIfNeeded;
+  renderResultsIfNeeded=function(el,s){
+    _rr0(el,s);
+    if(!s||s.type!=="results_breakdown"||!RTP.sectionCompletion) return;
+    var root=el.querySelector(".results-breakdown"); if(!root) return;
+    root.querySelectorAll(".rb-section").forEach(function(sec){
+      var ids=(sec.dataset.screens||"").split(",").filter(Boolean);
+      var comp=RTP.sectionCompletion(ids,state.visited);
+      var ce=sec.querySelector(".rb-comp");
+      if(!ce){ ce=document.createElement("span"); ce.className="rb-comp";
+        var hd=sec.querySelector(".rb-head"), pe=hd&&hd.querySelector(".rb-pct");
+        if(hd) hd.insertBefore(ce,pe||null); }
+      ce.textContent=T("results_completion",{done:comp.done,total:comp.total});
+    });
   };
+  // 3.11 — hiyerarşik kursta suspend taşması SESSİZ kırpılmaz: grep'lenebilir SUSPEND_OVERFLOW
+  // etiketi (+ mevcut xAPI suspend.trouble izi). Zarfa YENİ ALAN GİRMEDİ: düğüm id'si
+  // screens[cursor].node_id'den türetilir (progress.js kararı) — bu yüzden yalnız etiket işi.
+  suspendTrouble=function(p){
+    if(_suspendWarned[p.kind]) return; _suspendWarned[p.kind]=true;
+    var tag=(p.kind==="truncated")?"SUSPEND_OVERFLOW":p.kind;
+    try{ console.warn("[scorm] suspend_data "+tag+": "+p.size+" chars (limit "+p.limit+") - progress data may be incomplete"); }catch(e){}
+    try{ if(typeof XAPI!=="undefined"&&XAPI&&XAPI.emit) XAPI.emit("suspend.trouble",{kind:p.kind,size:p.size,limit:p.limit}); }catch(e){}
+  };
+  // İlk tazeleme: ENGINE_JS'in açılış showAt'ı bu blok tanımlanmadan koştu — resume'da konum
+  // şeridi/zincir açımı/kilitler burada oturur; results ekranına devam edildiyse tamamlanma da.
+  refreshTree();
+  var _cs=byId[order[cursor]];
+  if(_cs&&_cs.type==="results_breakdown") renderResultsIfNeeded(secById[order[cursor]],_cs);
 })();
 """

@@ -239,6 +239,50 @@ def _validate_outline(project: Project, objective_ids: set[str]) -> list[Validat
             errors.append(ValidationError(code="validation_error",
                           message=f"Bilinmeyen outline node_id referansı: {nid}",
                           path=f"screens[{i}].node_id"))
+
+    # Faz 4 (§6.1) — UNREACHABLE_NODE (SERT): unlock_rule="sequential" düğümün önceki
+    # kardeşinin ALT-AĞACINDA hiç bağlı ekran yoksa düğüm asla açılamaz → erişilemez içerik.
+    # AD SAPMASI (bilinçli): plan'ın hata enum'undaki NO_KEYBOARD_PATH klavye-erişim
+    # sınıfının adıdır; erişilemez-İÇERİK yapılandırması ayrı adla anılır (PR'da belgeli).
+    # Runtime (scorm.js lockedNodes) bu durumda savunmacı olarak KİLİTLEMEZ — kapı burasıdır.
+    errors.extend(_validate_unreachable_nodes(project, node_ids))
+    return errors
+
+
+def _validate_unreachable_nodes(project: Project, node_ids: set[str]) -> list[ValidationError]:
+    outline = project.outline
+    if not outline:
+        return []
+    # düğüm başına ALT-AĞAÇ ekran sayısı (scorm.js nodeProgress ile aynı sayım: ekranın
+    # düğüm zincirindeki her ataya işlenmesi). Döngü/sarkan zincirler yukarıda raporlandı;
+    # burada savunmacı olarak zincir kesilir.
+    by_id = {n.id: n for n in outline}
+    subtree_screens: dict[str, int] = {n.id: 0 for n in outline}
+    for s in project.screens:
+        nid = getattr(s, "node_id", None)
+        seen: set[str] = set()
+        while nid and nid in by_id and nid not in seen:
+            subtree_screens[nid] += 1
+            seen.add(nid)
+            nid = by_id[nid].parent_id
+    errors: list[ValidationError] = []
+    for j, n in enumerate(outline):
+        if n.unlock_rule != "sequential":
+            continue
+        prev = None
+        for k in range(j - 1, -1, -1):
+            if outline[k].parent_id == n.parent_id:
+                prev = outline[k]
+                break
+        if prev is None:
+            continue  # ilk kardeşte sequential = baştan açık (meşru)
+        if subtree_screens.get(prev.id, 0) == 0:
+            errors.append(ValidationError(
+                code="validation_error",
+                message=(f"UNREACHABLE_NODE: '{n.id}' düğümü sequential kilitli ama önceki "
+                         f"kardeşi '{prev.id}' alt-ağacında tamamlanabilir ekran yok — düğüm "
+                         "asla açılamaz (kilidi kaldır ya da önceki kardeşe ekran bağla)"),
+                path=f"outline[{j}].unlock_rule"))
     return errors
 
 

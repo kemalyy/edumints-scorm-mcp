@@ -28,7 +28,11 @@ from typing import Literal
 
 import nh3
 
-from core.engine_bundle import load_engine_bundle, load_scorm_bundle  # W3b — motor lazy, SCORM RT hep
+from core.engine_bundle import (  # W3b — motor lazy, SCORM RT hep; Faz 4 — progress yalnız outline
+    load_engine_bundle,
+    load_progress_bundle,
+    load_scorm_bundle,
+)
 from core.project import Project, QUIZ_TYPES, ScreenType, ThemeTokens
 
 from . import i18n
@@ -225,6 +229,11 @@ def _render_html_inner(
     # S1/S3/S4 — SCORM veri sözleşmesi (interactions/seat-time/exit): HER pakette gerekli, koşulsuz.
     # engine_js'ten ÖNCE gelir → window.SCORMRT bind'lerden önce tanımlı.
     extras.append(f"<script>{load_scorm_bundle()}</script>")
+    # Senaryo hattı Faz 4 — konum/ilerleme/kilit yardımcıları (window.SCORMP) YALNIZ outline'lı
+    # kursta inline edilir: scorm bundle'ına eklenmeleri outline'sız çıktının baytlarını
+    # değiştirirdi (3.3 — tests/test_outline_menu.py fixture kilidi).
+    if project.outline:
+        extras.append(f"<script>{load_progress_bundle()}</script>")
     if _uses_lottie(project):
         extras.append(f"<script>{_load_lottie_js()}</script>" if mode == "preview"
                       else f'<script src="{_LOTTIE_REL}"></script>')
@@ -277,7 +286,7 @@ def _render_html_inner(
         lang=_attr(project.language),
         t=t_attr,
         dir=i18n.direction(project.language),
-        i18n_json=json.dumps(i18n.runtime_table(project.language), ensure_ascii=False),
+        i18n_json=json.dumps(_runtime_i18n(project), ensure_ascii=False),
         title=_text(project.title),
         og_tags=_og_meta_tags(project, canonical_url),
         css_vars=css_vars,
@@ -301,7 +310,33 @@ def _render_html_inner(
         engine_js=engine_js,
         menu_tree_attrs=menu_tree_attrs,
         menu_tree_items=menu_tree_items,
+        position_strip=_position_strip(project),
     )
+
+
+def _runtime_i18n(project: Project) -> dict[str, str]:
+    """Runtime i18n tablosu; Faz 4 anahtarları YALNIZ outline'lı kursa eklenir.
+
+    results_completion'ı RUNTIME_KEYS'e koymak outline'sız kursların __I18N__ JSON'unu
+    değiştirirdi (3.3 bayt-parite) — tüketen kod (rb-comp) da yalnız OUTLINE_JS'te."""
+    table = i18n.runtime_table(project.language)
+    if project.outline:
+        table = {**table, "results_completion": i18n.table(project.language)["results_completion"]}
+    return table
+
+
+def _position_strip(project: Project) -> str:
+    """Senaryo hattı Faz 4 (§6.2) — konum şeridi: 'Ünite 1 · Bölüm 1.1 · 2/4'.
+
+    YALNIZ outline'lı kursta basılır (outline boş → boş string → SHELL çıktısı bayt-bayt
+    eski hâli). İçeriği çalışma anında OUTLINE_JS doldurur (scorm.js positionInfo — saf,
+    vitest'li); aria-live=polite yalnız metin DEĞİŞİNCE duyurur. Düğümsüz ekranların
+    zincir başlığı i18n'den SUNUCUDA çözülüp data özniteliğiyle taşınır (runtime tabloya
+    anahtar eklememek için — bayt tasarrufu)."""
+    if not project.outline:
+        return ""
+    return (f'<div class="pos-strip" id="posStrip" aria-live="polite" '
+            f'data-ungrouped-label="{_attr(_T("menu_ungrouped"))}"></div>')
 
 
 # --------------------------------------------------------------------------- #
@@ -370,10 +405,14 @@ def _render_menu_tree(project: Project) -> tuple[str, str]:
 
     node_ids = {n.id for n in project.outline}
     children: dict[str | None, list] = {}
+    prev_sib: dict[str, object] = {}  # Faz 4 — sequential kilidin engelleyeni (önceki kardeş)
     for n in project.outline:
         # sarkan/döngülü parent'lı düğümler validator'da hata; render'da kök gibi ele alınır
         key = n.parent_id if n.parent_id in node_ids else None
-        children.setdefault(key, []).append(n)
+        sibs = children.setdefault(key, [])
+        if sibs:
+            prev_sib[n.id] = sibs[-1]
+        sibs.append(n)
     screens_by_node: dict[str, list[tuple[int, object]]] = {}
     ungrouped: list[tuple[int, object]] = []
     for i, s in enumerate(project.screens):
@@ -408,12 +447,21 @@ def _render_menu_tree(project: Project) -> tuple[str, str]:
         branch = bool(own or kids)
         exp = ' aria-expanded="true"' if branch else ""
         lead = _MTREE_CHEVRON if branch else '<span class="mtree-bullet" aria-hidden="true"></span>'
+        # Faz 4 (§6.1) — kilit sebebi SUNUCUDA render edilir (engelleyen düğümün ADI statiktir;
+        # i18n burada çözülür, runtime tabloya metin girmez). Başlangıçta hidden: kilitli/açık
+        # DURUMU dinamiktir (state.visited) — OUTLINE_JS refreshTree açar/kapar. Buton içinde
+        # olduğu için SR odakta sebebi butonun adının parçası olarak okur (görünür + duyurulur).
+        reason = ""
+        if getattr(n, "unlock_rule", "free") == "sequential" and n.id in prev_sib:
+            blocker = prev_sib[n.id]
+            reason = (f'<span class="mtree-lockreason" hidden>'
+                      f'{_text(_T("node_locked_reason", name=blocker.title))}</span>')
         html = (
             f'<li role="none" class="mtree-li">'
             f'<button type="button" role="treeitem" '
             f'class="mtree-btn mtree-node mtree-{n.kind}" '
             f'data-node-id="{_attr(n.id)}" aria-level="{level}" tabindex="{_ti()}"{exp}>'
-            f'{lead}<span class="mtree-title">{_text(n.title)}</span></button>'
+            f'{lead}<span class="mtree-title">{_text(n.title)}</span>{reason}</button>'
         )
         if branch:
             inner = "".join(screen_li(i, s, level + 1) for i, s in own)
@@ -580,7 +628,10 @@ def _course_config(project: Project) -> dict:
         **({"objectives": [o.id for o in project.objectives]} if project.objectives else {}),
         # Senaryo hattı Faz 1 — outline iskeleti (Faz 4 konum/resume için gerekli asgari alanlar;
         # objective/pedagogy_pack yazarlık verisidir, runtime'a SIZDIRILMAZ). Boşsa anahtar hiç yok.
-        **({"outline": [{"id": n.id, "parent_id": n.parent_id, "kind": n.kind, "title": n.title}
+        # Faz 4 — unlock_rule yalnız "sequential" iken serileşir (yokluk = "free"; bayt tasarrufu).
+        **({"outline": [{"id": n.id, "parent_id": n.parent_id, "kind": n.kind, "title": n.title,
+                         **({"unlock_rule": n.unlock_rule}
+                            if getattr(n, "unlock_rule", "free") == "sequential" else {})}
                         for n in project.outline]} if project.outline else {}),
         # W5 — xAPI/cmi5 telemetri config'i YALNIZ açıkken serileşir (kapalıysa runtime no-op)
         **({"xapi": {"enabled": True, "mode": project.xapi.mode,
