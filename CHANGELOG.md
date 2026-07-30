@@ -5,6 +5,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — Faz 6 (senaryo hattı 6/6): grafik okunabilirliği + dar lint'ler + karanlık mod
+Grounded in the layout/split-attention measurement report
+(`docs/research/2026-07-30-layout-split-attention-measurement.md`) — the generic
+`SPLIT_ATTENTION` lint was measured out and intentionally NOT written (locked by test).
+- **Chart readability (the 2/6 renderer gap):** line `data_chart` now renders a y-axis with
+  nice-step (1/2/5×10^k) numeric tick labels, a light grid, and first/last point VALUE labels
+  (symmetry with bar's on-bar values; single-series data model). Numeric texts carry
+  `direction="ltr"` (RTL-safe anchors). Pie legend now carries raw value + percent
+  ("A (30 · 30%)"); bar value labels regression-locked. Contract: CONTRACTS §12.5;
+  tests `tests/test_charts.py`.
+- **Chart colors are theme tokens:** `ColorPalette.chart_series` (8 colors) replaces the
+  hardcoded `_CHART_COLORS` hex (report §4.1: 3.19:1 on premium dark). SVG uses
+  `var(--chart-N, <fallback>)`; `--chart-N` vars are emitted ONLY for courses containing a
+  `data_chart` (byte parity for chartless courses). Series 4/7 nearest-compliant fixes:
+  `#7c3aed→#8040ee`, `#65a30d→#64a10d` (every series ≥3:1 on every shipped surface).
+- **Narrow layout lint `MEDIA_NO_CAPTION`** (WARN, strict-promoted per E1 precedent):
+  uncaptioned image block in `content_slide.blocks` + >80 words of screen prose. 0 hits
+  today (measured) — a guard rail, not a penalty. `CHART_VALUES_UNREADABLE` was NOT
+  implemented as a lint (the render fix makes labels unconditional → spec-level lint would
+  be dead code); its final form is a test-level render invariant
+  (`test_chart_values_unreadable_invariant`).
+- **Dark mode as an orthogonal axis (plan 7.3):** `theme_mode: "light"|"dark"|"auto"`
+  (CourseSpec + Project; default `light` = byte-identical output, test-locked). Dark is an
+  overlay (`themes/_dark-overlay.json`) composed at render time onto the RESOLVED Faz 5
+  layer chain (preset identity — typography/radii/motion/brand primary — preserved;
+  primary/hover/focus fitted to dark grounds by deterministic nearest-compliant white-mix,
+  already-passing inks unchanged). `auto` = pure-CSS `@media (prefers-color-scheme: dark)`
+  block. The AA gate grew: 34→42 pairs (8 chart series) × 18 presets × 2 modes =
+  **612→1512 assertions**, all green incl. focus/hover/disabled/selected states.
+- **Deferred (issue kemalyy/edumints-scorm-mcp#126):** labeled_diagram display-only callout
+  mode — the permanent fix for the exhibit reading-protocol pattern (3/6 measured splits).
+
 ### Added — Faz 4 follow-up: suspend truncation ladder + republish-resume resilience
 - **Truncation ladder** (`encodeSuspendFit`): on overflow, data drops bottom-up with re-measure
   after every rung — position (id-based `z` record: screen id + node id + `content_version`)

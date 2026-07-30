@@ -387,18 +387,12 @@ def _apply_audience(resolved: ThemeTokens, audience: str | None) -> ThemeTokens:
 
 
 def _deep_merge_theme(base: ThemeTokens, override: ThemeTokens) -> ThemeTokens:
-    """Yalnız override'da AÇIKÇA verilmiş alanları base üstüne uygula (derin merge)."""
-    def merge(b: dict, o_model) -> dict:
-        out = dict(b)
-        for name in o_model.model_fields_set:
-            val = getattr(o_model, name)
-            if hasattr(val, "model_fields_set"):
-                out[name] = merge(out.get(name, {}), val)
-            else:
-                out[name] = val if not hasattr(val, "model_dump") else val.model_dump()
-        return out
-    merged = merge(base.model_dump(), override)
-    return ThemeTokens.model_validate(merged)
+    """Yalnız override'da AÇIKÇA verilmiş alanları base üstüne uygula (derin merge).
+    Faz 6b — gerçek uygulama core.theme_dark.deep_merge_theme'e taşındı (karanlık-mod
+    overlay'i de AYNI katmanlama kuralını kullansın); bu ad geriye-uyum delegesidir."""
+    from core.theme_dark import deep_merge_theme
+
+    return deep_merge_theme(base, override)
 
 
 _SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]")
@@ -1207,6 +1201,7 @@ async def build_from_spec(spec: dict, strict: bool | None = None) -> BuildFromSp
             language=spec.language,
             # Faz 5 — kitle katmanı: preset ile kurs custom arasına audience override girer
             theme=_load_theme(spec.theme, audience=spec.audience_pack),
+            theme_mode=spec.theme_mode,  # Faz 6b — kozmetik mod ekseni (render anında çözülür)
             tracking=spec.tracking,
             variables=list(spec.variables),
             points_var=spec.points_var,

@@ -64,6 +64,9 @@ STRICT_PROMOTED_CODES = frozenset({
     "decorative_score",
     "unbound_scored_question",
     "evidence_target_not_evidentiary",
+    # Faz 6b (düzen ölçüm raporu §5.2) — kalite WARN'ı, E1 emsaliyle strict'e terfi:
+    # veri bütünlüğü değil öğretim kalitesi → varsayılanda danışsal kalır.
+    "MEDIA_NO_CAPTION",
 })
 
 
@@ -90,6 +93,7 @@ def lint_course(project: Project) -> list[LintIssue]:
         issues += _lint_generic_title(s, path)
         issues += _lint_list_items(s, path)
         issues += _lint_default_feedback(s, path)
+    issues += _lint_media_no_caption(project)
     issues += _lint_consecutive_content_slides(project)
     issues += _lint_theme_logo_alt(project)
     issues += _lint_text_only_runs(project)
@@ -338,6 +342,50 @@ def _lint_default_feedback(s, path: str) -> list[LintIssue]:
                           "her feedback nedeni açıklamalı ve doğru modele bağlanmalı",
                           f"{path}.feedback")]
     return []
+
+
+# --- Faz 6b: dar düzen korkuluğu (ölçüm raporu 2026-07-30 §5.2) ---------------
+# NOT (bilinçli eksik): genel split-attention lint'i ölçümle GEREKÇELENDİRİLEMEDİ ve
+# yazılmadı (rapor §5 — mekanik vekiller ölçülen 6 vakanın hiçbirini yakalamıyor, sınıf-a
+# ekranlar yanlış-pozitif olurdu). Buradaki kural raporun önerdiği DAR, sayılabilir biçimdir.
+_MEDIA_NO_CAPTION_WORDS = 80
+_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _word_count(html: str | None) -> int:
+    return len(_TAG_RE.sub(" ", html or "").split())
+
+
+def _lint_media_no_caption(project: Project) -> list[LintIssue]:
+    """MEDIA_NO_CAPTION — content_slide `blocks` içinde caption'sız görsel bloğu + ekranın
+    >80 kelimelik düzyazısı → WARN. Uzun gövdenin yanında yorumsuz figür, görsel↔metin göz
+    gidiş-gelişi üretir (Mayer/Sweller uzamsal bitişiklik); caption yorumu görselin bitişiğine
+    taşır. Ölçümde bugün 0 isabet (mevcut yazarlık captionlı) — geleceğe korkuluk.
+    Kelime sayımı ekranın DÜZYAZI toplamıdır: html blokları + body_html (renderer blocks'u
+    basar ama gövde metni body_html'de bırakılmış olabilir). Kapsam yalnız `blocks`tur:
+    eski media_asset_id yolunda caption alanı yok — çıkışsız ceza kesilmez (rapor §5.3
+    affordans işi). caption ayrıca alt-text kaynağıdır; missing_alt_text'ten farkı eşikli
+    düzen perspektifidir (a11y değil bitişiklik)."""
+    out: list[LintIssue] = []
+    for i, s in enumerate(project.screens):
+        if s.type != ScreenType.content_slide:
+            continue
+        blocks = getattr(s, "blocks", None) or []
+        if not any(b.asset_id and not (b.caption or "").strip() for b in blocks):
+            continue
+        words = _word_count(getattr(s, "body_html", None)) + sum(_word_count(b.html) for b in blocks)
+        if words <= _MEDIA_NO_CAPTION_WORDS:
+            continue
+        for j, b in enumerate(blocks):
+            if b.asset_id and not (b.caption or "").strip():
+                out.append(LintIssue(
+                    "warn", "MEDIA_NO_CAPTION",
+                    f"Ekranın düzyazısı {words} kelime (> {_MEDIA_NO_CAPTION_WORDS}) ama "
+                    f"blocks[{j}] görseli caption taşımıyor — figürün yorumu gövdede kalırsa "
+                    "öğrenci görsel↔metin arasında gidip gelir (uzamsal bitişiklik). Görselin "
+                    "yorumunu 1-2 cümlelik caption'a taşı",
+                    f"screens[{i}].blocks[{j}]"))
+    return out
 
 
 def _lint_theme_logo_alt(project: Project) -> list[LintIssue]:

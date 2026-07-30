@@ -23,7 +23,10 @@ MANDATORY_COLOR = {
     "primary", "primary_hover", "primary_contrast", "secondary", "accent",
     "bg", "surface", "surface_alt", "border", "text", "text_muted",
     "text_on_dark", "success", "success_bg", "error", "error_bg",
-    "warning", "info", "focus_ring"
+    "warning", "info", "focus_ring",
+    # Faz 6b — data_chart seri renkleri token'a taşındı (ölçüm raporu §4.1); taban dosyada
+    # (_tokens) zorunlu, extends'li preset'lerde opsiyonel override.
+    "chart_series",
 }
 
 # Tüm temaların birleşimi (union) - izin verilen tüm token'lar.
@@ -41,7 +44,33 @@ ALLOWED_MOTION = {
 }
 
 def get_theme_files():
-    return list(THEMES_DIR.glob("*.json"))
+    # Faz 6b — *-overlay.json dosyaları tema DEĞİL, kısmi katmandır (mod overlay'i;
+    # core/theme_dark.py). Kendi bütünlük testi aşağıda: test_overlay_schema_integrity.
+    return [p for p in THEMES_DIR.glob("*.json") if not p.stem.endswith("-overlay")]
+
+def get_overlay_files():
+    return [p for p in THEMES_DIR.glob("*.json") if p.stem.endswith("-overlay")]
+
+@pytest.mark.parametrize("overlay_path", get_overlay_files())
+def test_overlay_schema_integrity(overlay_path):
+    """Overlay sözleşmesi: tanınan gruplardan KISMİ alt küme taşır; tema kimliği kuramaz
+    (name yok) ve miras zinciri başlatamaz (extends yok) — audience katmanıyla aynı disiplin."""
+    with open(overlay_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    assert "name" not in data, f"{overlay_path.name} overlay 'name' taşıyamaz (mod ≠ kimlik, 3.4)"
+    assert "extends" not in data, f"{overlay_path.name} overlay 'extends' kuramaz (tema değil, katman)"
+    extra_top = set(data.keys()) - ALLOWED_TOP_LEVEL
+    assert not extra_top, f"{overlay_path.name} bilinmeyen üst düzey anahtarlar: {extra_top}"
+    if "color" in data:
+        extra_color = set(data["color"].keys()) - MANDATORY_COLOR
+        assert not extra_color, f"{overlay_path.name} bilinmeyen color anahtarları: {extra_color}"
+    if "typography" in data:
+        extra_typo = set(data["typography"].keys()) - MANDATORY_TYPOGRAPHY
+        assert not extra_typo, f"{overlay_path.name} bilinmeyen typography anahtarları: {extra_typo}"
+
+def test_dark_overlay_shipped():
+    """Karanlık mod ekseninin taşıyıcısı sevkten düşmesin (renderer theme_mode!=light iken buna muhtaç)."""
+    assert (THEMES_DIR / "_dark-overlay.json").exists()
 
 @pytest.mark.parametrize("theme_path", get_theme_files())
 def test_theme_schema_integrity(theme_path):
