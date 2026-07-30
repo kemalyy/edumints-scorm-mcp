@@ -1370,6 +1370,316 @@ async def list_themes() -> dict:
 
 
 # --------------------------------------------------------------------------- #
+# Senaryo araçları (Faz 2 — senaryo hattı; core/scenario.py mantık, projeler idiom'u)
+# --------------------------------------------------------------------------- #
+async def _load_scenario(scenario_id: str, owner: ApiKey):
+    """Sahiplik-denetimli senaryo yükleme (projeler _load ile aynı idiom)."""
+    from core.scenario import ScenarioDocument  # noqa: F401 (tip ipucu)
+    doc = await SVC.store.get_scenario(scenario_id, owner.id)
+    if doc is None:
+        raise ToolError("not_found", f"Senaryo bulunamadı: {scenario_id}")
+    return doc
+
+
+def _parse_outline_nodes(nodes: list[dict]):
+    from core.project import OutlineNode
+    try:
+        return [OutlineNode.model_validate(n) for n in nodes]
+    except ValidationError as e:
+        raise ToolError("invalid_outline", f"Geçersiz outline düğümü: {e}")
+
+
+def _scenario_struct_guard(doc) -> None:
+    from core.scenario import validate_scenario_structure
+    errs = validate_scenario_structure(doc)
+    if errs:
+        raise ToolError("validation_error", "; ".join(errs[:5]))
+
+
+def _scenario_tree(doc) -> dict:
+    """Kompakt ağaç özeti: düğüm hiyerarşisi + her düğümün sayfaları (id/title/screen_type/
+    scored) + node_id'siz sayfalar. Sıra: düğümler outline sırasında, sayfalar order'a göre."""
+    children: dict[str | None, list] = {}
+    for n in doc.outline:
+        children.setdefault(n.parent_id, []).append(n)
+    pages_by_node: dict[str, list] = {}
+    for p in sorted(doc.pages, key=lambda x: x.order):
+        pages_by_node.setdefault(p.node_id, []).append(p)
+    node_ids = {n.id for n in doc.outline}
+
+    def _page_row(p) -> dict:
+        return {"id": p.id, "title": p.title, "order": p.order,
+                "screen_type": p.screen_type, "phase": p.phase,
+                "scored": p.scoring.scored,
+                "has_evidence": p.evidence is not None}
+
+    def _node(n) -> dict:
+        return {
+            "id": n.id, "kind": n.kind, "title": n.title,
+            "objective_id": n.objective.id if n.objective else None,
+            "pedagogy_pack": n.pedagogy_pack,
+            "pages": [_page_row(p) for p in pages_by_node.get(n.id, [])],
+            "children": [_node(c) for c in children.get(n.id, [])],
+        }
+
+    roots = [_node(n) for n in children.get(None, [])]
+    ungrouped = [_page_row(p) for p in sorted(doc.pages, key=lambda x: x.order)
+                 if p.node_id not in node_ids]
+    return {
+        "scenario_id": doc.id, "title": doc.title,
+        "node_count": len(doc.outline), "page_count": len(doc.pages),
+        "nodes": roots, "ungrouped_pages": ungrouped,
+        "audience_pack": doc.audience_pack,
+        "duration_target_sec": doc.duration_target_sec,
+    }
+
+
+@mcp.tool
+async def create_scenario(title: str, outline: list[dict] | None = None,
+                          audience_pack: str | None = None,
+                          duration_target_sec: int | None = None) -> dict:
+    """Yeni senaryo dokümanı oluşturur (hiyerarşik outline + sayfalar; derleyici
+    build_from_spec'e çevirir). `outline`: OutlineNode JSON listesi (unit/section, derinlik ≤3).
+    Yapısal hata (sarkan parent, döngü, derinlik>3, yinelenen id, hedef çakışması) reddedilir."""
+    await SVC.ensure()
+    try:
+        from core.scenario import ScenarioDocument, new_scenario_id
+        owner = await _owner()
+        await enforce_project_quota(SVC.store, owner)
+        nodes = _parse_outline_nodes(outline or [])
+        doc = ScenarioDocument(
+            id=new_scenario_id(), title=title, outline=nodes,
+            audience_pack=audience_pack, duration_target_sec=duration_target_sec,
+            owner_key_id=owner.id,
+        )
+        _scenario_struct_guard(doc)
+        await SVC.store.create_scenario(doc)
+        logger.info("event=scenario_create owner=%s scenario_id=%s", owner.id, doc.id)
+        return {"scenario_id": doc.id}
+    except ToolError as e:
+        raise _wrap(e)
+
+
+@mcp.tool
+async def scenario_upsert_node(scenario_id: str, node: dict) -> dict:
+    """Outline düğümü ekler/günceller (id varsa günceller). Doküman yapısal denetimden geçer."""
+    await SVC.ensure()
+    try:
+        owner = await _owner()
+        doc = await _load_scenario(scenario_id, owner)
+        (new_node,) = _parse_outline_nodes([node])
+        idx = next((i for i, n in enumerate(doc.outline) if n.id == new_node.id), None)
+        if idx is None:
+            doc.outline.append(new_node)
+        else:
+            doc.outline[idx] = new_node
+        _scenario_struct_guard(doc)
+        await SVC.store.update_scenario(doc)
+        return {"node_id": new_node.id}
+    except ToolError as e:
+        raise _wrap(e)
+
+
+@mcp.tool
+async def scenario_upsert_page(scenario_id: str, page: dict) -> dict:
+    """Sayfa ekler/günceller (id yoksa üretilir; varsa günceller). Sayfa şeması (kanıt ENUM
+    oneOf, medya yuvası rolleri) doğrulanır. Boşluk/kanıt kapısı derlemededir (scenario_gaps)."""
+    await SVC.ensure()
+    try:
+        from core.scenario import Page, new_page_id
+        owner = await _owner()
+        doc = await _load_scenario(scenario_id, owner)
+        data = dict(page)
+        if not data.get("id"):
+            data["id"] = new_page_id()
+        try:
+            new_page = Page.model_validate(data)
+        except ValidationError as e:
+            raise ToolError("invalid_page", f"Geçersiz sayfa: {e}")
+        idx = next((i for i, p in enumerate(doc.pages) if p.id == new_page.id), None)
+        if idx is None:
+            doc.pages.append(new_page)
+        else:
+            doc.pages[idx] = new_page
+        _scenario_struct_guard(doc)
+        await SVC.store.update_scenario(doc)
+        return {"page_id": new_page.id}
+    except ToolError as e:
+        raise _wrap(e)
+
+
+@mcp.tool
+async def scenario_reorder(scenario_id: str, page_ids_in_order: list[str]) -> OkOut:
+    """Sayfaları verilen id sırasına dizer. Liste TÜM sayfa id'lerini bire bir içermelidir
+    (eksik/fazla → validation_error). `order` alanları yeni sıraya göre yeniden atanır."""
+    await SVC.ensure()
+    try:
+        owner = await _owner()
+        doc = await _load_scenario(scenario_id, owner)
+        current = [p.id for p in doc.pages]
+        if sorted(page_ids_in_order) != sorted(current):
+            raise ToolError("validation_error",
+                            "page_ids_in_order dokümandaki tüm sayfa id'lerini bire bir içermeli")
+        by_id = {p.id: p for p in doc.pages}
+        doc.pages = [by_id[pid] for pid in page_ids_in_order]
+        for i, p in enumerate(doc.pages):
+            p.order = i
+        await SVC.store.update_scenario(doc)
+        return OkOut()
+    except ToolError as e:
+        raise _wrap(e)
+
+
+@mcp.tool
+async def scenario_tree(scenario_id: str) -> dict:
+    """Senaryonun kompakt ağaç özetini döndürür (düğüm hiyerarşisi + sayfa satırları +
+    node_id'siz sayfalar). Yazarlık gezinmesi için (tam doküman değil)."""
+    await SVC.ensure()
+    try:
+        owner = await _owner()
+        doc = await _load_scenario(scenario_id, owner)
+        return _scenario_tree(doc)
+    except ToolError as e:
+        raise _wrap(e)
+
+
+@mcp.tool
+async def scenario_gaps(scenario_id: str) -> dict:
+    """Boşluk raporu = derleme KAPISI. {blockers (⛔), warnings (⚠), suggestions,
+    evidence_binding_coverage_estimate}. Blocker varken scenario_compile REDDEDER. Denetimler
+    sıra-bağımsız; screen_type YALNIZ önerilir (asla otomatik seçilmez)."""
+    await SVC.ensure()
+    try:
+        from core.scenario import gaps_report
+        owner = await _owner()
+        doc = await _load_scenario(scenario_id, owner)
+        r = gaps_report(doc)
+        return {"scenario_id": scenario_id, **r,
+                "blocker_count": len(r["blockers"]),
+                "warning_count": len(r["warnings"])}
+    except ToolError as e:
+        raise _wrap(e)
+
+
+@mcp.tool
+async def scenario_compile(scenario_id: str, compile_and_build: bool = False,
+                           strict: bool | None = None) -> dict:
+    """Senaryoyu build_from_spec payload'una derler. ⛔ blocker varsa REDDEDER (blocker listesi
+    ile). Derlenen spec: outline passthrough, sayfalar → ekranlar (screen_type derlemede
+    ZORUNLU), body_md → sanitize HTML, kanıt/hedef bağları otoriter, faz adı ASLA basılmaz.
+    Sonuç ayrıca üretilen spec'in tam lint_course raporunu içerir. compile_and_build=True →
+    build_from_spec'e zincirler (proje oluşturulur + paketlenir)."""
+    await SVC.ensure()
+    try:
+        from core.antislop import evidence_binding_coverage
+        from core.antislop import lint_course as _lint
+        from core.scenario import ScenarioCompileError, compile_scenario
+        owner = await _owner()
+        doc = await _load_scenario(scenario_id, owner)
+        try:
+            spec, warnings = compile_scenario(doc)
+        except ScenarioCompileError as ce:
+            raise ToolError("compile_refused",
+                            "Derleme reddedildi (⛔ blocker): "
+                            + "; ".join(f"{b['code']}@{b['path']}" for b in ce.blockers[:8]))
+        # üretilen spec'in tam lint raporu (kabul #1 kanıtı)
+        p = _spec_to_project_for_lint(spec, owner.id)
+        issues = _lint(p)
+        lint_report = {
+            "error_count": sum(1 for i in issues if i.severity == "error"),
+            "warn_count": sum(1 for i in issues if i.severity == "warn"),
+            "evidence_binding_coverage": round(evidence_binding_coverage(p), 3),
+            "issues": [{"severity": i.severity, "code": i.code, "message": i.message,
+                        "path": i.path} for i in issues],
+        }
+        out = {"scenario_id": scenario_id, "spec": spec,
+               "compile_warnings": warnings, "lint_course": lint_report}
+        if compile_and_build:
+            built = await build_from_spec.fn(spec, strict=strict)
+            out["build"] = built.model_dump()
+        return out
+    except ToolError as e:
+        raise _wrap(e)
+
+
+def _spec_to_project_for_lint(spec: dict, owner_id: str):
+    """Derlenen spec'i (asset çekmeden) lint için Project'e çevirir. build_from_spec'in
+    ağ/asset yan-etkileri olmadan aynı validate/lint kümesini görmek için."""
+    from core.project import CourseSpec, Project, new_screen_id
+    cs = CourseSpec.model_validate(spec)
+    p = Project(
+        id="proj_lint", title=cs.title, description=cs.description,
+        scorm_version=cs.scorm_version, language=cs.language,
+        objectives=list(cs.objectives), outline=list(cs.outline),
+        audience_pack=cs.audience_pack, screens=list(cs.screens), owner_key_id=owner_id,
+    )
+    for s in p.screens:
+        if not s.id:
+            s.id = new_screen_id()
+    return p
+
+
+@mcp.tool
+async def scenario_delete_node(scenario_id: str, node_id: str,
+                               strategy: str = "refuse") -> OkOut:
+    """Outline düğümünü siler. `strategy`: "refuse" (varsayılan — çocuk düğüm/sayfa varsa
+    reddeder) | "reparent" (çocuk düğümleri düğümün ebeveynine, sayfaları ebeveyne taşır;
+    kök düğümde sayfa varsa ebeveynsiz kalır → hata)."""
+    await SVC.ensure()
+    try:
+        owner = await _owner()
+        doc = await _load_scenario(scenario_id, owner)
+        node = doc.node_by_id(node_id)
+        if node is None:
+            raise ToolError("not_found", f"Düğüm bulunamadı: {node_id}")
+        child_nodes = [n for n in doc.outline if n.parent_id == node_id]
+        child_pages = [p for p in doc.pages if p.node_id == node_id]
+        if strategy == "refuse":
+            if child_nodes or child_pages:
+                raise ToolError("validation_error",
+                                f"'{node_id}' düğümünün {len(child_nodes)} alt düğümü + "
+                                f"{len(child_pages)} sayfası var; strategy='reparent' kullan "
+                                "ya da önce onları taşı/sil")
+        elif strategy == "reparent":
+            if child_pages and node.parent_id is None:
+                raise ToolError("validation_error",
+                                f"'{node_id}' kök düğüm ve {len(child_pages)} sayfası var; "
+                                "reparent hedefi yok (sayfalar ebeveynsiz kalır) — önce sayfaları taşı")
+            for n in child_nodes:
+                n.parent_id = node.parent_id
+            for p in child_pages:
+                p.node_id = node.parent_id  # not: kök durumunda yukarıda reddedildi
+        else:
+            raise ToolError("validation_error", f"Bilinmeyen strategy: {strategy}")
+        doc.outline = [n for n in doc.outline if n.id != node_id]
+        _scenario_struct_guard(doc)
+        await SVC.store.update_scenario(doc)
+        return OkOut()
+    except ToolError as e:
+        raise _wrap(e)
+
+
+@mcp.tool
+async def scenario_delete_page(scenario_id: str, page_id: str) -> OkOut:
+    """Sayfayı siler. Ona işaret eden evidence_from referanslarını TEMİZLER (sarkma bırakmaz);
+    boşalan bağ scenario_gaps'te blocker olur (dangle değil)."""
+    await SVC.ensure()
+    try:
+        owner = await _owner()
+        doc = await _load_scenario(scenario_id, owner)
+        if doc.page_by_id(page_id) is None:
+            raise ToolError("not_found", f"Sayfa bulunamadı: {page_id}")
+        doc.pages = [p for p in doc.pages if p.id != page_id]
+        for p in doc.pages:
+            if page_id in p.evidence_from:
+                p.evidence_from = [e for e in p.evidence_from if e != page_id]
+        await SVC.store.update_scenario(doc)
+        return OkOut()
+    except ToolError as e:
+        raise _wrap(e)
+
+
+# --------------------------------------------------------------------------- #
 # HTTP route'ları (CONTRACTS.md §5)
 # --------------------------------------------------------------------------- #
 @mcp.custom_route("/health", methods=["GET"])

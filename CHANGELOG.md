@@ -5,6 +5,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — scenario line Faz 2: scenario tools + gap report + compiler
+- **Scenario document** (`core/scenario.py`, new — keeps hot files thin): `ScenarioDocument`
+  (`schema_version: 1`, owner-scoped JSON blob, quota-counted) = hierarchical outline + pages.
+  `Page` schema with `MediaSlot` (Faz-3 contract FROZEN now: `slot_id`, `role: kanit|aciklayici`
+  — no decorative, `kind`, `spec`, `source_hint?`, `asset_id?`, `a11y`, `provenance?`) and
+  **`EvidenceDecl`** — ENUM-forced discriminated union (oneOf, `extra=forbid`) with per-kind
+  required sub-models: `islenmis_ornek` (steps min 2, each action+reasoning), `karsit_cift`
+  (dogru/bozuk/fark), `anotasyonlu_artefakt` (artefakt_ref + anotasyonlar min 1), `ogrenci_kesfi`
+  (kayit_yontemi + commit_prompt), `hatali_ornek` (hata/neden_yanlis/dogru_karsilik).
+- **Objective inheritance**: nearest-ancestor wins (walk up from `page.node_id`); none →
+  `ORPHAN_PAGE` (⛔). Compiled `objective_ids = [inherited] + extra_objective_refs` (dedup,
+  stable order); dangling extra refs → ⛔.
+- **`scenario_gaps`** (the compile GATE): `{ blockers, warnings, suggestions,
+  evidence_binding_coverage_estimate }`. 9 blocker codes (ORPHAN_PAGE, DANGLING_*,
+  SCORED_NO_EVIDENCE_FROM, OBJECTIVE_NO_EVIDENCE, EVIDENCE_KIND_MISSING, PREDICTION_SCORED,
+  AUTO_GRADE_OPEN_TEXT); warnings (EMPTY_MEDIA_SLOTS, PHASE_NOT_IN_PACK via reused E2
+  `_load_packs`, DURATION_DRIFT ±20%, NARRATION_ECHO — token containment ≥0.8/min 5 tokens);
+  `SCREEN_TYPE_SUGGESTION` suggests-only (never auto-picks). All checks order-independent (3.9).
+- **`scenario_compile`**: blockers → `ToolError` (refused). Else build_from_spec payload —
+  outline passthrough with node objectives hoisted to course level + `pedagogy_pack →
+  Objective.method_pack`; pages → screens (screen_type REQUIRED at compile); `copy.body_md →`
+  sanitized HTML (deterministic md→html + nh3, no raw svg/canvas/script per 3.10);
+  `evidence_from → evidence_screen_ids`; empty slots omitted (model_3d → SLOT_KIND_UNSUPPORTED
+  warn); **phase NEVER emitted into the spec (3.2)**. Result carries the full `lint_course`
+  report of the produced spec; optional `compile_and_build` chains into `build_from_spec`.
+- **8 MCP tools** (30 → **38**): `create_scenario`, `scenario_upsert_node`,
+  `scenario_upsert_page`, `scenario_reorder`, `scenario_tree` (compact summary), `scenario_gaps`,
+  `scenario_compile`, `scenario_delete_node` (`strategy: refuse|reparent`) + `scenario_delete_page`
+  (cleans `evidence_from` refs → gap, not dangle). Store: new `scenarios` table (projects/demos
+  pattern; size counts into `total_bytes`).
+- Acceptance: realistic mini scenario compiles → `lint_course` 0 errors + coverage 1.0 (#1);
+  intentionally broken scenario → EXACT blocker set (#2); compile refusal (#3); phase grep-0 in
+  compiled spec (#7); index-independence — evidence page after scored page compiles+lints clean
+  (#8); backward compat — no schema changes to existing models (#5).
+
 ### Added — scenario line Faz 1: outline schema + hierarchical player menu
 - **`OutlineNode`** (additive): hierarchical course skeleton — flat list + `parent_id`
   tree, `kind: "unit" | "section"` (no `"page"` on purpose — scenario pages are the Faz 2
