@@ -1,14 +1,11 @@
 {
+  "extends": "_tokens",
   "name": "academic",
   "typography": {
     "font_heading": "Georgia, 'Times New Roman', 'Noto Serif', serif",
     "font_body": "'Source Sans 3', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
-    "font_mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace",
     "base_size_px": 17,
     "scale_ratio": 1.2,
-    "weight_heading": 700,
-    "weight_body": 400,
-    "weight_strong": 600,
     "line_height_tight": 1.25,
     "line_height_normal": 1.7,
     "letter_spacing_heading": "0"
@@ -16,23 +13,20 @@
   "color": {
     "primary": "#1e3a5f",
     "primary_hover": "#152c49",
-    "primary_contrast": "#ffffff",
     "secondary": "#7c5c2e",
     "accent": "#b3801f",
     "bg": "#fbfaf7",
-    "surface": "#ffffff",
     "surface_alt": "#f3f0ea",
     "border": "#e0dace",
     "text": "#1c1a17",
     "text_muted": "#5f594f",
     "text_on_dark": "#fbfaf7",
-    "success": "#2f7d52",
+    "success": "#2a774d",
     "success_bg": "#dcefe2",
     "error": "#b3261e",
     "error_bg": "#f7dedd",
-    "warning": "#9a6b15",
+    "warning": "#846015",
     "info": "#1e3a5f",
     "focus_ring": "#b3801f"
-  },
-  "background_pattern": "none"
+  }
 }

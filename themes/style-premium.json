@@ -1,15 +1,8 @@
 {
+  "extends": "_tokens",
   "name": "style-premium",
   "typography": {
     "font_heading": "Georgia, 'Times New Roman', serif",
-    "font_body": "'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
-    "font_mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace",
-    "base_size_px": 16,
-    "scale_ratio": 1.25,
-    "weight_heading": 700,
-    "weight_body": 400,
-    "weight_strong": 600,
-    "line_height_tight": 1.15,
     "line_height_normal": 1.65,
     "letter_spacing_heading": "-0.01em"
   },
@@ -34,7 +27,10 @@
     "info": "#38bdf8",
     "focus_ring": "#c4a75a"
   },
-  "radii": { "none": "0", "sm": "4px", "md": "8px", "lg": "12px", "pill": "999px" },
-  "background_pattern": "none",
+  "radii": {
+    "sm": "4px",
+    "md": "8px",
+    "lg": "12px"
+  },
   "custom_css": ".screen-title{font-family:var(--font-heading);font-weight:var(--w-heading);letter-spacing:var(--ls-heading)} .btn-primary{background:linear-gradient(135deg,var(--c-accent),color-mix(in srgb,var(--c-accent) 70%,#fff));color:var(--c-bg);font-weight:var(--w-strong)} .btn-primary:hover{background:linear-gradient(135deg,color-mix(in srgb,var(--c-accent) 85%,#fff),var(--c-accent))} .screen-inner{border:1px solid color-mix(in srgb,var(--c-border) 60%,transparent)}"
 }

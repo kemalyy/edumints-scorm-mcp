@@ -1,40 +1,27 @@
 {
+  "extends": "_tokens",
   "name": "style-minimal",
   "typography": {
-    "font_heading": "'Outfit', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
-    "font_body": "'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
-    "font_mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace",
-    "base_size_px": 16,
     "scale_ratio": 1.2,
-    "weight_heading": 700,
-    "weight_body": 400,
-    "weight_strong": 600,
     "line_height_tight": 1.2,
-    "line_height_normal": 1.6,
     "letter_spacing_heading": "-0.02em"
   },
   "color": {
-    "primary": "#3b82f6",
+    "primary": "#095ee0",
     "primary_hover": "#2563eb",
-    "primary_contrast": "#ffffff",
     "secondary": "#64748b",
     "accent": "#0ea5e9",
     "bg": "#fafbff",
-    "surface": "#ffffff",
     "surface_alt": "#f1f5f9",
     "border": "#e2e8f0",
     "text": "#1e293b",
-    "text_muted": "#64748b",
+    "text_muted": "#5f6f86",
     "text_on_dark": "#f8fafc",
-    "success": "#16a34a",
-    "success_bg": "#dcfce7",
-    "error": "#dc2626",
-    "error_bg": "#fee2e2",
-    "warning": "#d97706",
-    "info": "#0284c7",
     "focus_ring": "#3b82f6"
   },
-  "radii": { "none": "0", "sm": "8px", "md": "12px", "lg": "18px", "pill": "999px" },
-  "background_pattern": "none",
+  "radii": {
+    "sm": "8px",
+    "lg": "18px"
+  },
   "custom_css": ".screen-inner{box-shadow:var(--e2)} .btn-primary{box-shadow:0 3px 10px color-mix(in srgb,var(--c-primary) 35%,transparent)} .btn-primary:hover{box-shadow:0 5px 14px color-mix(in srgb,var(--c-primary) 40%,transparent)} .opt{transition:transform var(--d-fast) var(--ease),box-shadow var(--d-fast) var(--ease)} .opt:hover{transform:translateY(-1px)}"
 }

@@ -329,21 +329,61 @@ async def _load(project_id: str, owner: ApiKey) -> Project:
     return p
 
 
-def _load_theme(theme: str | ThemeTokens, _seen: frozenset[str] = frozenset()) -> ThemeTokens:
+def _load_theme(theme: str | ThemeTokens, _seen: frozenset[str] = frozenset(),
+                *, audience: str | None = None) -> ThemeTokens:
+    """Tema çözümü. Katman sırası (Faz 5, CONTRACTS §1.1):
+    _tokens → stil preseti (extends zinciri) → kitle (audience) override → kurs custom.
+
+    audience: CourseSpec.audience_pack. themes/audience/<pack>.json VARSA preset'in üzerine,
+    kurs custom'ın (inline ThemeTokens) altına merge edilir; yoksa sözleşmeli no-op (kitle
+    paketi tema-dışı davranış da taşıyabilir — bkz. themes/audience/_README.md). Faz 5'te
+    paket sevk edilmez; bu yalnız mekanizmadır. audience=None → davranış birebir eski (3.3)."""
     if isinstance(theme, ThemeTokens):
-        return theme
+        if audience is None:
+            return theme
+        # Kurs custom EN ÜST katmandır: kursun AÇIKÇA vermediği alanlarda audience görünür.
+        base = _apply_audience(ThemeTokens(name=theme.name), audience)
+        return _deep_merge_theme(base, theme)
     if theme in _seen:
         raise ToolError("invalid_theme", f"Döngüsel tema mirası tespit edildi: {theme}")
     path = THEMES_DIR / f"{theme}.json"
     if not path.exists():
-        return ThemeTokens(name="default")
+        return _apply_audience(ThemeTokens(name="default"), audience)
     raw = json.loads(path.read_text(encoding="utf-8"))
     parent_name = raw.pop("extends", None)
     child = ThemeTokens.model_validate(raw)
     if parent_name is None:
-        return child
+        return _apply_audience(child, audience)
     parent = _load_theme(parent_name, _seen | {theme})
-    return _deep_merge_theme(parent, child)
+    return _apply_audience(_deep_merge_theme(parent, child), audience)
+
+
+_AUDIENCE_NAME = re.compile(r"^[a-z0-9_-]{1,64}$")  # CourseSpec.audience_pack ile aynı desen
+
+
+def _apply_audience(resolved: ThemeTokens, audience: str | None) -> ThemeTokens:
+    """Kitle override katmanı (Faz 5 — YALNIZ mekanizma). Kurallar:
+    - override dosyasıdır, sıfırdan tema DEĞİL: "extends" içeremez (AUDIENCE_NO_EXTENDS);
+    - "name" tema kimliğini değiştiremez (kitle paketi ≠ tema, 3.4 adlandırma disiplini);
+    - dosya yoksa no-op (paket tema override'ı sevk etmemiş olabilir)."""
+    if not audience:
+        return resolved
+    if not _AUDIENCE_NAME.match(audience):
+        raise ToolError("invalid_theme", f"Geçersiz audience_pack adı: {audience!r}")
+    path = THEMES_DIR / "audience" / f"{audience}.json"
+    if not path.exists():
+        return resolved
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    if "extends" in raw:
+        raise ToolError(
+            "invalid_theme",
+            f"AUDIENCE_NO_EXTENDS: kitle override dosyası ({audience}) 'extends' içeremez — "
+            "kitle paketi sıfırdan/türetilmiş tema değil, dar bir override katmanıdır.",
+        )
+    raw.pop("name", None)  # tema kimliği preset'ten gelir
+    override = ThemeTokens.model_validate(raw)
+    override.__pydantic_fields_set__.discard("name")
+    return _deep_merge_theme(resolved, override)
 
 
 def _deep_merge_theme(base: ThemeTokens, override: ThemeTokens) -> ThemeTokens:
@@ -1165,7 +1205,8 @@ async def build_from_spec(spec: dict, strict: bool | None = None) -> BuildFromSp
             description=spec.description,
             scorm_version=spec.scorm_version,
             language=spec.language,
-            theme=_load_theme(spec.theme),
+            # Faz 5 — kitle katmanı: preset ile kurs custom arasına audience override girer
+            theme=_load_theme(spec.theme, audience=spec.audience_pack),
             tracking=spec.tracking,
             variables=list(spec.variables),
             points_var=spec.points_var,
@@ -1366,7 +1407,8 @@ async def list_screen_types() -> dict:
 async def list_themes() -> dict:
     """Mevcut tema preset'lerini (build_from_spec/set_theme `theme` adı) ve konularına uygunluğunu
     listeler. Arayüzü konuya göre farklılaştırmak için uygun temayı seçmek üzere çağır (keşif)."""
-    names = sorted(p.stem for p in THEMES_DIR.glob("*.json"))
+    # Faz 5: "_" önekli dosyalar altyapı katmanıdır (_tokens taban seti) — seçilebilir preset değil.
+    names = sorted(p.stem for p in THEMES_DIR.glob("*.json") if not p.stem.startswith("_"))
     items = [{"name": n, "description": _THEME_DESC.get(n, "")} for n in names]
     return {"count": len(items), "themes": items}
 

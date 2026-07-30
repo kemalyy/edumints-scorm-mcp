@@ -5,6 +5,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — scenario line Faz 5: theme consolidation + automated AA contrast gate — 5/6
+- **`themes/_tokens.json` base layer**: the shared semantic token set (kept byte-synced with
+  `ThemeTokens` model defaults by a bidirectional drift test). Every shipped preset (18,
+  incl. `corporate/*`) is now a **thin override layer** reaching `_tokens` through its
+  `extends` chain — only differing fields remain in each file. Consolidation verified
+  byte-identical: resolved tokens AND rendered HTML per theme hashed against master before
+  the AA fixes below. Resolved tokens are fixture-locked (`tests/fixtures/themes_resolved.json`).
+- **Audience override layer (mechanism only, no packs shipped)**: layer order is now
+  `_tokens → style preset → audience override (themes/audience/<pack>.json, if present) →
+  course custom` (CONTRACTS §1.1). Audience files are narrow overrides: `extends` is
+  rejected (`AUDIENCE_NO_EXTENDS`), `name` is ignored (audience_pack ≠ theme, 3.4), screen
+  types can't be constrained (3.7 — schema rejects unknown fields), missing file is a
+  contracted no-op (`themes/audience/_README.md`). `audience=None` resolution is
+  byte-identical to before (3.3).
+- **Automated AA contrast gate** (`tests/test_theme_contrast.py`, pure-python WCAG 2.x math,
+  no deps): a 34-pair ink×surface matrix derived line-by-line from the CSS the renderer
+  actually emits (each pair cites its source selector), including **state variants**:
+  disabled (effective composited colors through `opacity`), placeholder, secondary/helper
+  text, focus ring (1.4.11 non-text ≥3:1 against both adjacent surfaces), hover, and
+  selected/active tints (`color-mix` reproduced gamma-space per CSS Color 5). Runs for every
+  shipped preset **and** every preset × audience-override combination automatically; a
+  negative-control test proves the gate catches a deliberately broken theme.
+- **AA fixes (3.5 — floor, no exceptions)**: 15/18 themes failed the gate; fixed by
+  nearest-compliant lightness adjustment (hue/saturation preserved). Base `_tokens` (and
+  synced `ColorPalette` defaults): `text_muted #71717a→#6c6c75`, `success #16a34a→#168139`,
+  `error #dc2626→#cb2323`, `warning #d97706→#975606`; 13 presets carry additional per-theme
+  deltas (full list in PR body). CSS state fixes: focus rings are now **solid
+  `var(--c-focus)`** (a 50%-alpha ring mathematically cannot reach 3:1 on light themes),
+  `::placeholder` pinned to `--c-muted` (real text — not UA grey), `.title-kicker` opacity
+  removed (real text at `opacity:.7` broke 4.5), disabled button opacity `.45/.4 → .55`
+  (in-house ≥2:1 perceivability floor; WCAG 1.4.3 exempts inactive controls — documented).
+- **No-CDN font gate**: theme files may contain no external URLs; rendered HTML per theme is
+  greped for CDN/font-host markers. Theme font stacks are name-references with system
+  fallbacks; actual embedding stays the `custom_fonts` woff2-asset `@font-face` path (W10).
+
 ### Added — scenario line Faz 4: position, per-objective progress, resume-to-node, locks — 4/6
 - **`OutlineNode.unlock_rule`** (`"free" | "sequential"`, additive, default `"free"`):
   `sequential` locks a node until every screen in the **previous sibling's subtree** has been
