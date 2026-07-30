@@ -258,13 +258,13 @@ def test_suspend_estimate_counts_explorations():
 
 def test_many_explorations_warn_on_scorm12_budget():
     from core.antislop import lint_course
-    screens = [_xp(id=f"x{i}", store_key=f"kesif_{i}") for i in range(8)]  # 8×500 > 4096×0.9
+    screens = [_xp(id=f"x{i}", store_key=f"kesif_{i}") for i in range(8)]  # 8×500 > 3500 bütçesi
     p = _proj(screens, scorm_version="1.2")
     codes = {i.code for i in lint_course(p)}
-    assert "suspend_size_risk" in codes
+    assert "SUSPEND_OVERFLOW" in codes                      # Faz 4-ek: bütçe aşımı projeksiyonu
     # 2004 hedefinde aynı kurs uyarmaz (64KB bütçe)
     p2 = _proj(list(screens), scorm_version="2004")
-    assert "suspend_size_risk" not in {i.code for i in lint_course(p2)}
+    assert not {"SUSPEND_OVERFLOW", "suspend_size_risk"} & {i.code for i in lint_course(p2)}
 
 
 # --------------------------------------------------------------------------- #

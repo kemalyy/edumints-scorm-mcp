@@ -134,7 +134,11 @@ def test_s5_suspend_codec_in_bundle():
 def test_s5_persist_and_restore_use_rt_codec():
     """persist/restore mantığı templates.py'de KOPYALANMAZ — scorm.js codec'i çağrılır."""
     html = render_html(_quiz_project(), mode="preview", runtime_js="/*rt*/")
-    assert "RT.encodeSuspendFit(state,order,lim)" in html
+    # Faz 4-ek: fit çağrısı meta (pozisyon kaydı + hedef haritası) taşır; bütçe suspendBudget'tan
+    assert "fit=RT.encodeSuspendFit(state,order,lim," in html
+    assert "RT.suspendBudget" in html
+    # restore artık republish okuma merdiveninden geçer (RT yoksa decodeSuspend'e düşer)
+    assert "RT.resumeSuspend(raw,order," in html
     assert "RT.decodeSuspend(raw,order)" in html
     assert "RT.suspendLimit" in html
 

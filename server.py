@@ -1513,6 +1513,13 @@ async def scenario_upsert_node(scenario_id: str, node: dict) -> dict:
         doc = await _load_scenario(scenario_id, owner)
         (new_node,) = _parse_outline_nodes([node])
         idx = next((i for i, n in enumerate(doc.outline) if n.id == new_node.id), None)
+        # Faz 4-ek — id kararlılığı: silinmiş id YENİDEN KULLANILAMAZ (suspend pozisyon kaydı
+        # kimliğe dayanır; geri dönen id eski öğrencinin devam noktasını yanlış içeriğe bağlar).
+        if idx is None and new_node.id in doc.retired_ids:
+            raise ToolError("validation_error",
+                            f"Düğüm id'si '{new_node.id}' daha önce silinmiş — silinen id'ler "
+                            "yeniden kullanılamaz (resume kararlılığı, CONTRACTS Faz 4-ek); "
+                            "yeni bir id seç")
         if idx is None:
             doc.outline.append(new_node)
         else:
@@ -1541,6 +1548,13 @@ async def scenario_upsert_page(scenario_id: str, page: dict) -> dict:
         except ValidationError as e:
             raise ToolError("invalid_page", f"Geçersiz sayfa: {e}")
         idx = next((i for i, p in enumerate(doc.pages) if p.id == new_page.id), None)
+        # Faz 4-ek — id kararlılığı: silinmiş sayfa id'si yeniden kullanılamaz (yukarıdaki
+        # düğüm kuralıyla aynı gerekçe; sayfa id'si = derlenen ekran id'si = suspend anahtarı).
+        if idx is None and new_page.id in doc.retired_ids:
+            raise ToolError("validation_error",
+                            f"Sayfa id'si '{new_page.id}' daha önce silinmiş — silinen id'ler "
+                            "yeniden kullanılamaz (resume kararlılığı, CONTRACTS Faz 4-ek); "
+                            "yeni bir id seç")
         if idx is None:
             doc.pages.append(new_page)
         else:
@@ -1719,6 +1733,8 @@ async def scenario_delete_node(scenario_id: str, node_id: str,
         else:
             raise ToolError("validation_error", f"Bilinmeyen strategy: {strategy}")
         doc.outline = [n for n in doc.outline if n.id != node_id]
+        if node_id not in doc.retired_ids:              # Faz 4-ek — id emekliye ayrılır
+            doc.retired_ids.append(node_id)
         _scenario_struct_guard(doc)
         await SVC.store.update_scenario(doc)
         return OkOut()
@@ -1737,6 +1753,8 @@ async def scenario_delete_page(scenario_id: str, page_id: str) -> OkOut:
         if doc.page_by_id(page_id) is None:
             raise ToolError("not_found", f"Sayfa bulunamadı: {page_id}")
         doc.pages = [p for p in doc.pages if p.id != page_id]
+        if page_id not in doc.retired_ids:              # Faz 4-ek — id emekliye ayrılır
+            doc.retired_ids.append(page_id)
         for p in doc.pages:
             if page_id in p.evidence_from:
                 p.evidence_from = [e for e in p.evidence_from if e != page_id]

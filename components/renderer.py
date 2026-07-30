@@ -624,6 +624,13 @@ def _course_config(project: Project) -> dict:
         "stage_height": project.stage_height,
         "screens": screens,
         "id_order": [s.id or f"idx{i}" for i, s in enumerate(project.screens)],
+        # Faz 4-ek — İÇERİK SÜRÜMÜ: outline düğüm + ekran id'lerinin sıralı djb2 özeti (küçük
+        # int). Suspend pozisyon kaydına (z.v) girer; republish-resume merdiveninin sinyali.
+        # KARAR: monoton sayaç değil, içerikten türetilen deterministik özet — kaynaktan
+        # bağımsız çalışır (senaryo hattı da doğrudan build_from_spec de), mutasyon/migrasyon
+        # istemez ve tam da planın istediği anda değişir: id kümesi/sırası değişince.
+        # Semantiği yalnız EŞİTLİK karşılaştırmasıdır ("kaçıncı sürüm" değil).
+        "content_version": _content_version(project),
         # S2 (2.4) — kurs hedef sırası (determinizm kaynağı); yalnız id'ler (runtime'a metin gerekmez)
         **({"objectives": [o.id for o in project.objectives]} if project.objectives else {}),
         # Senaryo hattı Faz 1 — outline iskeleti (Faz 4 konum/resume için gerekli asgari alanlar;
@@ -638,6 +645,21 @@ def _course_config(project: Project) -> dict:
                      "endpoint": project.xapi.endpoint, "activity_base": project.xapi.activity_base}}
            if project.xapi and project.xapi.enabled else {}),
     }
+
+
+def _content_version(project: Project) -> int:
+    """Faz 4-ek — içerik sürümü: sıralı (outline düğüm id'leri + ekran id'leri) üzerinden djb2,
+    20 bite indirgenmiş küçük int. scorm.js _fp ile AYNI aile ama farklı girdi kümesi: orderFp
+    yalnız ekran sırasını, content_version düğüm kümesini de görür (düğüm silme/yeniden adlandırma
+    ekran sırası değişmeden de sürüm değiştirir). Çakışma riski (2^-20/çift) kabul edilebilir:
+    yanlış-eşitlikte bile orderFp uyuşmazlığı kimlik-merdivenini yine tetikler (çifte emniyet)."""
+    ids = [n.id for n in project.outline] + \
+          [s.id or f"idx{i}" for i, s in enumerate(project.screens)]
+    joined = ",".join(ids)
+    h = 5381
+    for ch in joined:
+        h = ((h * 33) + ord(ch)) & 0xFFFFFFFF
+    return h & 0xFFFFF
 
 
 def _act(a) -> dict:

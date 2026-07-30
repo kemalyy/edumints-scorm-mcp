@@ -119,6 +119,54 @@ export function suspendLimit(is2004) {
   return is2004 ? SUSPEND_LIMIT_2004 : SUSPEND_LIMIT_12;
 }
 
+// Faz 4-ek — ÇALIŞMA BÜTÇESİ: sınırın tamamı kullanılmaz; kalan pay LMS tarafındaki
+// kaçışlama/depolama ek yüküne REZERVE edilir (bazı LMS'ler suspend_data'yı SQL/XML
+// kaçışlayarak saklar — 4096'ya dayanan payload orada taşar). TÜM ölçüm UTF-8 BAYTTIR,
+// karakter değil (Türkçe ç/ğ/ı/ö/ş/ü 2 bayttır; .length ile ölçüm sessizce taşırırdı).
+// Zarfın kendi alanları zaten ASCII'dir (kısa anahtar, id, base36/int) — Türkçe yalnız
+// tail JSON'daki yazar değişkeni / öğrenen serbest metninde görülebilir.
+export const SUSPEND_BUDGET_12 = 3500;    // 1.2 çalışma bütçesi (bayt); 4096-3500 rezerv
+
+export function suspendBudget(is2004) {
+  // 2004'te aynı rezerv ORANI uygulanır (kaçışlama ek yükü içerikle orantılıdır).
+  return is2004
+    ? Math.floor(SUSPEND_LIMIT_2004 * SUSPEND_BUDGET_12 / SUSPEND_LIMIT_12)
+    : SUSPEND_BUDGET_12;
+}
+
+// UTF-8 bayt uzunluğu — saf, TextEncoder'sız (eski WebView'larda da deterministik).
+// Surrogate çifti 4 bayt sayılır; eşleşmemiş surrogate U+FFFD gibi 3 bayt kabul edilir.
+export function byteLen(s) {
+  s = String(s == null ? "" : s);
+  var n = 0;
+  for (var i = 0; i < s.length; i++) {
+    var c = s.charCodeAt(i);
+    if (c < 0x80) n += 1;
+    else if (c < 0x800) n += 2;
+    else if (c >= 0xd800 && c <= 0xdbff && i + 1 < s.length &&
+             (s.charCodeAt(i + 1) & 0xfc00) === 0xdc00) { n += 4; i++; }
+    else n += 3;
+  }
+  return n;
+}
+
+// s'yi en çok maxBytes UTF-8 baytına kırp — karakter ORTASINDAN kesmez (surrogate çifti bölünmez).
+export function byteSlice(s, maxBytes) {
+  s = String(s == null ? "" : s);
+  var n = 0, i = 0;
+  while (i < s.length) {
+    var c = s.charCodeAt(i), w, step = 1;
+    if (c < 0x80) w = 1;
+    else if (c < 0x800) w = 2;
+    else if (c >= 0xd800 && c <= 0xdbff && i + 1 < s.length &&
+             (s.charCodeAt(i + 1) & 0xfc00) === 0xdc00) { w = 4; step = 2; }
+    else w = 3;
+    if (n + w > maxBytes) break;
+    n += w; i += step;
+  }
+  return s.slice(0, i);
+}
+
 function _b36(n) { return Math.max(0, Math.floor(Number(n) || 0)).toString(36); }
 function _p36(s) { var n = parseInt(s, 36); return isNaN(n) ? 0 : n; }
 function _numStr(x) { var n = Number(x); return isFinite(n) ? String(n) : "0"; }
@@ -134,7 +182,10 @@ function _fp(order) {
   return h.toString(36) + "_" + (order || []).length.toString(36);
 }
 
-var _V2_KNOWN = { visited: 1, results: 1, history: 1, vars: 1, ix: 1, inext: 1, cursorId: 1, reachedEnd: 1, xp: 1 };
+// g/e/t: Faz 4-ek merdiven alanları (aşağıda); z pozisyon kaydı state'e hiç yazılmaz ama
+// savunmacı olarak listede (yanlışlıkla state.z konursa extra.o'ya yankılanmasın).
+var _V2_KNOWN = { visited: 1, results: 1, history: 1, vars: 1, ix: 1, inext: 1, cursorId: 1,
+                  reachedEnd: 1, xp: 1, g: 1, e: 1, t: 1, z: 1 };
 
 // --------------------------------------------------------------------------- //
 // F2 (#113) — exploration girdi saklama: state.xp = { store_key: değer }
@@ -142,18 +193,18 @@ var _V2_KNOWN = { visited: 1, results: 1, history: 1, vars: 1, ix: 1, inext: 1, 
 // Anahtarlar store_key'dir (ekran id'si DEĞİL) → pozisyonel indekse çevrilmez, v2 kuyruk
 // JSON'unda (extra.p) kimlik-anahtarlı taşınır; paket reorder'ında bile anlamı bozulmaz
 // (orderFp uyuşmazlığında zarfın tamamı temiz-başlangıca düşer — bilinçli güvenli taraf).
-// Değer 500 karakterde kırpılır: SCORM 1.2 suspend bütçesi (4096) birkaç keşif ekranını
-// kaldırabilsin; sunucu tarafı tahmin (core/antislop.py estimate_suspend_size) AYNI sabiti
-// kullanır — değişirse ikisi birlikte güncellenmeli.
+// Değer 500 UTF-8 BAYTTA kırpılır (Faz 4-ek: karakter değil bayt — Türkçe metin 2 bayt/harf):
+// SCORM 1.2 suspend bütçesi (3500 bayt) birkaç keşif ekranını kaldırabilsin; sunucu tarafı
+// tahmin (core/antislop.py estimate_suspend_size) AYNI sabiti kullanır — birlikte güncellenmeli.
 
 export var EXPLORATION_VALUE_MAX = 500;
 
-// state.xp[key] = String(value) (500'de kırp). Dönüş: { value, truncated } — çağıran
+// state.xp[key] = String(value) (500 baytta kırp). Dönüş: { value, truncated } — çağıran
 // (bindExploration) truncated'ı console.warn'a çevirir; burada ASLA loglanmaz (saf).
 export function setExploration(state, key, value) {
   var v = value == null ? "" : String(value);
   var truncated = false;
-  if (v.length > EXPLORATION_VALUE_MAX) { v = v.slice(0, EXPLORATION_VALUE_MAX); truncated = true; }
+  if (byteLen(v) > EXPLORATION_VALUE_MAX) { v = byteSlice(v, EXPLORATION_VALUE_MAX); truncated = true; }
   if (state) (state.xp = state.xp || {})[String(key)] = v;
   return { value: v, truncated: truncated };
 }
@@ -163,11 +214,26 @@ export function getExploration(state, key) {
   return v == null ? "" : String(v);
 }
 
-export function encodeSuspend(state, order) {
-  state = state || {}; order = order || [];
+// meta (Faz 4-ek, opsiyonel): { node: cursor ekranının outline düğüm id'si, cv: içerik
+// sürümü (content_version, küçük int), t: kırpma basamağı (encodeSuspendFit yazar) }.
+// meta verilirse tail'e `z` POZİSYON KAYDI eklenir: {s: ekranId, n: düğümId, v: içerikSürümü}.
+// z KİMLİK-tabanlıdır (pozisyonel DEĞİL) → paket güncellenip order değişse (orderFp uyuşmasa)
+// bile okunabilir kalır; resumeSuspend republish merdiveni bunun üzerinden çalışır.
+export function encodeSuspend(state, order, meta) {
+  state = state || {}; order = order || []; meta = meta || {};
   var idx = {}, i;
   for (i = 0; i < order.length; i++) idx[order[i]] = i;
   var extra = {};
+
+  // z — pozisyon kaydı: konum + içerik sürümü. ASLA DÜŞMEZ (merdivenin tepesi).
+  var z = {};
+  if (state.cursorId != null) z.s = state.cursorId;
+  if (meta.node != null) z.n = meta.node;
+  if (meta.cv != null) z.v = meta.cv;
+  if (z.s != null || z.v != null) extra.z = z;
+  if (meta.t) extra.t = meta.t;                        // kırpma basamağı bayrağı
+  if (state.g) extra.g = state.g;                      // hedef anlık görüntüsü (taban — rung 3)
+  if (state.e != null) extra.e = state.e;              // toplam kazanılmış puan tabanı (rung 3)
 
   var cur = "";
   if (state.cursorId != null) {
@@ -265,11 +331,27 @@ function _decodeV2(s, order) {
     if (extra.a) st.vars = extra.a;                    // vars boşsa YOK say → runtime varsayılanları kurar
     if (extra.p) st.xp = extra.p;                      // F2 — exploration girdileri (store_key → değer)
     if (extra.o) Object.keys(extra.o).forEach(function (ok_) { st[ok_] = extra.o[ok_]; });
+    // Faz 4-ek — merdiven alanları: t (kırpma basamağı), g/e (rung-3 skor/hedef tabanı).
+    // z pozisyon kaydı state'e YAZILMAZ (konum zaten cursor'dan geldi; z resumeSuspend'in işi).
+    if (extra.t) st.t = extra.t;
+    if (extra.g) st.g = extra.g;
+    if (extra.e != null) st.e = extra.e;
+    // t=4 (yalnız-pozisyon): visited de düşmüştü → LİNEER YAKLAŞIM: cursor'a kadarki ekranlar
+    // gezilmiş sayılır (kilit tuzağı/ilerleme sıfırlanması olmasın; menüden atlanmış ekranlar
+    // için iyimser bir yaklaşıklıktır — belgeli). cursor'un kendisi visited SAYILMAZ (oynatıcı
+    // gösterirken işaretler).
+    if (st.t >= 4 && parts[1]) {
+      var ci = _p36(parts[1]);
+      for (var q = 0; q < ci && q < order.length; q++) st.visited[order[q]] = true;
+    }
     return st;
   } catch (e) { return null; }
 }
 
 // raw → state | null. v2 ("2|" öneki) ve v1 (düz JSON {visited:...}) formatlarını tanır.
+// NOT (Faz 4-ek): orderFp uyuşmazlığında null döner — bu TAM decode'un sözleşmesidir
+// (pozisyonel alanlar güvensiz). Republish'ten sağ çıkan kimlik-tabanlı KISMİ resume için
+// oynatıcı resumeSuspend kullanır (aşağıda) — null artık "her şeyi sıfırla" demek DEĞİLDİR.
 export function decodeSuspend(raw, order) {
   if (raw == null || raw === "") return null;
   var s = String(raw);
@@ -284,20 +366,172 @@ export function decodeSuspend(raw, order) {
   return null;
 }
 
-// Sığdırarak kodla: limit aşılırsa önce history düşer (v1'deki davranışın kayıpsız hâli — vars ve
-// ix v2'de KORUNUR; v1 fallback ikisini de atardı → tekrar cevaplanan sorular kopya interaction
-// üretirdi). Hâlâ sığmıyorsa veri OLDUĞU GİBİ döner + truncated bayrağı (görünürlük katmanı uyarır).
-export function encodeSuspendFit(state, order, limit) {
-  var lim = Number(limit) > 0 ? Number(limit) : SUSPEND_LIMIT_12;
-  var data = encodeSuspend(state, order);
-  var dropped = false;
-  if (data.length > lim && state && state.history && state.history.length) {
-    var slim = {}; for (var k in state) slim[k] = state[k];
-    slim.history = [];
-    data = encodeSuspend(slim, order);
-    dropped = true;
+// orderFp uyuşmayan v2 zarfından KİMLİK-tabanlı alanları kurtar: tail (extra.c/v/r/x/a/p/o,
+// z, g, e, t) + inext (LMS interaction sayacı — order'dan bağımsız; eski satırların üzerine
+// yazmayı önler). POZİSYONEL alanlar (cursor idx, visited bitfield, history, results/ix
+// indeksleri) ATILIR — eski order bilinmediği için id'ye çevrilemezler; reachedEnd de atılır
+// (yeni içerikte "sonu görmüş" sayılamaz). → {state, z} | null.
+function _salvageV2(s) {
+  try {
+    var parts = s.split("|");
+    if (parts[0] !== "2") return null;
+    var tail = parts.slice(9).join("|");
+    var extra = tail ? JSON.parse(tail) : {};
+    var st = { visited: {}, results: {}, history: [] };
+    (extra.v || []).forEach(function (vid) { st.visited[vid] = true; });
+    if (extra.r) Object.keys(extra.r).forEach(function (rid) { st.results[rid] = extra.r[rid]; });
+    if (extra.x) { st.ix = {}; Object.keys(extra.x).forEach(function (xid) { st.ix[xid] = extra.x[xid]; }); }
+    if (parts[7] != null && parts[7] !== "") st.inext = _p36(parts[7]);
+    if (extra.a) st.vars = extra.a;
+    if (extra.p) st.xp = extra.p;
+    if (extra.t) st.t = extra.t;
+    if (extra.g) st.g = extra.g;
+    if (extra.e != null) st.e = extra.e;
+    if (extra.o) Object.keys(extra.o).forEach(function (ok_) { st[ok_] = extra.o[ok_]; });
+    return { state: st, z: extra.z || null, c: extra.c != null ? extra.c : null };
+  } catch (e) { return null; }
+}
+
+// Faz 4-ek — REPUBLISH-RESUME OKUMA MERDİVENİ. ctx: { cv: COURSE.content_version,
+// screenNode: {ekranId: düğümId} }. Dönüş: { state, mode, target, notice }:
+//   mode "none"   → veri yok/çözülemedi (temiz başlangıç, bildirim YOK — eski davranış)
+//   mode "full"   → orderFp eşleşti (veya v1 kimlik-anahtarlı) → TAM resume, SESSİZ.
+//                   İçerik sürümü v yalnız pozisyonel bütünlük bozulunca danışılır: fp
+//                   eşleşiyorsa ekran kümesi ve sırası aynıdır → v farkı (yalnız düğüm
+//                   kümesi değişimi) tam resume'u etkilemez (düğüm konumu statik konfigden).
+//   mode "node"   → fp uyuşmadı ama pozisyon kaydındaki düğüm YAŞIYOR → düğüme devam
+//                   (tam ekran hâlâ varsa o; yoksa düğümün yeni İLK ekranı) — SESSİZ (madde-2).
+//   mode "screen" → düğüm gitmiş ama EKRAN yaşıyor → ekranın YENİ düğümünde devam + BİLDİRİM.
+//   mode "start"  → ikisi de gitmiş (ya da pozisyon kaydı yok — eski payload) → kurs başı +
+//                   BİLDİRİM (sessiz sıfırlama YOK).
+// Fallback modlarında (node/screen) hedefe kadarki ekranlar LİNEER YAKLAŞIMLA visited
+// işaretlenir (kilit tuzağı/ilerleme sıfırlanması olmasın — belgeli yaklaşıklık). Öğrenene
+// ASLA teknik hata gösterilmez; bildirim dostu metindir (runtime i18n, aria-live).
+export function resumeSuspend(raw, order, ctx) {
+  ctx = ctx || {}; order = order || [];
+  var none = { state: null, mode: "none", target: null, notice: false };
+  if (raw == null || raw === "") return none;
+  var s = String(raw);
+  if (s.slice(0, 2) !== "2|") {
+    var v1 = decodeSuspend(s, order);                  // v1 kimlik-anahtarlı → reorder'a bağışık
+    return v1 ? { state: v1, mode: "full", target: v1.cursorId != null ? v1.cursorId : null,
+                  notice: false } : none;
   }
-  return { data: data, truncated: data.length > lim, historyDropped: dropped };
+  var full = _decodeV2(s, order);
+  if (full) return { state: full, mode: "full",
+                     target: full.cursorId != null ? full.cursorId : null, notice: false };
+  var sv = _salvageV2(s);
+  if (!sv) return none;
+  var st = sv.state;
+  var z = sv.z || {};
+  if (z.s == null && sv.c != null) z.s = sv.c;         // eski payload: yalnız extra.c varsa o da konumdur
+  var sn = ctx.screenNode || {};
+  var idx = {}, i;
+  for (i = 0; i < order.length; i++) idx[order[i]] = i;
+  var nodeAlive = false;
+  if (z.n != null) {
+    for (i = 0; i < order.length; i++) if (sn[order[i]] === z.n) { nodeAlive = true; break; }
+  }
+  var mode, target = null, notice;
+  if (nodeAlive) {
+    mode = "node"; notice = false;
+    if (z.s != null && idx[z.s] != null) target = z.s;
+    else for (i = 0; i < order.length; i++) if (sn[order[i]] === z.n) { target = order[i]; break; }
+  } else if (z.s != null && idx[z.s] != null) {
+    mode = "screen"; notice = true; target = z.s;
+  } else {
+    mode = "start"; notice = true; target = order.length ? order[0] : null;
+  }
+  if (target != null && mode !== "start") {
+    st.cursorId = target;
+    for (i = 0; i < (idx[target] || 0); i++) st.visited[order[i]] = true;   // lineer yaklaşım
+  }
+  return { state: st, mode: mode, target: target, notice: notice };
+}
+
+function _shallow(st) { var o = {}; for (var k in st) o[k] = st[k]; return o; }
+
+// rung-3 anlık görüntüsü: results düşmeden ÖNCE hedef toplamları + toplam kazanılmış puan
+// tail'e taşınır (rung 2 sözleşmesi: hedef tamamlanma/skor durumu, sayfa-cevaplarından uzun
+// yaşar). Mevcut taban (önceki kısmi resume'dan gelen g/e) korunur: canlı toplam yalnızca
+// cevaplanmış hedeflerde tabanı EZER; toplam puanda büyük olan kazanır (çifte sayım yok).
+function _snapshotScores(st, meta) {
+  var g = {}, oid;
+  if (st.g) for (oid in st.g) g[oid] = st.g[oid];
+  if (meta && meta.objIds && meta.objMap) {
+    var aggs = aggregateObjectives(meta.objIds, meta.objMap, st.results || {});
+    for (var i = 0; i < aggs.length; i++) {
+      var a = aggs[i];
+      if (a.answered > 0) g[a.id] = [a.correct, a.total, a.answered];
+    }
+  }
+  var e = 0;
+  var res = st.results || {};
+  for (var sid in res) e += Number(res[sid] && res[sid].points) || 0;
+  if (st.e != null && Number(st.e) > e) e = Number(st.e);
+  var out = {};
+  if (Object.keys(g).length) out.g = g;
+  if (e > 0) out.e = e;
+  return out;
+}
+
+// Faz 4-ek — KIRPMA MERDİVENİ (taşma önceliği; üst korunur, alt önce düşer):
+//   korunan tepe: pozisyon (z: ekran id + düğüm id + içerik sürümü) + cursor + reachedEnd
+//                 + inext — ASLA düşmez.
+//   rung 1: history (gezinme geri-yığını; en az değerli — geri tuşu lineere düşer)
+//   rung 2: xp (öğrenen serbest metni — keşif girdileri; yer tutucuya düşer)
+//   rung 3: sayfa-başına cevaplar (results/ix/vars) — düşmeden önce hedef toplamları + toplam
+//           puan g/e olarak tail'e alınır (hedef tamamlanma/skor durumu cevaplardan uzun yaşar)
+//   rung 4: g/e + visited de düşer → yalnız pozisyon (decode visited'ı lineer yaklaşımla kurar)
+// Her basamaktan sonra YENİDEN ÖLÇÜLÜR (UTF-8 bayt), sığdığı anda durur. Basamak `t` kısa
+// anahtarıyla zarfa yazılır — oynatıcı state'i KISMİ sayar (basamak-başına davranış runtime'da).
+// limit = ÇALIŞMA BÜTÇESİ bayt (suspendBudget; 1.2'de 3500). meta: encodeSuspend meta'sı +
+// {objIds, objMap} (rung-3 anlık görüntüsü için).
+export function encodeSuspendFit(state, order, limit, meta) {
+  var budget = Number(limit) > 0 ? Number(limit) : SUSPEND_BUDGET_12;
+  meta = meta || {};
+  var st = state || {};
+  var rung = 0;
+  var data = encodeSuspend(st, order, meta);
+  while (byteLen(data) > budget && rung < 4) {
+    rung++;
+    st = _shallow(st);
+    if (rung === 1) { st.history = []; }
+    else if (rung === 2) { delete st.xp; }
+    else if (rung === 3) {
+      var snap = _snapshotScores(st, meta);
+      delete st.results; delete st.ix; delete st.vars;
+      delete st.g; delete st.e;
+      if (snap.g) st.g = snap.g;
+      if (snap.e != null) st.e = snap.e;
+    } else if (rung === 4) { delete st.g; delete st.e; st.visited = {}; }
+    var m = _shallow(meta); m.t = rung;
+    data = encodeSuspend(st, order, m);
+  }
+  var bytes = byteLen(data);
+  return { data: data, rung: rung, bytes: bytes, truncated: bytes > budget,
+           historyDropped: rung >= 1 };
+}
+
+// rung-3 tabanını canlı toplamlarla birleştir (runtime writeObjectives yolu): hedef sırası
+// objectiveIds'tir; CANLI toplamda cevap varsa canlı kazanır (öğrenen yeniden cevapladı),
+// yoksa g tabanı kullanılır → kısmi resume'da LMS'e SIFIR yazılmaz (skor geriye gitmez).
+export function mergeObjectiveSnapshot(aggs, objectiveIds, g) {
+  if (!g) return aggs || [];
+  var live = {};
+  (aggs || []).forEach(function (a) { live[a.id] = a; });
+  var out = [];
+  (objectiveIds || []).forEach(function (oid) {
+    var a = live[oid], snap = g[oid];
+    if (a && a.answered > 0) { out.push(a); return; }
+    if (snap) {
+      var c = Number(snap[0]) || 0, t = Number(snap[1]) || 0, n = Number(snap[2]) || 0;
+      out.push({ id: oid, correct: c, total: t, answered: n, scaled: t > 0 ? c / t : 0 });
+      return;
+    }
+    if (a) out.push(a);
+  });
+  return out;
 }
 
 // SCORM API Set çağrısının dönüşü başarı mı? 1.2 LMSSetValue ve 2004 SetValue CMIBoolean
@@ -314,8 +548,14 @@ export function suspendWriteIssues(opts) {
   var out = [];
   if (!opts) return out;
   var size = Number(opts.size) || 0, limit = Number(opts.limit) || 0;
+  // Faz 4-ek: "truncated" = merdivenin SONUNDA bile bütçeye sığmadı; "trimmed" = merdiven
+  // veri düşürerek sığdırdı (rung>0) — kayıp OLDU, sessiz kalmaz (konsol + varsa xAPI).
   if (opts.truncated) out.push({ kind: "truncated", size: size, limit: limit });
+  else if (Number(opts.rung) > 0) out.push({ kind: "trimmed", size: size, limit: limit });
   if (opts.ok === false) out.push({ kind: "write_failed", size: size, limit: limit });
+  // kırpma basamağı (rung) verilmişse uyarılara eklenir: iz hangi veri katmanının düştüğünü
+  // raporlar. Verilmezse alan hiç eklenmez (geriye uyum).
+  if (opts.rung) for (var i = 0; i < out.length; i++) out[i].rung = Number(opts.rung);
   return out;
 }
 

@@ -247,6 +247,14 @@ class ScenarioDocument(BaseModel):
     # bu listede yapılır. Derlemede server katmanı bunları build_from_spec assets[]'ine
     # data: URI olarak enjekte eder (asset id'ler korunur → slot referansları geçerli kalır).
     assets: list[AssetRef] = Field(default_factory=list)
+    # Faz 4-ek — ID KARARLILIĞI (madde-2 ön koşulu): silinen sayfa/düğüm id'leri buraya
+    # yazılır ve YENİDEN KULLANILAMAZ (upsert reddeder — server katmanı). Neden: suspend
+    # pozisyon kaydı (z) ve kimlik-tabanlı resume, id'lerin ANLAM DEĞİŞTİRMEMESİNE dayanır;
+    # silinip başka içerikle geri gelen bir id, eski öğrencinin devam noktasını/skorunu
+    # YANLIŞ içeriğe bağlardı. Derleyici id'leri asla pozisyonel yeniden numaralandırmaz
+    # (compile passthrough — testli); bu liste sözleşmenin silme tarafını SERT kılar.
+    # Ek alan pydantic'te varsayılanlı → eski store blob'ları migrasyonsuz okunur.
+    retired_ids: list[str] = Field(default_factory=list)
     owner_key_id: str = ""
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)

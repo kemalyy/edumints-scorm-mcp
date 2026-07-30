@@ -1903,18 +1903,23 @@ def test_s5_lint_warns_on_suspend_size_risk_for_scorm12():
 
     # kabul senaryosu: 60 ekran / 30 puanlı — v2 kodlayıcı rahat sığdırır → WARN YOK
     ok = big(60)
-    assert estimate_suspend_size(ok) < int(4096 * 0.9)
-    assert "suspend_size_risk" not in {i.code for i in lint_course(ok)}
+    assert estimate_suspend_size(ok) < int(3500 * 0.9)     # Faz 4-ek: 3500 BAYT çalışma bütçesi
+    codes_ok = {i.code for i in lint_course(ok)}
+    assert not {"suspend_size_risk", "SUSPEND_OVERFLOW"} & codes_ok
 
-    # 500 ekran / 250 puanlı — tahmin sınıra dayanır → WARN (FAIL değil; runtime yine sığdırmaya çalışır)
+    # 500 ekran / 250 puanlı — kötü-durum projeksiyonu bütçeyi AŞAR → SUSPEND_OVERFLOW
+    # (FAIL değil WARN: runtime kırpma merdiveni son çare olarak sığdırır; yazar önceden bilmeli)
     risky = big(500)
-    issues = [i for i in lint_course(risky) if i.code == "suspend_size_risk"]
+    issues = [i for i in lint_course(risky) if i.code == "SUSPEND_OVERFLOW"]
     assert len(issues) == 1
     assert issues[0].severity == "warn"
-    assert "4096" in issues[0].message
+    assert "3500" in issues[0].message                     # projeksiyon bütçeyle raporlanır
+    assert str(estimate_suspend_size(risky)) in issues[0].message  # projeksiyon SAYISI mesajda
+    assert "suspend_size_risk" not in {i.code for i in lint_course(risky)}  # ikili uyarı yok
 
     # aynı kurs 2004 hedefinde: sınır 64k → kural sessiz (yalnız 1.2 hedefi denetlenir)
-    assert "suspend_size_risk" not in {i.code for i in lint_course(big(500, ver="2004"))}
+    codes_2004 = {i.code for i in lint_course(big(500, ver="2004"))}
+    assert not {"suspend_size_risk", "SUSPEND_OVERFLOW"} & codes_2004
 
 
 # ---- S2 (2.4): kurs hedefleri — model + doğrulama + lint ----
