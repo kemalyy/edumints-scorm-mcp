@@ -19,6 +19,15 @@ from pydantic import BaseModel, Field
 from .project import Project, utcnow
 from .scenario import ScenarioDocument
 
+# list_projects_page — güvenli sıralama eşlemesi (ham string SQL'e girmez; whitelist → sabit ifade)
+_PROJECTS_SORT_SQL = {
+    "updated_desc": "updated_at DESC",
+    "updated_asc": "updated_at ASC",
+    "title_asc": "LOWER(json_extract(data,'$.title')) ASC",
+    "screens_desc": "json_array_length(data,'$.screens') DESC",
+    "size_desc": "size_bytes DESC",
+}
+
 
 # --------------------------------------------------------------------------- #
 # Yan tipler (CONTRACTS.md §4)
@@ -157,6 +166,12 @@ class Store(ABC):
     async def delete_project(self, project_id: str, owner_key_id: str) -> None: ...
     @abstractmethod
     async def list_projects(self, owner_key_id: str) -> list[Project]: ...
+    @abstractmethod
+    async def list_projects_page(
+        self, owner_key_id: str, *, sort: str = "updated_desc", q: str | None = None,
+        scorm: str | None = None, status: str | None = None,
+        limit: int = 12, offset: int = 0,
+    ) -> tuple[list["Project"], int]: ...
     @abstractmethod
     async def count_projects(self, owner_key_id: str) -> int: ...
     @abstractmethod
@@ -405,6 +420,40 @@ class SqliteStore(Store):
         ) as cur:
             rows = await cur.fetchall()
         return [Project.model_validate_json(r["data"]) for r in rows]
+
+    async def list_projects_page(
+        self, owner_key_id: str, *, sort: str = "updated_desc", q: str | None = None,
+        scorm: str | None = None, status: str | None = None,
+        limit: int = 12, offset: int = 0,
+    ) -> tuple[list[Project], int]:
+        where = ["owner_key_id = ?"]
+        params: list = [owner_key_id]
+        if q is not None:
+            where.append("LOWER(json_extract(data,'$.title')) LIKE '%' || LOWER(?) || '%'")
+            params.append(q)
+        if scorm in ("1.2", "2004"):
+            where.append("json_extract(data,'$.scorm_version') = ?")
+            params.append(scorm)
+        if status in ("built", "draft"):
+            # süresi geçmemiş paket = 'built'. İlk 19 karaktere kırp → naive/aware ISO farkını yut (hepsi UTC).
+            now19 = utcnow().isoformat()[:19]
+            exists = ("EXISTS (SELECT 1 FROM packages pk WHERE pk.project_id = projects.id "
+                      "AND substr(pk.expires_at,1,19) >= ?)")
+            where.append(exists if status == "built" else "NOT " + exists)
+            params.append(now19)
+        where_sql = " AND ".join(where)
+        order_sql = _PROJECTS_SORT_SQL.get(sort, _PROJECTS_SORT_SQL["updated_desc"])
+
+        async with self.db.execute(
+            f"SELECT COUNT(*) c FROM projects WHERE {where_sql}", tuple(params)
+        ) as cur:
+            total = int((await cur.fetchone())["c"])
+        async with self.db.execute(
+            f"SELECT data FROM projects WHERE {where_sql} ORDER BY {order_sql} LIMIT ? OFFSET ?",
+            tuple(params) + (limit, offset),
+        ) as cur:
+            rows = await cur.fetchall()
+        return [Project.model_validate_json(r["data"]) for r in rows], total
 
     async def count_projects(self, owner_key_id: str) -> int:
         async with self.db.execute(
