@@ -255,6 +255,29 @@ def test_g1_gamification_hud():
     assert "currentLevel" in html and "updateLevel" in html and "updateLives" in html and "updateHud" in html
 
 
+def test_choice_per_option_feedback_html():
+    # Seçime özel gerekçe (Choice.feedback_html): feedback_html dolu şıklar
+    # .opt-fb div'i render eder (hidden), boş olanlar hiçbir şey üretmez.
+    p = Project(id=new_project_id(), title="fb", scorm_version="1.2", screens=[
+        MCQScreen(id="q", title="Q", prompt_html="<p>?</p>",
+                  options=[Choice(id="a", text_html="Doğru", correct=True,
+                                  feedback_html="<p>Çünkü A doğru.</p>"),
+                           Choice(id="b", text_html="Yanlış",
+                                  feedback_html="<p>B yanlış çünkü …</p>"),
+                           Choice(id="c", text_html="Boş")]),
+    ])
+    html = render_html(p, mode="preview", runtime_js="/*rt*/")
+    # feedback_html'i olan şıklar için .opt-fb render edilir
+    assert 'class="opt-wrap"' in html
+    assert '<div class="opt-fb rich" hidden><p>Çünkü A doğru.</p></div>' in html
+    assert '<div class="opt-fb rich" hidden><p>B yanlış çünkü …</p></div>' in html
+    # feedback_html'i OLMAYAN şık için .opt-fb üretilmez
+    assert html.count('class="opt-fb rich" hidden') == 2
+    # runtime: cevap sonrası seçilen şıkkın .opt-fb'si açılır (scen-conseq deseni)
+    assert 'classList.contains("selected")' in html and 'querySelector(".opt-fb")' in html
+    assert 'ofb.hidden=false' in html
+
+
 def test_faz16_responsive_and_touch():
     # Faz 16: cihaz uyumluluğu — içerik taşma kaydırması + mobil reflow + dokunma sürükleme
     from core.project import ContentSlide, DragDropScreen, DragItem, DropTarget

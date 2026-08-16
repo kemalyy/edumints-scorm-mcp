@@ -338,6 +338,11 @@ body[data-bg="grid"]{background-image:linear-gradient(color-mix(in srgb,var(--c-
 .opt.correct{border-color:var(--c-success);background:var(--c-success-bg)}
 .opt.wrong{border-color:var(--c-error);background:var(--c-error-bg)}
 .opt:disabled{cursor:default;transform:none}
+.opt-wrap{display:flex;flex-direction:column}
+ .opt-wrap .opt{flex:1}
+ .opt-fb{font-size:14px;color:var(--c-muted);padding:var(--space-2) var(--space-4);
+   border-left:3px solid var(--c-primary);background:var(--c-surface);
+   border-radius:0 var(--r-sm) var(--r-sm) 0}
 
 /* fill blank */
 .blanks{display:flex;flex-direction:column;gap:var(--space-4)}
@@ -1322,6 +1327,10 @@ function checkChoice(el,s){
     var isC=correct.indexOf(o.dataset.opt)>=0; o.disabled=true;
     if(isC && s.feedback.show_correct) o.classList.add("correct");
     if(o.classList.contains("selected")&&!isC) o.classList.add("wrong");
+    // Seçime özel gerekçe (feedback_html) — seçilen şıkkın altında göster (scen-conseq deseni)
+    if(o.classList.contains("selected")){
+      var ofb=o.parentNode&&o.parentNode.querySelector(".opt-fb"); if(ofb) ofb.hidden=false;
+    }
   });
   // true_false → tek boolean; mcq → seçilen şık id'leri (S1 çeldirici analizi bunu kullanır)
   if(s.type==="true_false"){
