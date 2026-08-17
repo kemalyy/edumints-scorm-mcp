@@ -24,7 +24,9 @@ jobs:
         run: |
           base="${{ github.event.pull_request.base.sha }}"
           head="${{ github.event.pull_request.head.sha }}"
-          git diff --name-only "$base" "$head" > changed.txt
+          # ÜÇ NOKTA: merge-base'den head'e — dal main'in gerisindeyse main'in
+          # kendi commitleri "değişmiş" sayılmasın (iki nokta bunu ters diff'ler).
+          git diff --name-only "$base...$head" > changed.txt
           echo "Değişen dosyalar:"; cat changed.txt
 
       # NOT: Public CI yalnız sızıntı-güvenli kapıları çalıştırır: provenance + file_area çakışması.
