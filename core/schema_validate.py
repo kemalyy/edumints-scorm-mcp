@@ -57,24 +57,64 @@ def _ims_sources() -> dict:
         return {}
 
 
-def _ensure_populated(version: str) -> Path | None:
-    """Çözümlenmiş şema dizinini (ADL + driver + fetched IMS) hazırlar. Hazırsa yolu, değilse None."""
-    rd = _resolved_dir(version)
+def _expected_files(version: str) -> set[str]:
+    """Bu sürüm için TAM şema setinde bulunması gereken tüm dosya adları:
+    vendored driver + ADL/*.xsd + fetched IMS/W3C (ims_sources) anahtarları."""
+    names = {_DRIVER[version]}
+    names.update(x.name for x in _ADL_DIR.glob("*.xsd"))
+    names.update(_ims_sources().get(_VER_KEY[version], {}).keys())
+    return names
+
+
+def _cache_complete(version: str, rd: Path) -> bool:
+    """rd TAM ve GÜNCEL mi: (1) beklenen dosyaların tamamı mevcut, (2) cache'lenmiş driver =
+    vendored driver (bayt-bayt). Bu iki koşul, prod build'ini bloklayan iki cache-poisoning
+    onset'ini de reddeder: (a) partial-fetch (imscp var, imsmd yok → lom strict-wildcard
+    conformance_error) ve (b) stale-cache (S7-öncesi, imsmd-import'suz eski driver). Eksik/eski
+    → False; çağıran fetch modunda yeniden doldurur, offline modda graceful None döner."""
     driver = rd / _DRIVER[version]
-    if driver.exists():               # offline override ya da önceki cache
+    if not driver.exists():
+        return False
+    try:
+        if driver.read_bytes() != (_SCHEMAS_DIR / _DRIVER[version]).read_bytes():
+            return False  # stale/farklı driver → yeniden doldur
+    except OSError:
+        return False
+    return all((rd / name).exists() for name in _expected_files(version))
+
+
+def _ensure_populated(version: str) -> Path | None:
+    """Çözümlenmiş şema dizinini (ADL + driver + fetched IMS) hazırlar. TAM/güncel cache varsa
+    yolunu döner. Değilse: fetch modunda staging'e TAM doldurup ATOMİK yerleştirir — yarım fetch
+    ASLA kalıcı cache bırakmaz, dolayısıyla 'imsmd eksik → lom strict-wildcard build'i bloklar'
+    poisoned durumu ULAŞILAMAZ. Offline override eksik/eski ise poisoned dir DÖNMEZ → graceful None."""
+    # ims_sources.json okunamaz/boşsa gerekli IMS dosyalarını BİLEMEYİZ → _expected_files yalnız
+    # driver+ADL'e daralır ve gate IMS'siz bir cache'i yanlışlıkla TAM sertifikalar (aynı lom hatası
+    # başka kapıdan geri gelir). Bu durumda graceful degrade (build asla bloklanmaz).
+    srcs = _ims_sources().get(_VER_KEY[version])
+    if not srcs:
+        return None
+    rd = _resolved_dir(version)
+    if _cache_complete(version, rd):        # offline override ya da önceki TAM cache
         return rd
-    # offline override ayarlıysa ama driver yoksa → kullanıcı eksik yerleştirmiş; fetch deneme
+    # offline override ayarlıysa ama cache eksik/eski → kullanıcı eksik/eski yerleştirmiş; fetch
+    # deneme, poisoned dir'i TAM sayma → graceful degrade (schema_unavailable, build bloklanmaz)
     if os.environ.get("SCORM_SCHEMA_DIR"):
         return None
+    staging: Path | None = None
     try:
-        rd.mkdir(parents=True, exist_ok=True)
-        # vendored ADL + driver (flat kopya)
+        rd.parent.mkdir(parents=True, exist_ok=True)
+        # önceki sert çökmelerden (SIGKILL/OOM) kalan yarım staging'leri süpür — kalıcı volume'da birikmesin
+        for stale in rd.parent.glob(f".staging_{_VER_KEY[version]}_*"):
+            shutil.rmtree(stale, ignore_errors=True)
+        staging = Path(tempfile.mkdtemp(prefix=f".staging_{_VER_KEY[version]}_", dir=rd.parent))
+        # vendored ADL + driver (flat kopya) — driver HER doldurmada tazelenir (stale onset'i iyileştirir)
         for x in _ADL_DIR.glob("*.xsd"):
-            shutil.copy2(x, rd / x.name)
-        shutil.copy2(_SCHEMAS_DIR / _DRIVER[version], driver)
+            shutil.copy2(x, staging / x.name)
+        shutil.copy2(_SCHEMAS_DIR / _DRIVER[version], staging / _DRIVER[version])
         # IMS/W3C fetch (yalnız cache doldururken ağ)
         import httpx
-        srcs = _ims_sources().get(_VER_KEY[version], {})
+        # srcs yukarıda (guard) hesaplandı — boş olamaz
         # Sıkı timeout: CI/ağ erişilemezse hızlı fail → graceful schema_unavailable (asılı kalma yok).
         _to = httpx.Timeout(20.0, connect=8.0)
         with httpx.Client(timeout=_to, follow_redirects=True) as c:
@@ -83,13 +123,23 @@ def _ensure_populated(version: str) -> Path | None:
                 want = info.get("sha256")
                 if want and hashlib.sha256(data).hexdigest() != want:
                     # integrity yumuşak: uyumsuzlukta yine yaz ama işaretle (standart şemalar dondurulmuş)
-                    (rd / "INTEGRITY_MISMATCH.txt").write_text(
+                    (staging / "INTEGRITY_MISMATCH.txt").write_text(
                         f"{fn}: beklenen {want}\n", encoding="utf-8")
                 text = _W3_XML_RE.sub("xml.xsd", data.decode("utf-8", "ignore"))
-                (rd / fn).write_text(text, encoding="utf-8")
-        return rd if driver.exists() else None
+                (staging / fn).write_text(text, encoding="utf-8")
+        # ANCAK tamsa yerine koy → yarım fetch asla kalıcı olmaz (poisoned cache imkânsız)
+        if not _cache_complete(version, staging):
+            shutil.rmtree(staging, ignore_errors=True)
+            return None
+        # eski/bozuk cache'i temizle, staging'i atomik yerine al (aynı filesystem → os.replace atomik)
+        if rd.exists():
+            shutil.rmtree(rd, ignore_errors=True)
+        os.replace(staging, rd)
+        return rd
     except Exception:
-        # ağ yok / fetch hata → graceful degrade
+        # ağ yok / fetch hata → graceful degrade; yarım staging temizlenir (poisoned dir bırakma yok)
+        if staging is not None:
+            shutil.rmtree(staging, ignore_errors=True)
         return None
 
 

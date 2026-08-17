@@ -1969,10 +1969,15 @@ async def keys_delete(request: Request) -> JSONResponse:
 
 @mcp.custom_route("/projects", methods=["GET"])
 async def projects_list(request: Request) -> JSONResponse:
-    """Principal'ın projeleri + preview/indirme linkleri (portal panel listesi).
+    """Principal'ın projeleri + preview/indirme linkleri (portal panel listesi, sayfalı).
+
+    Query params: page (1-tabanlı, varsayılan 1), page_size (1-50, varsayılan 12),
+                  sort (updated_desc|updated_asc|title_asc|screens_desc|size_desc),
+                  q (başlık araması), scorm (SCORM sürüm filtresi), status (proje durumu filtresi).
 
     → { projects: [ { id, title, screens, scorm_version, updated_at,
-                      preview_url, download_url|null, size_bytes|null } ] }
+                      preview_url, download_url|null, size_bytes|null, open_feedback } ],
+        total, page, page_size, has_more }
     Dual-auth: OAuth JWT VEYA API-key (aynı _validate_bearer).
     """
     await SVC.ensure()
@@ -1981,8 +1986,28 @@ async def projects_list(request: Request) -> JSONResponse:
         return _unauthorized()
     if "mcp" not in scopes:
         return JSONResponse({"error": "forbidden", "detail": "account not approved"}, status_code=403)
+    qp = request.query_params
+    try:
+        page = max(1, int(qp.get("page", "1")))
+    except ValueError:
+        page = 1
+    try:
+        page_size = int(qp.get("page_size", "12"))
+    except ValueError:
+        page_size = 12
+    page_size = max(1, min(50, page_size))
+    sort = qp.get("sort", "updated_desc")
+    q = (qp.get("q") or "").strip() or None
+    scorm = qp.get("scorm") or None
+    status = qp.get("status") or None
+    offset = (page - 1) * page_size
+
+    projects, total = await SVC.store.list_projects_page(
+        owner.id, sort=sort, q=q, scorm=scorm, status=status,
+        limit=page_size, offset=offset,
+    )
     out = []
-    for p in await SVC.store.list_projects(owner.id):
+    for p in projects:  # ← enrichment YALNIZ bu sayfadaki ≤page_size proje için (N+1 sınırlı)
         download_url = None
         size_bytes = None
         pkg = await SVC.store.latest_package_for_project(p.id)
@@ -2006,7 +2031,13 @@ async def projects_list(request: Request) -> JSONResponse:
             "size_bytes": size_bytes,
             "open_feedback": await SVC.store.count_open_feedback(p.id),
         })
-    return JSONResponse({"projects": out})
+    return JSONResponse({
+        "projects": out,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "has_more": offset + len(out) < total,
+    })
 
 
 @mcp.custom_route("/files/{token}", methods=["GET"])
