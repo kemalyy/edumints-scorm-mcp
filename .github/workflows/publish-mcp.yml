@@ -17,7 +17,7 @@ jobs:
       contents: read
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Tag'de sürümü server.json'a yaz
         if: startsWith(github.ref, 'refs/tags/v')
