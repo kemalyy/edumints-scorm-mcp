@@ -267,6 +267,9 @@ class Choice(BaseModel):
     id: str
     text_html: str
     correct: bool = False
+    # Seçime özel gerekçe/geri bildirim — cevap sonrası o seçeneğin altında gösterilir
+    # (ScenarioChoice.feedback_html ile aynı desen; boşsa hiçbir şey render edilmez).
+    feedback_html: str | None = None
 
 
 class Feedback(BaseModel):
