@@ -218,6 +218,19 @@ def _lint_adaptive(s: AdaptivePracticeScreen, path: str) -> list[LintIssue]:
             out.append(LintIssue("warn", "item_without_explanation",
                                  f"Adaptif öğe '{it.id}' açıklama (explain_html) içermiyor — doğru/yanlış neden, gösterilmeli",
                                  f"{path}.items[{it.id}]"))
+
+    # WARN: ustalık döngüsü açık ama skor modu 'mastery' değil → "doğru=%100" garanti edilmez
+    if s.loop_mode == "mastery" and s.score_mode != "mastery":
+        out.append(LintIssue("warn", "mastery_loop_without_mastery_score",
+                             f"loop_mode='mastery' ama score_mode='{s.score_mode}' — ustalık döngüsü "
+                             "doğru=%100 garantisi vermez; score_mode='mastery' önerilir",
+                             f"{path}.score_mode"))
+
+    # WARN: scaffold açılmış ama hiçbir öğede scaffold_html yok → ipucu hiç gösterilmez
+    if s.scaffold_on_wrong and not any((it.scaffold_html or "").strip() for it in s.items):
+        out.append(LintIssue("warn", "scaffold_enabled_without_content",
+                             "scaffold_on_wrong=True ama hiçbir öğede scaffold_html yok — yanlışta ipucu gösterilmez",
+                             f"{path}.scaffold_on_wrong"))
     return out
 
 

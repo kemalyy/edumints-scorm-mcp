@@ -2566,35 +2566,61 @@ function bindAdaptive(el,s){
   var root=el.querySelector(".adaptive"); if(!root) return;
   var cfg=s.adaptive, G=window.SCORMGame, fb=el.querySelector(".feedback");
   if(!cfg||!G){ if(fb) fb.textContent=T("adaptive_engine_failed"); return; }
+  var mastery=(s.loop_mode==="mastery");   // W4b-gen: mastery loop (opt-in; default "sample")
+  var skillOf={}; for(var k in (cfg.items||{})){ if(cfg.items[k]) skillOf[k]=cfg.items[k].skill; }
   var strategy=(cfg.adaptive&&cfg.adaptive.strategy)||"elo";
   var est=G.createEstimator(cfg.adaptive||{});
   var rng=G.createRng(G.seedFromString(cfg.seed||s.id||"adaptive"));
   var itemsCfg=cfg.items||{}, target=cfg.target_success||0.7;
   var pool=[]; root.querySelectorAll(".ap-item").forEach(function(node){
-    pool.push({id:node.dataset.item, d:parseFloat(node.dataset.difficulty)||0, node:node, done:false}); });
+    pool.push({id:node.dataset.item, d:parseFloat(node.dataset.difficulty)||0, node:node, done:false, cw:0, mastered:false}); });
   var cap=(cfg.max_items&&cfg.max_items>0)?Math.min(cfg.max_items,pool.length):pool.length;
-  var answered=0, correctN=0, finished=false, current=null;
+  var answered=0, correctN=0, finished=false, current=null, preferSkill=null;
   var prog=root.querySelector(".ap-progress"), lvl=root.querySelector(".ap-level");
   function levelText(){ return strategy==="bkt" ? T("adaptive_mastery",{pct:Math.round(est.mastery*100)})
                                                 : T("adaptive_ability",{value:est.ability.toFixed(2)}); }
-  function updHud(){ if(prog) prog.textContent=answered+" / "+cap; if(lvl) lvl.textContent=levelText(); }
+  function updHud(){ if(prog) prog.textContent=(mastery?correctN:answered)+" / "+(mastery?pool.length:cap); if(lvl) lvl.textContent=levelText(); }
   function show(p){ current=p; pool.forEach(function(x){ x.node.hidden=(x!==p); });
+    // Ustalık döngüsü AYNI öğeye geri döner: cevap arayüzü yeniden cevaplanabilir olmalı. Aksi hâlde
+    // ilk yanlıştan sonra şıklar/kontrol butonu disabled kalır, öğe hiç done olmaz ve pool.every(done)
+    // asla gerçekleşmez → ekran BİTMEZ (related_retry varsayılan açık olduğu için ana yol budur).
+    if(mastery && !p.done){
+      p.node.querySelectorAll(".opt").forEach(function(o){
+        o.disabled=false; o.classList.remove("selected","wrong","correct"); });
+      var ck=p.node.querySelector(".ap-check"); if(ck) ck.disabled=false;
+    }
+    var ex=p.node.querySelector(".ap-explain"); if(ex) ex.hidden=true;        // açıklama = bottom-out, yalnız çözülünce
+    // Kazanılmış ipucu tekrarda GÖRÜNÜR kalır — "yanlışta ipucu, sonra tekrar dene" döngüsünün amacı bu.
+    var sc=p.node.querySelector(".ap-scaffold");
+    if(sc) sc.hidden=!(mastery && s.scaffold_on_wrong && (p.cw||0)>0);
     var o=p.node.querySelector(".opt"); if(o) setTimeout(function(){ o.focus(); },50); }
   function next(){
     if(finished) return;
-    if(answered>=cap) return finalize();
+    if(mastery){ if(pool.every(function(x){ return x.done; })) return finalize(); }   // tüm öğeler çözüldü
+    else { if(answered>=cap) return finalize(); }
     if(cfg.mastery_stop!=null && strategy==="bkt" && est.mastery>=cfg.mastery_stop) return finalize();
     var avail=pool.filter(function(p){ return !p.done; });
     if(!avail.length) return finalize();
     var pick;
-    if(strategy==="bkt"){ avail.sort(function(a,b){ return a.d-b.d; }); pick=avail[0]; }   // ustalık: kolaydan zora
-    else { pick=G.pickByTargetSuccess(function(p){ return est.pCorrect(p.d); }, avail, {target:target}, rng); } // akış: ZPD
+    if(mastery && preferSkill){   // yanlışta: aynı beceriden FARKLI öğe (ALEKS; probing direnci)
+      var same=avail.filter(function(p){ return skillOf[p.id]===preferSkill && p.id!==(current&&current.id); });
+      if(same.length) pick=same[Math.floor(rng()*same.length)];
+      preferSkill=null;
+    }
+    if(!pick){
+      if(strategy==="bkt"){ avail.sort(function(a,b){ return a.d-b.d; }); pick=avail[0]; }   // ustalık: kolaydan zora
+      else { pick=G.pickByTargetSuccess(function(p){ return est.pCorrect(p.d); }, avail, {target:target}, rng); } // akış: ZPD
+    }
     if(pick) _shownAt[s.id+"."+pick.id]=Date.now();   // S1 — öğe-bazlı latency başlangıcı
     show(pick);
   }
   function finalize(){ if(finished) return; finished=true;
     pool.forEach(function(x){ x.node.hidden=true; });
-    var ratio=answered?correctN/answered:0, ok=ratio>=(cfg.pass_ratio||0.6);
+    var ratio=answered?correctN/answered:0, ok;
+    if(mastery && s.score_mode==="mastery"){   // tüm öğeler ustalanmışsa %100, aksi halde 0
+      var resolved=pool.filter(function(x){ return x.done; }).length;
+      ok=(resolved===pool.length && correctN===resolved);
+    } else { ok=ratio>=(cfg.pass_ratio||0.6); }
     recordResult(s.id, ok?cfg.points:0, cfg.points, ok);
     XAPI.emit("finalize",{ok:ok,score:correctN,max:answered});                                    // telemetri (W5b)
     applyActions(ok?s.on_correct:s.on_wrong);
@@ -2610,11 +2636,15 @@ function bindAdaptive(el,s){
     check.addEventListener("click",function(){
       if(p.done||finished||p!==current) return;
       var sel=node.querySelector(".opt.selected"); if(!sel) return;
-      p.done=true; check.disabled=true;
+      check.disabled=true;
       var correct=(itemsCfg[p.id]&&itemsCfg[p.id].correct)||[];
       var ok=correct.indexOf(sel.dataset.opt)>=0;
+      // Probing direnci: ustalık döngüsünde YANLIŞ cevap doğruyu sızdırmaz. Öğe çözülene dek
+      // (doğru cevap VEYA max_consecutive_wrong ile pes) ne .correct işareti ne de explain_html
+      // gösterilir — yerine scaffold (ipucu) gelir. "sample" modunda reveal her zaman true → eski davranış.
+      var reveal = !mastery || ok || ((p.cw||0)+1 >= (s.max_consecutive_wrong||5));
       opts.forEach(function(o){ o.disabled=true;
-        if(correct.indexOf(o.dataset.opt)>=0 && s.feedback && s.feedback.show_correct) o.classList.add("correct");
+        if(reveal && correct.indexOf(o.dataset.opt)>=0 && s.feedback && s.feedback.show_correct) o.classList.add("correct");
         if(o.classList.contains("selected")&&!ok) o.classList.add("wrong"); });
       // S1 — adaptif havuz SORU BAZINDA raporlanır: her öğe ayrı bir cmi.interactions kaydı.
       recordInteraction(s, ok, [sel.dataset.opt], correct, s.id+"."+p.id, "mcq");
@@ -2623,8 +2653,21 @@ function bindAdaptive(el,s){
         ? {itemId:p.id,correct:ok,mastery:est.mastery}
         : {itemId:p.id,correct:ok,ability:est.ability,difficulty:p.d});
       answered++; if(ok) correctN++;
-      var ex=node.querySelector(".ap-explain"); if(ex) ex.hidden=false;
-      updHud(); setTimeout(next,60);
+      var ex=node.querySelector(".ap-explain"); if(ex) ex.hidden=!reveal;   // bottom-out: yalnız çözülünce
+      if(ok){
+        p.done=true; p.mastered=true;
+        updHud(); setTimeout(next,60);
+      } else {
+        p.cw=(p.cw||0)+1;
+        if(mastery && s.scaffold_on_wrong){ var sc=node.querySelector(".ap-scaffold"); if(sc) sc.hidden=false; }
+        if(mastery){
+          // p.cw öğe-başına birikimlidir; doğru cevap öğeyi anında done yaptığı için birikimli == ARDIŞIK.
+          if(p.cw >= (s.max_consecutive_wrong||5)){ p.done=true; p.mastered=false; updHud(); setTimeout(next,60); } // ALEKS: 5 ardışık yanlış
+          else if(s.related_retry){ p.done=false; preferSkill=skillOf[p.id]||null; updHud(); setTimeout(next,60); }   // farklı soru, aynı beceri
+          else { opts.forEach(function(o){ o.disabled=false; o.classList.remove("selected","wrong","correct"); });
+                 if(check) check.disabled=false; }                                                         // aynı soruyu tekrar dene
+        } else { p.done=true; updHud(); setTimeout(next,60); }   // mevcut "sample" davranışı (legacy)
+      }
     });
   });
   updHud(); next();
