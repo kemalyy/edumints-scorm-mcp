@@ -267,6 +267,10 @@ class Choice(BaseModel):
     id: str
     text_html: str
     correct: bool = False
+    # Seçime özel gerekçe — cevap sonrası YALNIZ seçilen şıkkın altında gösterilir
+    # (ScenarioChoice.feedback_html ile aynı desen). Boşsa hiçbir şey render edilmez:
+    # sarmalayıcı da dahil, kullanmayan kursun çıktısı bayt-aynı kalır.
+    feedback_html: str | None = None
 
 
 class Feedback(BaseModel):

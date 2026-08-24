@@ -280,6 +280,7 @@ body[data-bg="grid"]{background-image:linear-gradient(color-mix(in srgb,var(--c-
 .opt.correct{border-color:var(--c-success);background:var(--c-success-bg)}
 .opt.wrong{border-color:var(--c-error);background:var(--c-error-bg)}
 .opt:disabled{cursor:default;transform:none}
+.opt-wrap{display:flex;flex-direction:column;gap:var(--space-2)}
 
 /* fill blank */
 .blanks{display:flex;flex-direction:column;gap:var(--space-4)}
@@ -363,7 +364,8 @@ body[data-bg="grid"]{background-image:linear-gradient(color-mix(in srgb,var(--c-
 .scen-choice:disabled{cursor:default}
 .scen-choice.chosen{border-color:var(--c-primary);background:color-mix(in srgb,var(--c-primary) 8%,var(--c-bg))}
 .scen-choice.dim{opacity:.5}
-.scen-conseq{font-size:14px;color:var(--c-muted);padding:var(--space-2) var(--space-4);
+/* .opt-fb (mcq seçime özel gerekçe) scen-conseq ile AYNI görünüm — selektör paylaşılır */
+.scen-conseq,.opt-fb{font-size:14px;color:var(--c-muted);padding:var(--space-2) var(--space-4);
   border-left:3px solid var(--c-primary);background:var(--c-surface);border-radius:0 var(--r-sm) var(--r-sm) 0}
 .scen-next{align-self:flex-start}
 
@@ -2191,6 +2193,13 @@ function checkChoice(el,s){
     var isC=correct.indexOf(o.dataset.opt)>=0; o.disabled=true;
     if(isC && s.feedback.show_correct) o.classList.add("correct");
     if(o.classList.contains("selected")&&!isC) o.classList.add("wrong");
+    // Seçime özel gerekçe: sarmalayıcı İÇİNDEKİ .opt-fb'yi aç (scen-conseq deseni).
+    // .opt-wrap kontrolü şart — sarmalayıcısız şıkta parentNode .options'tır ve
+    // querySelector BAŞKA bir şıkkın gerekçesini bulurdu.
+    var w=o.parentNode;
+    if(o.classList.contains("selected")&&w&&w.classList&&w.classList.contains("opt-wrap")){
+      var ofb=w.querySelector(".opt-fb"); if(ofb) ofb.hidden=false;
+    }
   });
   // true_false → tek boolean; mcq → seçilen şık id'leri (S1 çeldirici analizi bunu kullanır)
   if(s.type==="true_false"){

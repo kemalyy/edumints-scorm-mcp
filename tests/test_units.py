@@ -255,6 +255,45 @@ def test_g1_gamification_hud():
     assert "currentLevel" in html and "updateLevel" in html and "updateLives" in html and "updateHud" in html
 
 
+def test_choice_per_option_feedback_html():
+    # Seçime özel gerekçe (Choice.feedback_html): yalnız gerekçesi olan şık .opt-wrap
+    # sarmalayıcısı + gizli .opt-fb üretir; gerekçesiz şık eskisi gibi yalın <button> kalır.
+    p = Project(id=new_project_id(), title="fb", scorm_version="1.2", screens=[
+        MCQScreen(id="q", title="Q", prompt_html="<p>?</p>",
+                  options=[Choice(id="a", text_html="Doğru", correct=True,
+                                  feedback_html="<p>Çünkü A doğru.</p>"),
+                           Choice(id="b", text_html="Yanlış",
+                                  feedback_html="<p>B yanlış çünkü …</p>"),
+                           Choice(id="c", text_html="Gerekçesiz")]),
+    ])
+    html = render_html(p, mode="preview", runtime_js="/*rt*/")
+    assert '<div class="opt-fb rich" hidden><p>Çünkü A doğru.</p></div>' in html
+    assert '<div class="opt-fb rich" hidden><p>B yanlış çünkü …</p></div>' in html
+    # 3 şıkkın yalnız 2'si sarmalanır — gerekçesiz şık markup'ı büyütmez
+    assert html.count('class="opt-wrap"') == 2
+    # runtime: cevap sonrası SEÇİLEN şıkkın gerekçesi açılır, sarmalayıcı içinden
+    assert 'contains("opt-wrap")' in html and 'querySelector(".opt-fb")' in html
+
+
+def test_choice_without_feedback_renders_unchanged():
+    # Hiçbir şıkta feedback_html yoksa ekran markup'ı eskisiyle bire bir aynı olmalı:
+    # ne sarmalayıcı ne .opt-fb. (Ortak CSS/JS BASE_CSS+ENGINE_JS'te koşulsuzdur —
+    # .scen-conseq ile aynı presedans; burada kontrol edilen ekranın kendi çıktısı.)
+    def _screens(**kw):
+        return [MCQScreen(id="q", title="Q", prompt_html="<p>?</p>",
+                          options=[Choice(id="a", text_html="1", correct=True, **kw),
+                                   Choice(id="b", text_html="2")])]
+
+    plain = render_html(Project(id="p_aaaaaaaaaaaa", title="t", scorm_version="1.2",
+                                screens=_screens()), mode="preview", runtime_js="/*rt*/")
+    assert 'class="opt-wrap"' not in plain and 'class="opt-fb rich"' not in plain
+    # Aynı proje + tek bir gerekçe → yalnız o şık değişir
+    withfb = render_html(Project(id="p_aaaaaaaaaaaa", title="t", scorm_version="1.2",
+                                 screens=_screens(feedback_html="<p>x</p>")),
+                         mode="preview", runtime_js="/*rt*/")
+    assert withfb.count('class="opt-wrap"') == 1
+
+
 def test_faz16_responsive_and_touch():
     # Faz 16: cihaz uyumluluğu — içerik taşma kaydırması + mobil reflow + dokunma sürükleme
     from core.project import ContentSlide, DragDropScreen, DragItem, DropTarget
