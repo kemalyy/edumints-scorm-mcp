@@ -901,11 +901,21 @@ def _r_content(s) -> str:
 
 
 def _r_mcq(s) -> str:
-    opts = "".join(
-        f'<button class="opt" data-opt="{_attr(o.id)}" type="button">'
-        f'<span class="opt-mark"></span><span class="opt-text">{sanitize(o.text_html)}</span></button>'
-        for o in s.options
-    )
+    def _opt(o) -> str:
+        btn = (
+            f'<button class="opt" data-opt="{_attr(o.id)}" type="button">'
+            f'<span class="opt-mark"></span><span class="opt-text">{sanitize(o.text_html)}</span></button>'
+        )
+        # Sarmalayıcı YALNIZ gerekçesi olan şıkta — feedback_html kullanmayan kursun
+        # çıktısı bayt-aynı kalır (runtime da .opt-wrap kontrolüyle eşleşir).
+        if not o.feedback_html:
+            return btn
+        return (
+            f'<div class="opt-wrap">{btn}'
+            f'<div class="opt-fb rich" hidden>{sanitize(o.feedback_html)}</div></div>'
+        )
+
+    opts = "".join(_opt(o) for o in s.options)
     multi = ' data-multi="1"' if s.multi_select else ""
     return _quiz_shell(s, f'<div class="options"{multi}>{opts}</div>')
 
