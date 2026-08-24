@@ -592,6 +592,12 @@ def _course_config(project: Project) -> dict:
         elif s.type == ScreenType.adaptive_practice:
             item["points"] = s.points
             item["adaptive"] = _adaptive_cfg(s)  # tahminci + öğe zorlukları/cevapları (runtime seçer)
+            # W4b-gen — ustalık döngüsü (opt-in) runtime bayrakları
+            item["loop_mode"] = s.loop_mode
+            item["scaffold_on_wrong"] = s.scaffold_on_wrong
+            item["score_mode"] = s.score_mode
+            item["related_retry"] = s.related_retry
+            item["max_consecutive_wrong"] = s.max_consecutive_wrong
             total_points += s.points  # doğru/cevaplanan oranı pass_ratio'ya göre geçer/kalır (DOM'da)
         elif s.type == ScreenType.branching:
             item["routes"] = {c.id: c.goto_screen_id for c in s.choices}
@@ -1504,10 +1510,12 @@ def _r_adaptive_practice(s) -> str:
         )
         explain = (f'<div class="ap-explain rich" hidden>{sanitize(it.explain_html)}</div>'
                    if it.explain_html else "")
+        scaffold = (f'<div class="ap-scaffold rich" hidden>{sanitize(it.scaffold_html)}</div>'
+                    if it.scaffold_html else "")
         items_html += (
             f'<div class="ap-item" data-item="{_attr(it.id)}" data-difficulty="{float(it.difficulty)}" hidden>'
             f'<div class="ap-prompt rich">{sanitize(it.prompt_html)}</div>'
-            f'<div class="ap-options ui-stack">{opts}</div>{explain}'
+            f'<div class="ap-options ui-stack">{opts}</div>{explain}{scaffold}'
             f'<div class="quiz-actions"><button class="btn btn-check ap-check" type="button">{_text(_T("quiz_check"))}</button></div>'
             f'</div>'
         )
