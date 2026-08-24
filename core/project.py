@@ -869,6 +869,7 @@ class AdaptiveItem(BaseModel):
     difficulty: float = 0.0
     skill: str | None = None
     explain_html: str | None = None  # cevaptan sonra gösterilen açıklama (NEEDS gerekçe — anti-slop)
+    scaffold_html: str | None = None  # yanlışta gösterilen İPUCU (cevap DEĞİL); explain_html ise cevap-gösteren bottom-out'tur
 
 
 class AdaptivePracticeScreen(ScreenBase):
@@ -892,6 +893,13 @@ class AdaptivePracticeScreen(ScreenBase):
     pass_ratio: float = 0.6  # doğru/cevaplanan ≥ bu → geçer
     seed: str | None = None  # None → ekran id'sinden türetilir
     feedback: Feedback = Field(default_factory=Feedback)
+    # --- Adaptif Ustalık Döngüsü (opt-in; varsayılanlar = mevcut "sample" davranışı) ---
+    # W4b-gen: yanlışta ipucu + aynı skill'de FARKLI soru, doğru olana dek; dinamik zorluk; probing'e dayanıklı.
+    loop_mode: Literal["sample", "mastery"] = "sample"
+    scaffold_on_wrong: bool = False  # yanlışta item.scaffold_html'i göster (cevap DEĞİL — Assistance Dilemma)
+    score_mode: Literal["ratio", "mastery"] = "ratio"  # mastery: tüm öğeler doğru → %100, aksi → 0
+    related_retry: bool = True  # mastery: yanlışta aynı skill'de farklı öğe sun (ALEKS: 2 yanlışta yeni soru)
+    max_consecutive_wrong: int = 5  # ALEKS kuralı: 5 ardışık yanlış → öğe ustalanmadı say, ilerle
 
 
 class WEStep(BaseModel):

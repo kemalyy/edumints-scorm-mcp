@@ -54,5 +54,18 @@ canlı seviye/ustalık. `core/validator.py`: her öğe ≥1 doğru seçenek + `m
 (`_uses_engine_bundle`). **155 Python + 83 vitest + ruff temiz; Node'da adaptif döngü doğrulandı** (novice→kolay
 öğe, doğru sonrası ability↑→sonraki zorlaşır).
 
+**W4b-gen (done):** opt-in **ustalık döngüsü** — `AdaptivePracticeScreen.loop_mode="mastery"`. Yanlışta ipucu
+(`AdaptiveItem.scaffold_html`, `scaffold_on_wrong`), aynı beceriden FARKLI soru (`related_retry`, ALEKS deseni),
+öğrenci çözene dek yinele; `max_consecutive_wrong` (vars. 5) ile öğe "ustalanmadı" sayılıp ilerlenir.
+`score_mode="mastery"`: tüm öğeler çözülmüşse %100, aksi halde 0 (`"ratio"` eski pass_ratio davranışı).
+Bitiş koşulu mastery'de `max_items` değil **tüm öğelerin çözülmesi**. İki davranış kuralı:
+(1) `bindAdaptive.show()` ustalık modunda çözülmemiş öğenin şıklarını/kontrol butonunu YENİDEN etkinleştirir —
+aksi halde geri dönülen öğe kalıcı disabled kalır ve ekran hiç bitmez;
+(2) **probing direnci** — `reveal = !mastery || ok || (cw+1 >= max_consecutive_wrong)`: doğru şık işareti ve
+`explain_html` (cevap-gösteren bottom-out) yalnız öğe ÇÖZÜLÜNCE görünür, yanlışta yerine scaffold gelir.
+Kazanılmış ipucu tekrarda görünür kalır. Varsayılanlar (`loop_mode="sample"`) mevcut davranışı bayt-aynı korur.
+`core/antislop.py`: `mastery_loop_without_mastery_score`, `scaffold_enabled_without_content` uyarıları.
+Public repo PR #132'den (watanabefam) uyarlandı. **13 test** (`tests/test_adaptive_mastery.py`).
+
 **Sıradaki (W5):** xAPI/cmi5 — her `observe` bir statement'a çevrilir; adaptif kararlar + oyun olayları telemetriye
 akar. Resume: tahminci durumu küçük (1 float) → suspend_data'ya eklenebilir (şu an ekran-içi tek oturum).
