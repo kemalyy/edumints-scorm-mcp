@@ -26,7 +26,7 @@ from pathlib import Path
 
 from .project import (
     QUIZ_TYPES,
-    is_display_diagram,
+    is_unscored_view,
     AccordionScreen,
     AdaptivePracticeScreen,
     DecisionScenarioScreen,
@@ -90,6 +90,8 @@ def lint_course(project: Project) -> list[LintIssue]:
             issues += _lint_adaptive(s, path)
         elif isinstance(s, WorkedExampleScreen):
             issues += _lint_worked_example(s, path)
+        elif isinstance(s, HotspotScreen):
+            issues += _lint_hotspot(s, path)
         issues += _lint_missing_alt(s, path)
         issues += _lint_generic_title(s, path)
         issues += _lint_list_items(s, path)
@@ -250,6 +252,30 @@ def _lint_worked_example(s: WorkedExampleScreen, path: str) -> list[LintIssue]:
 
 
 # --- erişilebilirlik: eksik alt-text (W9 P0) ------------------------------
+def _lint_hotspot(s: HotspotScreen, path: str) -> list[LintIssue]:
+    """#138 — hotspot v2 kuralları."""
+    out: list[LintIssue] = []
+
+    # WARN: keşif kipi ama hiçbir bölgede gösterilecek içerik yok → tıklayınca hiçbir şey açılmaz
+    if s.mode == "explore" and not any(
+        (rg.label_html or "").strip() or (rg.feedback_html or "").strip() for rg in s.regions
+    ):
+        out.append(LintIssue("warn", "hotspot_explore_without_content",
+                             "mode='explore' ama hiçbir bölgede label_html/feedback_html yok — "
+                             "bölgeye tıklayınca gösterilecek içerik olmaz",
+                             f"{path}.regions"))
+
+    # WARN: etiketsiz bölge — erişilebilir ad jenerik "Bölge {n}"e düşer (a11y kısıt #8).
+    # Sert hata DEĞİL: eski kurslar etiketsiz çalışıyor ve jenerik ad hiç yoktan iyidir.
+    for rg in s.regions:
+        if not (rg.label_html or "").strip():
+            out.append(LintIssue("warn", "hotspot_region_without_label",
+                                 f"Hotspot bölgesi '{rg.id}' label_html içermiyor — ekran okuyucu "
+                                 "jenerik 'Bölge n' duyar; ne olduğunu yazın",
+                                 f"{path}.regions[{rg.id}]"))
+    return out
+
+
 def _lint_missing_alt(s, path: str) -> list[LintIssue]:
     """Görsel taşıyan alanlarda alt-text eksikse WARN (yapıyı bozmaz, danışsal)."""
     out: list[LintIssue] = []
@@ -698,7 +724,9 @@ _EVIDENCE_CONTENT_TYPES = {
 def _is_scored(s, project: Project) -> bool:
     """Z1 — summatif (skorlu) ekran: `points` > 0 YA DA `on_correct` ile puan değişkenine yazan.
     points=0 + puana yazmayan = formatif (deneme-güvenli), kanıt şartı uygulanmaz (Z3)."""
-    if is_display_diagram(s):  # #126 — salt-gösterim callout: skorlanmaz içerik (points'i yoksay)
+    # #126 / #138 — skorlanmayan görüntüleme kipleri (display callout, explore hotspot):
+    # points alanı modelde durur ama runtime'a hiç yazılmaz → summatif sayılmaz.
+    if is_unscored_view(s):
         return False
     if s.type not in QUIZ_TYPES:
         return False
@@ -723,7 +751,9 @@ def _is_evidentiary_target(s, project: Project) -> bool:
     - quiz/oyun tipleri YALNIZ formatifken (points=0, puana yazmıyor) — deneme çıktısı /
       başarısız deneme + kanonik çözüm (K1 tür 3/5, Z3)
     Kanıt-taşıyamaz: title_slide, summary, results_breakdown, poll, branching, SKORLU her ekran."""
-    if is_display_diagram(s):  # #126 — display callout: annotasyon yorumu taşır → kanıt-taşıyabilir
+    # #126 / #138 — display callout annotasyon yorumu, explore hotspot bölge açıklaması taşır
+    # → ikisi de kanıt-KAYNAĞI olabilir (skorsuz oldukları için Z3 istisnası uygulanmaz).
+    if is_unscored_view(s):
         return True
     if s.type in _EVIDENCE_CONTENT_TYPES:
         return True

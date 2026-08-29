@@ -305,6 +305,10 @@ class HotspotRegion(BaseModel):
     coords: list[float]
     correct: bool = True
     label_html: str | None = None
+    # #138 — bölgeye özel gerekçe (Choice.feedback_html ile AYNI desen): quiz modunda cevap
+    # sonrası yalnız seçilen bölgenin altında, explore modunda bölge açılınca gösterilir.
+    # Boşsa hiçbir şey render edilmez — kullanmayan kursun çıktısı bayt-aynı kalır.
+    feedback_html: str | None = None
 
 
 # --------------------------------------------------------------------------- #
@@ -489,6 +493,14 @@ class HotspotScreen(ScreenBase):
     prompt_html: str
     image_asset_id: str
     image_alt: str | None = None  # W9 — WCAG alt text
+    # #138 — "quiz" (vars.): tek bölge seç + kontrol et, puanlı. "explore": SKORSUZ keşif —
+    # bölge tıklanınca label_html/feedback_html açılır; kontrol butonu ve skor YOK.
+    # labeled_diagram.mode="display" ile AYNI presedan (tip enflasyonu yerine parametre).
+    mode: Literal["quiz", "explore"] = "quiz"
+    # #138 — "hepsini bul": ekran, TÜM bölgeler ziyaret edilmeden tamamlanmış sayılmaz.
+    # v1'de YALNIZ mode="explore" ile geçerlidir (quiz modunda çok-seçim gerektirir → ayrı iş);
+    # validator quiz+require_all birleşimini SERT hatayla keser.
+    require_all: bool = False
     regions: list[HotspotRegion] = Field(min_length=1)
     feedback: Feedback = Field(default_factory=Feedback)
     points: int = 10
@@ -1046,6 +1058,23 @@ def is_display_diagram(s) -> bool:
         getattr(s, "type", None) == ScreenType.labeled_diagram
         and getattr(s, "mode", "quiz") == "display"
     )
+
+
+def is_explore_hotspot(s) -> bool:
+    """#138 — `hotspot` KEŞİF modunda mı? Bu modda ekran QUIZ_TYPES üyesi olsa da skorlanmaz:
+    skor/is_quiz/feedback config'e yazılmaz, kontrol butonu render edilmez. `is_display_diagram`
+    (#126) ile AYNI sözleşme — tek doğruluk kaynağı `is_unscored_view`."""
+    return (
+        getattr(s, "type", None) == ScreenType.hotspot
+        and getattr(s, "mode", "quiz") == "explore"
+    )
+
+
+def is_unscored_view(s) -> bool:
+    """QUIZ_TYPES üyesi olup da skorlanmayan görüntüleme kipleri (tek kapı). Bugün iki üye:
+    `labeled_diagram` display (#126) ve `hotspot` explore (#138). Skor/is_quiz/feedback
+    kapılarının hepsi bunu kullanır — yeni bir skorsuz kip eklenirse tek yerde büyür."""
+    return is_display_diagram(s) or is_explore_hotspot(s)
 
 
 # --------------------------------------------------------------------------- #
