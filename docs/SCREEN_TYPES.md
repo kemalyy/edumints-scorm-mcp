@@ -1,6 +1,6 @@
 # Ekran Tipleri (Screen Types)
 
-`edumints-scorm-mcp` içerisinde tanımlı 30 ekran tipi bulunmaktadır. Her ekran tipi `core/project.py` içerisindeki modellerden türetilmiştir.
+`edumints-scorm-mcp` içerisinde tanımlı 31 ekran tipi bulunmaktadır. Her ekran tipi `core/project.py` içerisindeki modellerden türetilmiştir.
 
 ## Ortak Alanlar (Base Fields)
 
@@ -568,6 +568,67 @@ Sonraki ekranda geri oynatma:
   "type": "content_slide",
   "title": "Açıkla",
   "body_html": "<p>Senin tahminin şuydu: <b><span data-exploration-ref=\"tahmin_kutle2x\"></span></b>.</p>"
+}
+```
+
+---
+
+## 31. Gömülü HTML (embed_html)
+
+Keyfi **kendine-yeten HTML**'i (Claude artifact, tek dosyalık uygulama/simülasyon)
+sandbox'lı bir iframe içinde çalıştırır ve LMS'e izlenebilir hâle getirir. HTML
+**sanitize EDİLMEZ** — kasıtlı tam uygulama; izolasyon iframe sandbox'ıyla sağlanır
+(`allow-scripts allow-same-origin allow-forms allow-popups`).
+
+HTML, JSON blob'da değil **filesystem asset'inde** saklanır: önce `html_to_asset`
+(ham HTML → `text/html` asset) ile yükle, dönen `id`'yi `html_asset_id`'ye ver — ya da
+tek adımda `wrap_artifact` çağır (proje + bu ekran birlikte kurulur).
+
+**Tamamlanma (`completion`):**
+
+- `on_view` (varsayılan) — ekran görüntülenince tamamlanır.
+- `on_message` — yalnız artifact köprüden `{scorm:'complete'}` gönderirse.
+- `time_threshold` — `min_seconds` saniye sonra (bu modda `min_seconds > 0` zorunludur;
+  0 ile kapı anında açılır, sözleşme bozulur).
+
+**postMessage köprüsü** (`components/engine/embed.js`) — artifact `window.parent.postMessage`
+ile şunları gönderebilir:
+
+| mesaj | etki |
+| :--- | :--- |
+| `{scorm:'complete'}` | tamamlandı (`on_message` kapısını da açar) |
+| `{scorm:'setScore', value: 0..100}` | skor (yalnız gerçek `number`) |
+| `{scorm:'passed'}` / `{scorm:'failed'}` | 2004'te `success_status`, 1.2'de `lesson_status` |
+| `{scorm:'setStatus', value: '<durum>'}` | doğrudan durum yazımı (beyaz listeli) |
+
+Köprü **AYRI modüldür** (`scorm.js`'e konulmadı): scorm.js her pakete koşulsuz inline edilir,
+oraya eklemek embed kullanmayan kursların baytlarını değiştirirdi. Aynı nedenle embed CSS/JS
+**koşullu** üretilir → bayt-parite fixture'ı etkilenmez.
+
+Kalıcı kayıt kompakt `state.eb` (`{s,c,k,d,m}`); cmi anahtarları state'te **saklanmaz**, her
+zaman `embedWrites()` ile türetilir (SCORM 1.2'nin 3500 baytlık suspend bütçesi + geri okumada
+beyaz-liste doğrulaması).
+
+**Skorlanmaz** — QUIZ_TYPES dışıdır; skor yalnız köprüyle gelir.
+
+**Model:** `EmbedHtmlScreen`
+
+| Alan | Tip | Zorunlu mu? | Açıklama |
+| :--- | :--- | :---: | :--- |
+| `html_asset_id` | `str` | Evet | `text/html` asset'in ID'si (boş string reddedilir). |
+| `title` | `str` | Hayır | Ekran başlığı. |
+| `completion` | `str` | Hayır | `on_view` (vars.), `on_message`, `time_threshold`. |
+| `min_seconds` | `int` | Hayır | `time_threshold` için eşik (≥0; o modda >0 zorunlu). |
+| `aspect` | `str` | Hayır | `fill` (vars. — kalan yüksekliği tamamen kaplar), `16:9`, `4:3`. |
+
+**Örnek:**
+```json
+{
+  "type": "embed_html",
+  "title": "Etkileşimli simülasyon",
+  "html_asset_id": "ast_a1b2c3",
+  "completion": "on_message",
+  "aspect": "16:9"
 }
 ```
 

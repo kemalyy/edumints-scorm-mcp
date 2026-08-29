@@ -5,6 +5,43 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — artifact→SCORM: `embed_html` ekran tipi + `wrap_artifact` / `html_to_asset`
+Keyfi kendine-yeten HTML'i (Claude artifact, tek dosyalık uygulama) sandbox'lı iframe'de
+çalıştırıp LMS'e izlenebilir hâle getirir.
+- **`embed_html` ekran tipi.** `html_asset_id` (zorunlu), `completion` = `on_view` |
+  `on_message` | `time_threshold`, `min_seconds` (≥0; `time_threshold`'da >0 zorunlu),
+  `aspect` = `fill` | `16:9` | `4:3`. QUIZ_TYPES dışı — skorsuz; skor yalnız köprüyle gelir.
+- **postMessage köprüsü** (`components/engine/embed.js`): `complete` / `setScore` / `passed` /
+  `failed` / `setStatus` → cmi yazımları. **Ayrı modül** — `scorm.js` her pakete koşulsuz inline
+  edilir, oraya eklemek embed'siz kursların baytlarını değiştirirdi. Aynı nedenle embed CSS/JS
+  **koşullu** üretilir → bayt-parite fixture'ı etkilenmez.
+- **Kompakt kalıcı kayıt** `state.eb` (`{s,c,k,d,m}`): cmi anahtarları saklanmaz, `embedWrites()`
+  ile türetilir (SCORM 1.2 3500 bayt suspend bütçesi + geri okumada beyaz-liste doğrulaması).
+- **`html_to_asset`** — ham HTML → `text/html` asset (base64 gerekmez; `add_asset(source=https://…)`
+  HTML kabul etmez).
+- **`wrap_artifact`** — tek adımda proje + `embed_html` ekranı. `html_content` **XOR** `source_url`
+  (boş string de "verilmiş" sayılır). Uzak yol `safe_fetch_asset` ile SSRF-korumalı; yalnız
+  içerik-tipi kapısı genişler (`text/html`, `application/xhtml+xml`, `text/plain`) — çekilen mime
+  kullanılmaz, asset her hâlde `text/html` saklanır. Tüm doğrulama proje yaratımından ÖNCE;
+  sonraki adımda hata olursa telafi rollback (rollback hatası orijinali maskelemez).
+- HTML sandbox'lı iframe'de çalışır, **sanitize edilmez** — kasıtlı tam uygulama.
+
+### Added — `adaptive_practice` ustalık döngüsü (`loop_mode="mastery"`)
+ALEKS tarzı döngü: yanlışta ipucu (scaffold), aynı becerinin farklı öğesi, doğruya kadar yinele.
+- `AdaptiveItem.scaffold_html`, `loop_mode` = `sample` | `mastery`, `scaffold_on_wrong`,
+  `score_mode` = `ratio` | `mastery` (hep-ya-hiç), `related_retry`, `max_consecutive_wrong`.
+- **Tekrarda cevap arayüzü yeniden etkinleşir** — aksi hâlde ilk yanlıştan sonra şıklar disabled
+  kalır, öğe hiç `done` olmaz ve ekran BİTMEZ (`related_retry` varsayılan açık olduğu için ana yol).
+- **Probing direnci:** ustalık döngüsünde yanlış cevap doğruyu sızdırmaz — öğe çözülene dek
+  (doğru cevap VEYA `max_consecutive_wrong` ile pes) ne doğru-şık işareti ne `explain_html`
+  gösterilir; yerine scaffold gelir. `sample` modunda davranış eskisi gibi (reveal her zaman açık).
+- Kazanılmış ipucu tekrarda görünür kalır — döngünün amacı bu.
+- Anti-slop: `mastery_loop_without_mastery_score`, `scaffold_enabled_without_content`.
+
+### Added — şıka özel gerekçe (`Choice.feedback_html`)
+Quiz şıklarında şık başına gerekçe metni — doğru/yanlış ayrımından bağımsız, seçilen şıka özgü
+açıklama gösterilebilir.
+
 ### Added — #126: `labeled_diagram` salt-gösterim (callout) modu — split-attention exhibit çözümü
 Ölçüm raporunun (`docs/research/2026-07-30-layout-split-attention-measurement.md` §5.3)
 belgelediği "exhibit okuma-protokolü" deseninin (3/6 sınıf-b split) kalıcı çözümü. Yeni ekran
