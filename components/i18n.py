@@ -143,6 +143,9 @@ _EN: dict[str, str] = {
     "xp_min_hint": "At least {n} characters",
     "xp_saved": "Saved",
     "xp_unscored": "Not graded",
+    # task-5 / FIX 8 — embed_html iframe'inin erişilebilir adı (ekranın kendi başlığı yoksa).
+    # RUNTIME_KEYS'e EKLENMEZ: __I18N__ JSON'u her kursta değişir, bayt-parite kırılırdı.
+    "embed_frame_title": "Embedded content",
     # --- çalışma anında üretilen metinler (ENGINE_JS) ---
     "xp_not_answered": "not answered yet",
     "summary_passed": "You passed",
@@ -239,6 +242,7 @@ _TR: dict[str, str] = {
     "xp_min_hint": "En az {n} karakter",
     "xp_saved": "Kaydedildi",
     "xp_unscored": "Puanlanmaz",
+    "embed_frame_title": "Gömülü içerik",
     "xp_not_answered": "henüz cevaplamadın",
     "summary_passed": "Başarıyla tamamladınız",
     "summary_failed": "Geçme notuna ulaşılamadı",

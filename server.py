@@ -16,6 +16,7 @@ import logging
 import os
 import re
 from pathlib import Path
+from typing import Literal
 
 import nh3
 from pydantic import TypeAdapter, ValidationError
@@ -45,6 +46,7 @@ from core.project import (
     CompletionRule,
     CourseSpec,
     CreateProjectOut,
+    EmbedHtmlScreen,
     ListScreensOut,
     OkOut,
     PreviewOut,
@@ -786,6 +788,112 @@ async def svg_to_asset(
 
 
 @mcp.tool
+async def html_to_asset(project_id: str, html_content: str, filename: str = "app.html") -> AssetRef:
+    """Kullanıcının ürettiği ham HTML'i (Claude artifact vb.) `text/html` asset'ine çevirir —
+    base64 gerekmez, ham `html_content` ver (svg_to_asset deseni). Dönen `id`'yi `embed_html`
+    ekranının `html_asset_id`'sinde kullan (VEYA tek adımda `wrap_artifact`). Büyük/uzak artifact
+    için `wrap_artifact(source_url=https://…)` kullan — o çağrı HTML'i indirip YENİ bir proje +
+    `embed_html` ekranı kurar. `add_asset(source=https://…)` HTML KABUL ETMEZ (https kolu
+    izinli mime listesiyle sınırlı → `asset_error: İzin verilmeyen mime: text/html`; `data:` kolu
+    mime'ı hiç denetlemediği için oradan geçer — ama yol bu değil).
+    HTML iframe'de çalışır, sanitize EDİLMEZ (kasıtlı tam uygulama). SUNUCUDA LLM YOK."""
+    await SVC.ensure()
+    try:
+        owner = await _owner()
+        p = await _load(project_id, owner)
+        if not (html_content or "").strip():
+            raise ToolError("invalid_html", "html_content boş olamaz")
+        data = html_content.encode("utf-8")
+        fn = filename if filename.lower().endswith((".html", ".htm")) else filename + ".html"
+        return await _add_processed_asset(p, owner, data, "text/html", fn)
+    except ToolError as e:
+        raise _wrap(e)
+
+
+# wrap_artifact/uzak artifact yolu: DEFAULT_ALLOWED_MIMES (görsel/video/ses/pdf/font) HTML
+# İÇERMEZ — bu çağrı yerine ÖZEL, dar bir HTML-ailesi listesi. safe_fetch_asset'in geri kalan
+# denetimleri (yalnız https, userinfo reddi, çözülen IP blok listesi, her hop yeniden denetim,
+# stream sırasında boyut kesme) aynen uygulanır; yalnız içerik-tipi kapısı genişler.
+# text/plain dahil: ham dosya sunucuları (raw.githubusercontent, S3 vb.) .html'i sık sık
+# text/plain ile servis eder. Güvenlik farkı yok — çekilen mime kullanılmaz, asset her hâlde
+# "text/html" olarak saklanır ve html_content yolu zaten keyfi string kabul eder.
+_ARTIFACT_ALLOWED_MIMES = ("text/html", "application/xhtml+xml", "text/plain")
+
+
+@mcp.tool
+async def wrap_artifact(
+    html_content: str | None = None,
+    source_url: str | None = None,
+    title: str = "Untitled",
+    scorm_version: Literal["1.2", "2004"] = "1.2",
+    language: str = "tr",
+    completion: Literal["on_view", "on_message", "time_threshold"] = "on_view",
+    min_seconds: int = 0,
+) -> dict:
+    """Keyfi kendine-yeten HTML'i (Claude artifact) TEK ADIMDA izlenebilir SCORM içeriğine çevirir:
+    proje + `embed_html` ekranı. Sonra `preview`/`build_package`/`publish_demo` çağır. Girdi:
+    `html_content` ham string (küçük/orta) VEYA `source_url` https (büyük/uzak; SSRF-korumalı) —
+    tam olarak biri (boş string DE "verilmiş" sayılır). `completion="time_threshold"` ise
+    `min_seconds` > 0 ZORUNLU (kaç saniye sonra tamamlansın); diğer modlarda yok sayılır.
+    `language` (varsayılan "tr", `create_project` ile AYNI): oynatıcı kabuğu + runtime i18n +
+    LOM `general/language`. Proje yaratıldıktan SONRA hiçbir tool bunu değiştiremez → İngilizce
+    bir kurs için burada `language="en"` ver.
+    Artifact iframe'de çalışır, LMS'e otomatik tamamlama/süre + opsiyonel postMessage
+    köprüsüyle (setScore/complete) rapor verir. SUNUCUDA LLM YOK."""
+    await SVC.ensure()
+    try:
+        owner = await _owner()
+        # 0) TÜM girdi doğrulaması proje yaratımından ÖNCE → bu yollar yetim proje bırakmaz.
+        #    XOR None'a göre (truthiness DEĞİL): html_content="" + source_url sessizce html
+        #    dalına düşüp source_url'i yok saymasın.
+        if (html_content is None) == (source_url is None):
+            raise ToolError("invalid_input", "Tam olarak biri: html_content VEYA source_url")
+        if html_content is not None and not html_content.strip():
+            raise ToolError("invalid_html", "html_content boş olamaz")
+        if min_seconds < 0:
+            raise ToolError("invalid_input", "min_seconds negatif olamaz (>= 0)")
+        if completion == "time_threshold" and min_seconds == 0:
+            raise ToolError(
+                "invalid_input",
+                "completion='time_threshold' için min_seconds > 0 gerekir; 0 ile kapı anında "
+                "açılır. Anında tamamlama isteniyorsa completion='on_view' kullan.")
+        # 1) proje — create_project ile AYNI kota kapısı (bypass etme!) ve AYNI tema çözümü
+        await enforce_project_quota(SVC.store, owner)
+        from core.project import new_project_id
+
+        p = Project(id=new_project_id(), title=title, scorm_version=scorm_version,
+                    language=language, theme=_load_theme("default"), owner_key_id=owner.id)
+        await SVC.store.create_project(p)
+        try:
+            # 2) HTML → asset (_add_processed_asset p'yi yerinde günceller VE persist eder →
+            #    araya _load koymaya gerek yok)
+            if html_content is not None:
+                ref = await _add_processed_asset(
+                    p, owner, html_content.encode("utf-8"), "text/html", "app.html")
+            else:
+                max_bytes = SETTINGS.max_asset_mb * 1024 * 1024
+                data, _mime = await safe_fetch_asset(
+                    source_url, max_bytes=max_bytes, allowed_mimes=_ARTIFACT_ALLOWED_MIMES)
+                ref = await _add_processed_asset(p, owner, data, "text/html", "app.html")
+            # 3) embed_html ekranı (add_screen tool gövdesindeki doğrulama/persist mantığı)
+            screen = EmbedHtmlScreen(id=new_screen_id(), html_asset_id=ref.id, title=title,
+                                     completion=completion, min_seconds=min_seconds)
+            p.screens.append(screen)
+            await SVC.store.update_project(p)
+        except Exception:
+            # telafi (compensating rollback): yarım kalan proje sahibin kotasını yemesin.
+            # Geri alma hatası ORİJİNAL hatayı maskelemesin → logla ve yut, sonra re-raise.
+            try:
+                await SVC.store.delete_project(p.id, owner.id)
+            except Exception as rb:  # noqa: BLE001
+                logger.warning("event=wrap_artifact_rollback_failed project_id=%s err=%r", p.id, rb)
+            raise
+        return {"project_id": p.id, "screen_id": screen.id, "asset_id": ref.id}
+    except ToolError as e:
+        raise _wrap(e)
+
+
+@mcp.tool
 async def search_images(query: str, source: str = "openverse", limit: int = 5) -> dict:
     """Telifsiz (CC0/Public Domain) görsel arar — kurslara görsel eklemenin ilk adımı. `source`:
     "openverse" | "wikimedia". Yalnızca CC0/Public Domain lisanslı sonuçlar döner. Sonuçtan bir
@@ -987,7 +1095,12 @@ async def render_screen_video(
 
 @mcp.tool
 async def preview(project_id: str) -> PreviewOut:
-    """Tek-dosya, harici bağımlılıksız önizleme üretir + hosted URL döndürür."""
+    """Tek-dosya, harici bağımlılıksız önizleme üretir + hosted URL döndürür.
+
+    BÜYÜK ÇIKTI UYARISI: `inline_html` tek dosyada her şeyi taşır (taban ~546 KB) ve gömülü
+    artifact/asset'ler data-URI olarak base64'lenir (≈ boyut × 1.33; `html_to_asset` 25 MB'a
+    kadar kabul eder). `wrap_artifact` ile sarılmış bir artifact'te `inline_html`'i bağlama
+    çekmek yerine `hosted_url`'i kullan/paylaş."""
     await SVC.ensure()
     try:
         owner = await _owner()
@@ -1361,6 +1474,8 @@ _SCREEN_TYPE_DESC: dict[str, str] = {
                       "(full/partial/problem_only) + skorsuz öz-açıklama istemi; E1 kanıt kaynağı.",
     "exploration": "Keşif — öğrenen girdisi (tahmin/deneme/sınıflama) saklanır, sonraki ekranlarda "
                    "data-exploration-ref ile geri oynatılır ('senin tahminin şuydu'); skorsuz, E1 kanıt kaynağı.",
+    "embed_html": "Keyfi kendine-yeten HTML (Claude artifact) — sandbox'lı iframe'de çalışır, LMS'e "
+                  "otomatik tamamlama/süre + opsiyonel postMessage köprüsüyle skor raporlar (wrap_artifact ile tek adımda).",
 }
 
 _THEME_DESC: dict[str, str] = {
