@@ -127,16 +127,17 @@ Full working specs live in [`examples/`](examples/) (games, branching, themed an
 
 ## Features
 
-- **30 MCP tools** — `build_from_spec` (single-call path), granular editing
+- **43 MCP tools** — `build_from_spec` (single-call path), granular editing
   (`create_project` / `add_screen` / `update_screen` / …), `set_theme` / `set_tracking`,
   `add_asset` (SSRF-guarded imports), `synthesize_speech` (offline Piper TTS), video tools
   (ffmpeg / HyperFrames motion-graphics), `preview` / `validate_package` / `build_package`,
   `lint_course` (quality gate), `export_qti` (QTI 2.1).
-- **28 screen types** — title, content, MCQ, true/false, fill-in-the-blank, drag & drop, hotspot,
+- **31 screen types** — title, content, MCQ, true/false, fill-in-the-blank, drag & drop, hotspot,
   branching scenario, video, accordion, tabs, flashcards, matching, sorting, timeline, lottie,
   guided software simulation, decision scenario, term-match race, escape room, labeled diagram,
   data chart, image compare, results breakdown, poll/reflection, summary, **composable game**,
-  **adaptive practice**. Full reference: [docs/SCREEN_TYPES.md](docs/SCREEN_TYPES.md).
+  **adaptive practice**, worked example, exploration, **embedded HTML** (artifact→SCORM).
+  Full reference: [docs/SCREEN_TYPES.md](docs/SCREEN_TYPES.md).
 - **Composable game engine** — the `game` screen composes mechanic primitives
   (score/lives/timer/hints) + declarative `when event if condition then action` rules + branching
   nodes; `adaptive_practice` estimates proficiency (**Elo or Bayesian Knowledge Tracing**) and
@@ -197,7 +198,7 @@ lookalike, please report it via [SECURITY.md](SECURITY.md).
 
 | Doc | Contents |
 |---|---|
-| [docs/SCREEN_TYPES.md](docs/SCREEN_TYPES.md) | All 28 screen types with fields and examples |
+| [docs/SCREEN_TYPES.md](docs/SCREEN_TYPES.md) | All 31 screen types with fields and examples |
 | [docs/CONFORMANCE.md](docs/CONFORMANCE.md) | SCORM conformance evidence & procedures |
 | [docs/ACCESSIBILITY-CONFORMANCE.md](docs/ACCESSIBILITY-CONFORMANCE.md) | WCAG 2.2 AA statement |
 | [docs/LMS-INTEGRATION.md](docs/LMS-INTEGRATION.md) | LMS-specific integration notes |
