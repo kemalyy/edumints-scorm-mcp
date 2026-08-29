@@ -34,7 +34,15 @@ from core.engine_bundle import (  # W3b — motor lazy, SCORM RT hep; Faz 4 — 
     load_progress_bundle,
     load_scorm_bundle,
 )
-from core.project import Project, QUIZ_TYPES, ScreenType, ThemeTokens, is_display_diagram
+from core.project import (
+    Project,
+    QUIZ_TYPES,
+    ScreenType,
+    ThemeTokens,
+    is_display_diagram,
+    is_explore_hotspot,
+    is_unscored_view,
+)
 
 from . import i18n
 from .templates import (
@@ -44,6 +52,8 @@ from .templates import (
     EMBED_SHIM_JS,
     ENGINE_JS,
     FALLBACK_RUNTIME_SHIM,
+    HOTSPOT2_CSS,
+    HOTSPOT2_JS,
     OUTLINE_CSS,
     OUTLINE_JS,
     REVIEW_JS,
@@ -126,6 +136,21 @@ def _load_lottie_js() -> str:
 
 def _uses_lottie(project: Project) -> bool:
     return any(s.type == ScreenType.lottie for s in project.screens)
+
+
+def _uses_hotspot2(project: Project) -> bool:
+    """#138 — hotspot v2 yüzeyi kullanılıyor mu (keşif kipi / hepsini-bul / bölge rozeti /
+    bölgeye özel gerekçe)? CSS+JS bloğu YALNIZ o zaman inline edilir; kullanmayan kursun
+    çıktısı bayt-bayt eski hâlinde kalır (EMBED_CSS/OUTLINE_CSS ile AYNI presedan)."""
+    return any(
+        s.type is ScreenType.hotspot
+        and (
+            getattr(s, "mode", "quiz") == "explore"
+            or getattr(s, "require_all", False)
+            or any(rg.label_html or rg.feedback_html for rg in s.regions)
+        )
+        for s in project.screens
+    )
 
 
 def _uses_embed(project: Project) -> bool:
@@ -356,7 +381,12 @@ def _render_html_inner(
     # baytlarını değiştirirdi — task-4 bayt-parite kararı). Embed'siz kursta embed_js == "" →
     # birleştirme öncekiyle bayt-bayt aynı.
     embed_js = EMBED_JS if _uses_embed(project) else ""
-    engine_js = ENGINE_JS.replace(_REVIEW_JS_SLOT, outline_js + embed_js + (REVIEW_JS if review else ""))
+    # #138 — hotspot v2 bağlayıcısı AYNI sentineli paylaşır (embed presedanı): kullanmayan
+    # kursta boş string → birleştirme bayt-bayt eski çıktı.
+    hotspot2_js = HOTSPOT2_JS if _uses_hotspot2(project) else ""
+    engine_js = ENGINE_JS.replace(
+        _REVIEW_JS_SLOT, outline_js + embed_js + hotspot2_js + (REVIEW_JS if review else "")
+    )
     menu_tree_attrs, menu_tree_items = _render_menu_tree(project)
 
     return SHELL.format(
@@ -372,7 +402,8 @@ def _render_html_inner(
         # task-5 / FIX 1 — embed yerleşim CSS'i AYNI koşullu-enjeksiyon presedanı: embed'siz
         # kursta boş string → BASE_CSS + "" birleşimi bayt-bayt eski çıktı (golden/outline kapısı).
         base_css=(BASE_CSS + (OUTLINE_CSS if project.outline else "")
-                  + (EMBED_CSS if _uses_embed(project) else "") + dark_css),
+                  + (EMBED_CSS if _uses_embed(project) else "")
+                  + (HOTSPOT2_CSS if _uses_hotspot2(project) else "") + dark_css),
         custom_css=theme.custom_css or "",
         bg_pattern=theme.background_pattern,
         layout_mode=project.layout_mode,
@@ -571,9 +602,10 @@ def _course_config(project: Project) -> dict:
     screens = []
     total_points = 0
     for idx, s in enumerate(project.screens):
-        # #126 — display-modlu labeled_diagram QUIZ_TYPES üyesidir ama skorlanmaz/etkileşimsizdir:
-        # is_quiz/skor/feedback/başlık-interaksiyon kapılarında quiz-DIŞI sayılır (tek istisna helper).
-        _is_quiz = s.type in QUIZ_TYPES and not is_display_diagram(s)
+        # #126 / #138 — QUIZ_TYPES üyesi olup da SKORLANMAYAN görüntüleme kipleri
+        # (labeled_diagram display, hotspot explore): is_quiz/skor/feedback/başlık-interaksiyon
+        # kapılarında quiz-DIŞI sayılır. Tek istisna kapısı: is_unscored_view.
+        _is_quiz = s.type in QUIZ_TYPES and not is_unscored_view(s)
         item: dict = {"id": s.id or f"idx{idx}", "type": s.type.value, "index": idx,
                       "is_quiz": _is_quiz}
         # S1 — cmi.interactions.n.description (yalnız 2004'te yazılır; puanlanan ekranlarda anlamlı).
@@ -602,10 +634,11 @@ def _course_config(project: Project) -> dict:
             item["points"] = s.points
             item["correct"] = {it.id: it.correct_target_id for it in s.items}
             total_points += s.points
-        elif s.type == ScreenType.hotspot:
+        elif s.type == ScreenType.hotspot and not is_explore_hotspot(s):
             item["points"] = s.points
             item["correct"] = [rg.id for rg in s.regions if rg.correct]
             total_points += s.points
+        # #138 — explore modlu hotspot: skor/cevap config'e yazılmaz (skorlanmaz içerik)
         elif s.type == ScreenType.matching:
             item["points"] = s.points
             total_points += s.points  # doğru = select value === satır pair id (DOM'da kontrol)
@@ -1013,15 +1046,86 @@ def _r_drag(s) -> str:
     )
 
 
-def _r_hotspot(s) -> str:
-    regions = "".join(
+def _hotspot_region_btn(s, rg, idx: int, explore: bool) -> str:
+    """#138 — bölge düğmesi. a11y kısıt #8: erişilebilir ad ARTIK `title`'a bağlı DEĞİL —
+    `aria-label` her bölgede vardır (etiket yoksa i18n "Bölge {n}"e düşer). Görünür numara
+    rozeti YALNIZ etiketli bölgede ya da keşif kipinde basılır: etiketsiz quiz hotspot'unun
+    görünümü değişmesin (geriye uyum), ama keşifte bölge tıklanabilir olduğu belli olsun."""
+    label_plain = _plain(rg.label_html)
+    aria = label_plain or _T("hotspot_region", n=idx + 1)
+    badge = (
+        f'<span class="hs-num" aria-hidden="true">{idx + 1}</span>'
+        if (explore or rg.label_html)
+        else ""
+    )
+    title = f' title="{_attr(label_plain)}"' if label_plain else ""
+    extra = (
+        f' aria-expanded="false" aria-controls="{_attr(_hs_note_id(s, rg))}"' if explore else ""
+    )
+    return (
         f'<button class="hotspot-region" type="button" data-region="{_attr(rg.id)}"'
         f' data-shape="{rg.shape}" data-coords="{_attr(",".join(str(c) for c in rg.coords))}"'
-        f' title="{_attr(rg.label_html or "")}"></button>'
-        for rg in s.regions
+        f'{title} aria-label="{_attr(aria)}"{extra}>{badge}</button>'
+    )
+
+
+def _hs_note_id(s, rg) -> str:
+    return f"hsn-{s.id or 'hs'}-{rg.id}"
+
+
+def _hotspot_notes(s, explore: bool) -> str:
+    """Bölge notları. Quiz kipinde YALNIZ `feedback_html` olanlar basılır (gerekçe, cevaptan
+    sonra açılır). Keşif kipinde her bölge bir not taşır: başlık = label_html, gövde =
+    feedback_html. Hiç not yoksa sarmalayıcı da basılmaz → kullanmayan kurs bayt-aynı."""
+    items = []
+    for rg in s.regions:
+        body = sanitize(rg.feedback_html) if rg.feedback_html else ""
+        if explore:
+            head = f'<h3 class="hs-note-title">{sanitize(rg.label_html)}</h3>' if rg.label_html else ""
+            if not (head or body):
+                continue
+            items.append(
+                f'<div class="hs-note" id="{_attr(_hs_note_id(s, rg))}"'
+                f' data-note="{_attr(rg.id)}" hidden>{head}<div class="rich">{body}</div></div>'
+            )
+        elif body:
+            items.append(
+                f'<div class="hs-note" data-note="{_attr(rg.id)}" hidden>'
+                f'<div class="rich">{body}</div></div>'
+            )
+    if not items:
+        return ""
+    live = ' role="status" aria-live="polite"' if explore else ""
+    return f'<div class="hs-notes"{live}>{"".join(items)}</div>'
+
+
+def _r_hotspot(s) -> str:
+    explore = is_explore_hotspot(s)
+    regions = "".join(
+        _hotspot_region_btn(s, rg, i, explore) for i, rg in enumerate(s.regions)
     )
     img = f'<img class="hotspot-img" data-asset="{_attr(s.image_asset_id)}" alt="{_attr(s.image_alt or "")}">'
-    return _quiz_shell(s, f'<div class="hotspot"><div class="hotspot-stage">{img}{regions}</div></div>')
+    notes = _hotspot_notes(s, explore)
+    if not explore:
+        return _quiz_shell(
+            s, f'<div class="hotspot"><div class="hotspot-stage">{img}{regions}</div>{notes}</div>'
+        )
+    # Keşif kipi: _quiz_shell KULLANILMAZ — kontrol butonu/feedback yüzeyi yok (skorlanmaz).
+    progress = (
+        f'<p class="hs-progress" role="status" aria-live="polite"'
+        f' data-total="{len(s.regions)}"><span class="hs-count">0</span>/{len(s.regions)}</p>'
+        if s.require_all
+        else ""
+    )
+    stage_label = _attr(s.image_alt or s.title)
+    req_attr = ' data-require-all="1"' if s.require_all else ""
+    return (
+        f'<h2 class="screen-title">{_text(s.title)}</h2>'
+        f'<div class="rich prompt">{sanitize(s.prompt_html)}</div>'
+        f'<div class="hotspot hs-explore"{req_attr}>'
+        f'<div class="hotspot-stage" role="group" aria-label="{stage_label}">{img}{regions}</div>'
+        f'{progress}<p class="hs-hint">{_text(_T("hotspot_explore_hint"))}</p>{notes}</div>'
+    )
 
 
 def _r_branching(s) -> str:
@@ -1765,6 +1869,19 @@ def _attr(s: str | None) -> str:
 
 def _text(s: str | None) -> str:
     return (s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _plain(html: str | None) -> str:
+    """#138 — etiket HTML'inden düz metin (aria-label için): etiketleri at, temel varlıkları
+    çöz, boşlukları sadeleştir. `aria-label` MARKUP KABUL ETMEZ — ham `<b>Motor</b>` verilirse
+    ekran okuyucu etiketi harfi harfine okur (a11y kısıt #8'in ikinci yarısı)."""
+    if not html:
+        return ""
+    txt = re.sub(r"<[^>]+>", " ", html)
+    for ent, ch in (("&nbsp;", " "), ("&amp;", "&"), ("&lt;", "<"), ("&gt;", ">"),
+                    ("&quot;", '"'), ("&#39;", "'")):
+        txt = txt.replace(ent, ch)
+    return " ".join(txt.split())
 
 
 def _css_str(s: str) -> str:

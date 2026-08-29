@@ -1507,6 +1507,9 @@ function checkDrag(el,s){
   return {ok:ok, response:placed, correct:s.correct};
 }
 function bindHotspot(el,s){
+  // #138 — keşif (explore) kipi: skorlanmaz, kontrol butonu YOK → bindCheck çağrılamaz.
+  // Bağlamayı koşullu HOTSPOT2_JS üstlenir. (#126 ld-display guard'ıyla AYNI desen.)
+  var _hs=el.querySelector(".hotspot"); if(_hs&&_hs.classList.contains("hs-explore")) return;
   var img=el.querySelector(".hotspot-img"); var picked=null;
   function place(){
     var w=img.clientWidth, h=img.clientHeight; if(!w) return;
@@ -1528,6 +1531,8 @@ function bindHotspot(el,s){
     el.querySelectorAll(".hotspot-region").forEach(function(r){
       if(s.correct.indexOf(r.dataset.region)>=0) r.classList.add("correct");
       else if(r.dataset.region===picked) r.classList.add("wrong"); });
+    // #138 — bölgeye özel gerekçe: YALNIZ seçilen bölgeninki açılır (Choice.feedback_html deseni).
+    var _nt=picked?el.querySelector('.hs-note[data-note="'+picked+'"]'):null; if(_nt) _nt.hidden=false;
     return {ok:ok, response:picked?[picked]:[], correct:s.correct}; });
 }
 function bindCheck(el,s,checker){
@@ -2148,6 +2153,8 @@ function pacedSeek(t){ if(!TL) return; TL.elapsed=Math.max(0,Math.min(t,TL.durat
   document.getElementById("plTime").textContent=fmtTime(TL.elapsed)+" / "+fmtTime(TL.duration); }
 
 function onScreenEnter(section, cfg){
+  // #138 — hotspot "hepsini bul" kapısı; blok basılmamışsa (kullanmayan kurs) no-op.
+  if(window.__HS_REQUIRE_ALL__) try{ window.__HS_REQUIRE_ALL__(section, cfg); }catch(e){}
   clearTL();
   var play=document.getElementById("btnPlay"), seek=document.getElementById("seekbar"),
       plTime=document.getElementById("plTime"), mute=document.getElementById("btnMute");
@@ -2385,6 +2392,90 @@ REVIEW_JS = r"""if(window.__REVIEW__){
 # (BASE_CSS) — `.video-wrap{flex:1;min-height:0}` presedanı aynen izlenir. `min-height:0` şart:
 # flex öğesinin varsayılan `min-height:auto`'su iframe'i taşırıp çift kaydırma üretir.
 # --------------------------------------------------------------------------- #
+# --------------------------------------------------------------------------- #
+# #138 — hotspot v2 (keşif kipi + bölge rozeti + bölgeye özel gerekçe + hepsini-bul)
+# --------------------------------------------------------------------------- #
+# BU BLOK KOŞULLUDUR: renderer `_uses_hotspot2(project)` iken basar. Kullanmayan kursun
+# çıktısı bayt-bayt eski hâlinde kalır (OUTLINE_CSS / EMBED_CSS ile AYNI presedan).
+# Renkler yalnız gated token'lardan akar (num rozeti primary/primary-contrast, not kutusu
+# surface-alt/text_on_surface_alt) → AA kontrast matrisinde delta 0.
+HOTSPOT2_CSS = r"""
+/* #138 — bölge numara rozeti: bölgenin görünür işareti + tıklanabilirlik ipucu.
+   aria-hidden — erişilebilir ad butonun kendi aria-label'ındadır (kısıt #8). */
+.hotspot-region{display:flex;align-items:flex-start;justify-content:flex-start;padding:0}
+.hs-num{display:inline-flex;align-items:center;justify-content:center;
+  min-width:1.5rem;height:1.5rem;margin:-.75rem 0 0 -.75rem;border-radius:999px;
+  background:var(--c-primary);color:var(--c-primary-contrast);
+  font-size:.8rem;font-weight:700;line-height:1;box-shadow:var(--e1);pointer-events:none}
+/* keşif kipi: seçili bölge kalıcı vurgulanır (quiz'in correct/wrong'undan AYRI sınıf) */
+.hs-explore .hotspot-region[aria-expanded="true"]{
+  border-color:var(--c-primary);background:color-mix(in srgb,var(--c-primary) 18%,transparent)}
+.hs-notes{margin-top:var(--sp-3)}
+.hs-note{padding:var(--sp-3);border-radius:var(--r-md);background:var(--c-surface-alt);
+  color:var(--c-text-on-surface-alt,var(--c-text));border-inline-start:3px solid var(--c-primary)}
+.hs-note+.hs-note{margin-top:var(--sp-2)}
+.hs-note-title{margin:0 0 var(--sp-1);font-size:1rem;font-weight:700}
+.hs-hint{margin:var(--sp-2) 0 0;font-size:.9rem;opacity:.75}
+.hs-progress{margin:var(--sp-2) 0 0;font-weight:700}
+.hs-progress.done{color:var(--c-success)}
+@media (max-width:640px){ .hs-num{min-width:1.25rem;height:1.25rem;font-size:.7rem;margin:-.6rem 0 0 -.6rem} }
+"""
+
+# Keşif kipi bağlayıcısı + "hepsini bul" kapısı. ENGINE_JS'in ana IIFE kapsamına AYNI
+# sentinelden enjekte edilir (yeni sentinel eklemek kullanmayan kursun baytlarını değiştirirdi),
+# bu yüzden `state` / `persist` / `updateChrome` / `evaluate` doğrudan görünür.
+#
+# KALICILIK: ziyaret edilen bölgeler `state.vars["__hs_<ekranId>"]` içinde virgüllü dizge olarak
+# durur. `vars` suspend v2 zarfının BİLİNEN alanlarındandır (scorm.js `_V2_KNOWN`) → resume'da
+# geri okunur. Yeni bir state anahtarı AÇILMADI: açmak scorm.js'i (koşulsuz inline) büyütür ve
+# her paketin baytını değiştirirdi.
+HOTSPOT2_JS = r"""
+(function(){
+  function key(id){ return "__hs_"+id; }
+  function seen(id){ var v=(state.vars||{})[key(id)]; return v?String(v).split(","):[]; }
+  function mark(id,rid){ var a=seen(id); if(a.indexOf(rid)<0){ a.push(rid);
+    state.vars=state.vars||{}; state.vars[key(id)]=a.join(","); } return a; }
+  // "hepsini bul": ekran TÜM bölgeler ziyaret edilmeden `visited` sayılmaz → tamamlanma
+  // kuralı (viewed_all*) bu ekranı bitmiş kabul etmez. Navigasyon KİLİTLENMEZ — oynatıcının
+  // hiçbir yerinde ileri düğmesi içerik kapısına bağlanmaz, o deseni burada icat etmiyoruz.
+  function gate(section,cfg){
+    if(!section||!cfg) return;
+    var hs=section.querySelector(".hotspot.hs-explore[data-require-all]"); if(!hs) return;
+    var total=hs.querySelectorAll(".hotspot-region").length;
+    if(seen(cfg.id).length<total) delete state.visited[cfg.id];
+  }
+  window.__HS_REQUIRE_ALL__=gate;
+  document.querySelectorAll(".hotspot.hs-explore").forEach(function(hs){
+    var section=hs.closest("[data-screen-id]"); if(!section) return;
+    var sid=section.dataset.screenId;
+    var regions=hs.querySelectorAll(".hotspot-region");
+    var need=hs.hasAttribute("data-require-all");
+    var prog=hs.querySelector(".hs-progress"), count=hs.querySelector(".hs-count");
+    function paint(){
+      var a=seen(sid);
+      regions.forEach(function(r){ if(a.indexOf(r.dataset.region)>=0) r.classList.add("hs-seen"); });
+      if(count) count.textContent=String(Math.min(a.length,regions.length));
+      if(prog) prog.classList.toggle("done", a.length>=regions.length);
+      if(need && a.length>=regions.length){ state.visited[sid]=true; updateChrome(); evaluate(); }
+    }
+    regions.forEach(function(r){
+      r.addEventListener("click",function(){
+        var open=r.getAttribute("aria-expanded")==="true";
+        regions.forEach(function(x){ x.setAttribute("aria-expanded","false"); });
+        hs.querySelectorAll(".hs-note").forEach(function(n){ n.hidden=true; });
+        if(!open){
+          r.setAttribute("aria-expanded","true");
+          var n=hs.querySelector('.hs-note[data-note="'+r.dataset.region+'"]'); if(n) n.hidden=false;
+        }
+        mark(sid,r.dataset.region); paint(); persist();
+      });
+    });
+    paint();
+  });
+})();
+"""
+
+
 EMBED_CSS = r"""
 /* ===== EMBED_HTML (artifact iframe) — yalniz embed_html ekrani olan kurslarda ===== */
 /* sahne dolgusu video ekraniyla ayni olcude kisilir: fill modu "tam kanama" olsun diye */

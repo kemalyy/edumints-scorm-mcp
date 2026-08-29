@@ -5,6 +5,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — #138: `hotspot` v2 — keşif kipi, bölgeye özel gerekçe, erişilebilir ad
+Yeni ekran tipi DEĞİL (tip enflasyonu 3.7) — mevcut `hotspot`'a **parametre**.
+- **`hotspot.mode: "quiz" | "explore" = "quiz"`.** `quiz` (varsayılan) davranışı korunur.
+  `explore` = **skorsuz keşif**: bölgeye tıklanınca içeriği açılır; kontrol butonu, geri
+  bildirim yüzeyi ve skor yok. `total_points` dışı, `is_quiz=false`, manifest'te skorlu
+  içerik saymaz (mastery/threshold regresyonu önlenir). Kanıt-taşıyabilir hedeftir (E1).
+- **`HotspotRegion.feedback_html`** — bölgeye özel gerekçe (`Choice.feedback_html` deseni).
+  `quiz`'de cevaptan sonra YALNIZ seçilen bölgeninki açılır, `explore`'da bölge açılınca.
+- **Erişilebilir ad (a11y kısıt #8 kapandı).** Her bölge `aria-label` taşır: `label_html`
+  varsa düz metne indirgenmiş hâli (`aria-label` markup kabul etmez), yoksa i18n'den jenerik
+  "Bölge {n}". Ad artık ne `title`'a ne yazarın etiket vermesine bağlı. Görünür numara
+  rozeti `explore`'da her bölgede, `quiz`'de yalnız etiketli bölgede → etiketsiz eski
+  kursların görünümü değişmez.
+- **`hotspot.require_all`** — "hepsini bul": tüm bölgeler ziyaret edilmeden ekran `visited`
+  sayılmaz (ilerleme sayacı + `aria-live`). v1'de YALNIZ `mode="explore"` ile geçerli;
+  quiz kipinde çok-seçim gerektirir → validator sert hatayla keser. Ziyaret defteri kurs
+  değişkeninde (`__hs_<ekranId>`) durur → suspend v2 ile resume'da geri okunur; yeni state
+  anahtarı açılmadı (açmak koşulsuz inline `scorm.js`'i büyütürdü).
+- **Tek skorsuz-kip kapısı:** `is_unscored_view` (= display diagram + explore hotspot);
+  skor/is_quiz/feedback/manifest/anti-slop kapılarının hepsi bunu kullanır.
+- Anti-slop: `hotspot_explore_without_content`, `hotspot_region_without_label`.
+- **Bayt-parite:** yeni CSS/JS koşullu üretilir (`_uses_hotspot2`) — hotspot v2 yüzeyini
+  kullanmayan kursun çıktısı bayt-aynı. ENGINE_JS'e yalnız 7 satır guard/kanca eklendi;
+  fixture kasıtlı olarak AYRI commit'te yenilendi.
+
 ### Added — artifact→SCORM: `embed_html` ekran tipi + `wrap_artifact` / `html_to_asset`
 Keyfi kendine-yeten HTML'i (Claude artifact, tek dosyalık uygulama) sandbox'lı iframe'de
 çalıştırıp LMS'e izlenebilir hâle getirir.

@@ -122,13 +122,68 @@ Tüm ekran tipleri aşağıdaki alanlara sahiptir:
 
 ## 7. Hotspot (hotspot)
 
+Görsel üzerinde tıklanabilir bölgeler. İki kip vardır (#138) — kip **parametredir**, ayrı
+ekran tipi değildir (`labeled_diagram.mode` ile aynı presedan):
+
+- **`quiz` (varsayılan)** — tek bölge seçilir, kontrol butonuyla değerlendirilir, puanlanır.
+- **`explore`** — **skorsuz keşif**: bölgeye tıklanınca o bölgenin içeriği açılır. Kontrol
+  butonu, geri bildirim yüzeyi ve skor **yoktur**; ekran `total_points` dışıdır ve
+  `is_quiz=false` döner. Kanıt-taşıyabilir hedeftir (E1) — skorlu bir soru
+  `evidence_screen_ids` ile buna yaslanabilir.
+
+**Erişilebilirlik:** her bölge `aria-label` taşır. Yazar `label_html` verdiyse ad odur
+(markup düz metne indirgenir — `aria-label` markup kabul etmez), vermediyse i18n'den gelen
+jenerik "Bölge {n}" adına düşülür. Görünür numara rozeti `explore` kipinde her bölgede,
+`quiz` kipinde yalnız etiketli bölgede basılır (etiketsiz eski kursların görünümü korunur).
+
 **Model:** `HotspotScreen`
 
 | Alan | Tip | Zorunlu mu? | Açıklama |
 | :--- | :--- | :---: | :--- |
 | `prompt_html` | `str` | Evet | Soru metni. |
 | `image_asset_id` | `str` | Evet | Üzerinde seçim yapılacak görsel. |
+| `image_alt` | `str` | Hayır | Görselin alt metni (WCAG). |
+| `mode` | `str` | Hayır | `quiz` (vars.) veya `explore`. |
+| `require_all` | `bool` | Hayır | "Hepsini bul": TÜM bölgeler ziyaret edilmeden ekran tamamlanmış sayılmaz. **Yalnız `mode="explore"` ile geçerlidir** — quiz kipinde çok-seçim gerektirir, validator sert hata verir. |
 | `regions` | `list[HotspotRegion]` | Evet | Tıklanabilir bölgeler. |
+
+**Model:** `HotspotRegion`
+
+| Alan | Tip | Zorunlu mu? | Açıklama |
+| :--- | :--- | :---: | :--- |
+| `id` | `str` | Evet | Bölge ID'si. |
+| `shape` | `str` | Evet | `rect` \| `circle` \| `poly`. |
+| `coords` | `list[float]` | Evet | Görselin **doğal piksel** uzayında koordinatlar (`rect`: x,y,w,h — `circle`: cx,cy,r). |
+| `correct` | `bool` | Hayır | Quiz kipinde doğru bölge mi (vars. `true`). |
+| `label_html` | `str` | Hayır | Bölge adı. Erişilebilir adı besler; `explore` kipinde açılan kutunun başlığıdır. |
+| `feedback_html` | `str` | Hayır | Bölgeye özel gerekçe. `quiz`'de cevaptan sonra yalnız seçilen bölgeninki, `explore`'da bölge açılınca gösterilir. Boşsa hiçbir şey render edilmez. |
+
+**"Hepsini bul" kalıcılığı:** ziyaret edilen bölgeler kurs değişkenlerinde
+(`__hs_<ekranId>`) tutulur — suspend v2 zarfının bilinen alanlarındandır, resume'da geri
+okunur. Navigasyon **kilitlenmez**: oynatıcının hiçbir yerinde ileri düğmesi içerik kapısına
+bağlanmaz; `require_all` yalnız ekranın `visited` sayılmasını geciktirir, dolayısıyla
+`viewed_all*` tamamlanma kuralını etkiler.
+
+**Örnek (keşif kipi):**
+```json
+{
+  "type": "hotspot",
+  "title": "Motor parçaları",
+  "mode": "explore",
+  "require_all": true,
+  "image_asset_id": "ast_motor",
+  "image_alt": "Dört zamanlı motor kesiti",
+  "prompt_html": "<p>Parçaları tanımak için üzerlerine tıkla.</p>",
+  "regions": [
+    { "id": "karb", "shape": "rect", "coords": [120, 80, 90, 60],
+      "label_html": "Karbüratör",
+      "feedback_html": "<p>Yakıtı hava ile karıştırır.</p>" },
+    { "id": "piston", "shape": "circle", "coords": [320, 200, 45],
+      "label_html": "Piston",
+      "feedback_html": "<p>Yanma basıncını mekanik harekete çevirir.</p>" }
+  ]
+}
+```
 
 ## 8. Senaryo / Dallanma (branching)
 

@@ -16,6 +16,7 @@ from .project import (
     BranchingScreen,
     ExplorationScreen,
     GameScreen,
+    HotspotScreen,
     Project,
     ScreenType,
     VideoScreen,
@@ -65,6 +66,16 @@ def validate_project(project: Project, *, strict: bool = False) -> list[Validati
                                       "kurs genelinde tekil olmalı (geri-oynatma adresi)",
                               path=f"{path}.store_key"))
             seen_store_keys.add(s.store_key)
+
+        # #138 — hotspot "hepsini bul" v1'de YALNIZ keşif kipinde geçerlidir. Quiz kipi tek
+        # bölge seçer (bindHotspot `picked` tekildir); require_all orada çok-seçim + kısmî
+        # skorlama demektir → ayrı iş. Sessizce yok saymak yerine SERT hata: yazar require_all
+        # yazdıysa davranış bekler, yok sayılan bayrak sessiz yanlış kurstur.
+        if isinstance(s, HotspotScreen) and s.require_all and s.mode != "explore":
+            errors.append(ValidationError(code="validation_error",
+                          message="hotspot.require_all yalnız mode=\"explore\" ile kullanılabilir; "
+                                  "quiz kipinde çok-seçim gerektirir (henüz desteklenmiyor)",
+                          path=f"{path}.require_all"))
         # asset referansları
         # task-5 / FIX 2 — html_asset_id (embed_html) BURADA olmak ZORUNDA: eksikken hatalı bir
         # id doğrulamayı geçiyordu, build_package başarılı oluyor, manifest geçerli kalıyor ama

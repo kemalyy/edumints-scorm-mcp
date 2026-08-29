@@ -158,9 +158,15 @@ board.
 7. **`data_chart` SVG lacks a programmatic name.** `role="img"` without `aria-label` means
    screen readers may announce nothing useful; the optional figcaption is the only text
    alternative.
-8. **Hotspot regions are named only via `title`.** Focusable and activatable, but the
-   accessible name relies on the `title` attribute (inconsistently exposed by AT) and the
-   author supplying `label_html`.
+8. ~~**Hotspot regions are named only via `title`.**~~ **Fixed (#138).** Every region now
+   carries an `aria-label`: the author's `label_html` flattened to plain text when present,
+   otherwise a localized generic name (`Region {n}` / `Bölge {n}`), so the accessible name no
+   longer depends on `title` or on the author labelling the region. `title` is still emitted
+   as a mouse tooltip when a label exists, but it is no longer load-bearing. A visible number
+   badge is rendered for every region in `mode="explore"`, and for labelled regions in
+   `mode="quiz"` (unlabelled quiz hotspots keep their previous appearance). Remaining
+   advisory: `lint_course` warns (`hotspot_region_without_label`) when a region has no
+   `label_html`, because the generic fallback name says nothing about what the region *is*.
 9. **Alt text is linted, not enforced.** `lint_course` (`core/antislop.py`) walks every
    image-bearing field across screen types and the theme logo and emits `missing_alt_text`
    WARNs — advisory, so a course can still build and ship without alt text.
