@@ -29,6 +29,7 @@ from typing import Literal
 import nh3
 
 from core.engine_bundle import (  # W3b — motor lazy, SCORM RT hep; Faz 4 — progress yalnız outline
+    load_embed_bundle,
     load_engine_bundle,
     load_progress_bundle,
     load_scorm_bundle,
@@ -38,6 +39,9 @@ from core.project import Project, QUIZ_TYPES, ScreenType, ThemeTokens, is_displa
 from . import i18n
 from .templates import (
     BASE_CSS,
+    EMBED_CSS,
+    EMBED_JS,
+    EMBED_SHIM_JS,
     ENGINE_JS,
     FALLBACK_RUNTIME_SHIM,
     OUTLINE_CSS,
@@ -122,6 +126,31 @@ def _load_lottie_js() -> str:
 
 def _uses_lottie(project: Project) -> bool:
     return any(s.type == ScreenType.lottie for s in project.screens)
+
+
+def _uses_embed(project: Project) -> bool:
+    """embed_html ekranı var mı — köprü bundle'ı + listener YALNIZ o zaman inline edilir."""
+    return any(s.type is ScreenType.embed_html for s in project.screens)
+
+
+#: Tamamlanmayı KAPIYA bağlayan embed modları — bunlarda bootstrap `showAt()` LMS'e erken bir
+#: `completed` sızdırabilir (on_view'da sızdıracak bir şey yok: ekran görüldüğü an tamamlanır).
+_GATED_EMBED_COMPLETIONS = frozenset({"on_message", "time_threshold"})
+
+
+def _uses_gated_embed(project: Project) -> bool:
+    """fix round 6 — LMS-adaptör vekili (EMBED_SHIM_JS) YALNIZ KAPILI embed kursunda anlamlıdır.
+
+    Vekil şablonun içinde de zaten `iframe.embed-frame[data-completion]` taramasıyla kapısız
+    kursta erken dönüyordu (no-op) — ama ~2.6KB ölü script yine de her embed paketine basılıyordu.
+    Kapıyı Python'a alıyoruz: proje zaten burada inceleniyor. KURS başına karar verilir, ekran
+    başına DEĞİL: karışık bir kursta (bir on_view + bir time_threshold) vekil YİNE basılır.
+    """
+    return any(
+        s.type is ScreenType.embed_html
+        and getattr(s, "completion", "on_view") in _GATED_EMBED_COMPLETIONS
+        for s in project.screens
+    )
 
 
 _ENGINE_SCREEN_TYPES = {ScreenType.game, ScreenType.adaptive_practice}
@@ -264,6 +293,20 @@ def _render_html_inner(
     # değiştirirdi (3.3 — tests/test_outline_menu.py fixture kilidi).
     if project.outline:
         extras.append(f"<script>{load_progress_bundle()}</script>")
+    # embed_html köprüsü (postMessage→cmi) YALNIZ embed_html ekranı olan pakete inline edilir —
+    # progress.js ile aynı gerekçe (bayt-parite, ⚠️ task-4 kararı: scorm.js'e KONULMAZ).
+    if _uses_embed(project):
+        extras.append(f"<script>{load_embed_bundle()}</script>")
+        # fix round 5 — LMS-adaptör vekili: bundle'dan HEMEN SONRA (yüklemi window.SCORMEMBED'den
+        # okur) ve engine_js'ten ÖNCE (SHELL'de {extra_runtime} → {engine_js}) çalışmalıdır: tek
+        # işi, ENGINE_JS'in bootstrap showAt()'inin kapılı kursta LMS'e sızdırdığı tamamlanma
+        # yazımını, kilit (EMBED_JS) daha kurulmadan API katmanında tutmaktır. Embed'siz kursta
+        # HİÇ basılmaz → bayt-parite (tests/test_golden.py, tests/test_outline_menu.py).
+        # fix round 6 — ...ve YALNIZ on_view olan embed kursuna da basılmaz: orada şablon içinde
+        # zaten no-op'tu (ölü script). EMBED_JS'in devir satırı korumalıdır
+        # (`if(window.__SCORM_EMBED_SHIM__)`), bu yüzden vekilsiz embed kursu sorunsuz koşar.
+        if _uses_gated_embed(project):
+            extras.append(f"<script>{EMBED_SHIM_JS}</script>")
     if _uses_lottie(project):
         extras.append(f"<script>{_load_lottie_js()}</script>" if mode == "preview"
                       else f'<script src="{_LOTTIE_REL}"></script>')
@@ -309,7 +352,11 @@ def _render_html_inner(
     # IIFE kapsamında). Yeni sentinel eklemek outline'sız çıktının baytlarını değiştirirdi —
     # geriye uyum (3.3) bayt-bayt fixture testiyle kilitli (tests/test_outline_menu.py).
     outline_js = OUTLINE_JS if project.outline else ""
-    engine_js = ENGINE_JS.replace(_REVIEW_JS_SLOT, outline_js + (REVIEW_JS if review else ""))
+    # embed_html köprüsü AYNI sentineli paylaşır (YENİ sentinel eklemek embed'siz çıktının
+    # baytlarını değiştirirdi — task-4 bayt-parite kararı). Embed'siz kursta embed_js == "" →
+    # birleştirme öncekiyle bayt-bayt aynı.
+    embed_js = EMBED_JS if _uses_embed(project) else ""
+    engine_js = ENGINE_JS.replace(_REVIEW_JS_SLOT, outline_js + embed_js + (REVIEW_JS if review else ""))
     menu_tree_attrs, menu_tree_items = _render_menu_tree(project)
 
     return SHELL.format(
@@ -322,7 +369,10 @@ def _render_html_inner(
         css_vars=css_vars,
         # outline tree CSS'i yalnız outline'lı kursa basılır (outline boş → bayt-bayt eski çıktı);
         # Faz 6b — auto modun koyu bloğu da buradan akar (light'ta boş string → bayt parite)
-        base_css=BASE_CSS + (OUTLINE_CSS if project.outline else "") + dark_css,
+        # task-5 / FIX 1 — embed yerleşim CSS'i AYNI koşullu-enjeksiyon presedanı: embed'siz
+        # kursta boş string → BASE_CSS + "" birleşimi bayt-bayt eski çıktı (golden/outline kapısı).
+        base_css=(BASE_CSS + (OUTLINE_CSS if project.outline else "")
+                  + (EMBED_CSS if _uses_embed(project) else "") + dark_css),
         custom_css=theme.custom_css or "",
         bg_pattern=theme.background_pattern,
         layout_mode=project.layout_mode,
@@ -1634,6 +1684,29 @@ def _r_exploration(s) -> str:
             f'{field}{meta}</div>')
 
 
+def _r_embed_html(s) -> str:
+    """embed_html (#task-3) — keyfi kendine-yeten HTML (artifact) sandbox'lı iframe'de.
+    Artifact HTML asla launcher DOM'una gömülmez: yalnız data-asset ile referanslanır;
+    generic asset resolver (templates.py ~:926) src'yi paket/preview moduna göre çözer.
+    data-completion/data-min-seconds runtime tarafından (sonraki görev) okunur.
+    Yerleşim (task-5 / FIX 1): `.embed-wrap`/`.embed-frame`/`[data-aspect]` kuralları
+    `templates.py:EMBED_CSS`'tedir ve YALNIZ `_uses_embed(project)` iken basılır — kurallar
+    yokken iframe UA varsayılanı 300x150'ye düşüyordu ve `aspect` alanını hiçbir şey tüketmiyordu."""
+    aspect = getattr(s, "aspect", "fill") or "fill"
+    title = f'<h2 class="screen-title">{_text(s.title)}</h2>' if getattr(s, "title", None) else ""
+    return (
+        f'{title}'
+        f'<div class="embed-wrap" data-embed-screen data-aspect="{_attr(aspect)}">'
+        f'<iframe class="embed-frame" data-asset="{_attr(s.html_asset_id)}"'
+        f' sandbox="allow-scripts allow-same-origin allow-forms allow-popups"'
+        f' data-completion="{_attr(getattr(s, "completion", "on_view"))}"'
+        f' data-min-seconds="{int(getattr(s, "min_seconds", 0) or 0)}"'
+        f' referrerpolicy="no-referrer" loading="lazy"'
+        f' title="{_attr(s.title or _T("embed_frame_title"))}"></iframe>'
+        f'</div>'
+    )
+
+
 def _render_unknown(s) -> str:
     return f'<h2 class="screen-title">{_text(getattr(s, "title", "?"))}</h2>'
 
@@ -1679,6 +1752,7 @@ _SCREEN_DISPATCH = {
     ScreenType.adaptive_practice: _r_adaptive_practice,
     ScreenType.worked_example: _r_worked_example,
     ScreenType.exploration: _r_exploration,
+    ScreenType.embed_html: _r_embed_html,
 }
 
 

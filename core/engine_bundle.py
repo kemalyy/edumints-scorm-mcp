@@ -75,3 +75,14 @@ def load_progress_bundle() -> str:
     eklenmeleri outline'sız kurs çıktısını değiştirirdi (3.3 bayt-parite, fixture kilidi).
     """
     return _bundle(("progress.js",), "SCORMP")
+
+
+@lru_cache(maxsize=1)
+def load_embed_bundle() -> str:
+    """embed_html köprüsü (postMessage→cmi eşlemesi) → window.SCORMEMBED.
+
+    scorm bundle'ından AYRI ve KOŞULLU: yalnız embed_html ekranı olan pakete inline edilir.
+    scorm.js'e eklenmesi embed'siz kurs çıktısını değiştirirdi (bayt-parite, fixture kilidi —
+    progress.js ile aynı gerekçe).
+    """
+    return _bundle(("embed.js",), "SCORMEMBED")

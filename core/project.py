@@ -375,6 +375,7 @@ class ScreenType(str, Enum):
     adaptive_practice = "adaptive_practice"  # W4b — adaptif pratik: yeterlilik tahmini (Elo/BKT) → ZPD zorluk seçimi
     worked_example = "worked_example"  # F1 (#112) — çözümlü örnek: adım (eylem+gerekçe+artefakt) + fading; skorsuz kanıt kaynağı
     exploration = "exploration"  # F2 (#113) — keşif: öğrenen girdisi saklanır + sonraki ekranlarda geri oynatılır; skorsuz
+    embed_html = "embed_html"  # keyfi kendine-yeten HTML (artifact) — sandbox'lı iframe, izlemeli
 
 
 class ScreenBase(BaseModel):
@@ -963,6 +964,24 @@ class ExplorationScreen(ScreenBase):
         return self
 
 
+class EmbedHtmlScreen(ScreenBase):
+    """Kullanıcının ürettiği kendine-yeten HTML (Claude artifact) — sandbox'lı iframe'de çalışır,
+    launcher LMS iletişimini üstlenir. HTML `html_asset_id` ile filesystem asset'inde saklanır
+    (JSON blob'da DEĞİL). completion: on_view=görünce, on_message=yalnız köprü {scorm:'complete'}
+    ile, time_threshold=min_seconds sonra. QUIZ_TYPES dışı (skorsuz; skor yalnız köprüyle gelir)."""
+    type: Literal[ScreenType.embed_html] = ScreenType.embed_html
+    # nihai review / NEW-2: boş string, sibling asset alanlarının aksine ZORUNLU olan bu alanda
+    # doğal bir yer tutucudur — ama doğrulamayı geçip (validator `if ref and ...` ile atlar)
+    # iframe'e src verilmeyen, yine de `completed` raporlayan BOŞ kurs üretirdi.
+    html_asset_id: str = Field(min_length=1)
+    title: str | None = None
+    completion: Literal["on_view", "on_message", "time_threshold"] = "on_view"
+    # fix round 1 / MINOR 5: negatif min_seconds → setTimeout(fn, negatif*1000) anında (0 gecikmeyle)
+    # tetiklenir, "time_threshold" sözleşmesini bozar (öğrenci hiç beklemeden tamamlanmış sayılır).
+    min_seconds: int = Field(default=0, ge=0)
+    aspect: Literal["fill", "16:9", "4:3"] = "fill"
+
+
 Screen = Annotated[
     Union[
         TitleSlide,
@@ -995,6 +1014,7 @@ Screen = Annotated[
         AdaptivePracticeScreen,
         WorkedExampleScreen,
         ExplorationScreen,
+        EmbedHtmlScreen,
     ],
     Field(discriminator="type"),
 ]

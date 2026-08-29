@@ -2371,6 +2371,352 @@ REVIEW_JS = r"""if(window.__REVIEW__){
 
 
 # --------------------------------------------------------------------------- #
+# task-5 / FIX 1 — embed_html YERLEŞİMİ. BASE_CSS'e KONULMAZ: o sabit her pakete koşulsuz
+# basılır, oraya eklemek embed'siz kursların baytlarını değiştirirdi. OUTLINE_CSS'in aynı
+# presedanı: `renderer.py` bu bloğu YALNIZ `_uses_embed(project)` iken `base_css`e ekler
+# (tests/test_golden.py + tests/test_outline_menu.py bayt-parite kapısı).
+#
+# NEDEN GEREKLİ: `_r_embed_html` `.embed-wrap`/`.embed-frame`/`[data-aspect]` üretiyordu ama
+# depoda bunları TANIMLAYAN tek bir kural yoktu → iframe UA varsayılanına düşüyordu:
+# 300x150 px, kendi kenarlığı ve kendi kaydırma çubuklarıyla ~1280x720 sahnenin köşesinde.
+# `aspect` alanı pydantic'te doğrulanıyor, `add_screen` kabul ediyordu ama HİÇBİR ŞEY TÜKETMİYORDU.
+#
+# YERLEŞİM MODELİ: `.screen-inner` bir `display:flex;flex-direction:column;height:100%` kutudur
+# (BASE_CSS) — `.video-wrap{flex:1;min-height:0}` presedanı aynen izlenir. `min-height:0` şart:
+# flex öğesinin varsayılan `min-height:auto`'su iframe'i taşırıp çift kaydırma üretir.
+# --------------------------------------------------------------------------- #
+EMBED_CSS = r"""
+/* ===== EMBED_HTML (artifact iframe) — yalniz embed_html ekrani olan kurslarda ===== */
+/* sahne dolgusu video ekraniyla ayni olcude kisilir: fill modu "tam kanama" olsun diye */
+.screen[data-type="embed_html"] .screen-inner{padding:clamp(12px,2vw,24px);overflow:hidden}
+.screen[data-type="embed_html"] .screen-title{margin-bottom:var(--space-3);flex:none}
+.embed-wrap{position:relative;width:100%;min-width:0;min-height:0;overflow:hidden;
+  border-radius:var(--r-lg);background:var(--c-surface-alt)}
+/* UA varsayilan kenarligi + satir-ici (inline) taban cizgisi boslugu kaldirilir */
+.embed-frame{border:0;display:block;background:transparent}
+/* --- aspect="fill" (VARSAYILAN, wrap_artifact hep bunu uretir): kalan yuksekligi TAMAMEN kaplar */
+.embed-wrap[data-aspect="fill"]{flex:1 1 auto}
+.embed-wrap[data-aspect="fill"] .embed-frame{position:absolute;inset:0;width:100%;height:100%}
+/* --- sabit oran: wrap kalan alani alir, iframe icinde ORTALANIR ve orani korur.
+   iframe bir REPLACED oge oldugu icin `height:100%` + `aspect-ratio` + `max-*:100%`
+   ikilisi CSS2 replaced min/max algoritmasiyla mektup-kutusu (letterbox) verir. */
+.embed-wrap[data-aspect="16:9"],.embed-wrap[data-aspect="4:3"]{
+  flex:1 1 auto;display:flex;align-items:center;justify-content:center;background:none}
+.embed-wrap[data-aspect="16:9"] .embed-frame,.embed-wrap[data-aspect="4:3"] .embed-frame{
+  width:auto;height:100%;max-width:100%;max-height:100%;margin:auto;
+  border-radius:var(--r-lg);background:var(--c-surface-alt)}
+.embed-wrap[data-aspect="16:9"] .embed-frame{aspect-ratio:16/9}
+.embed-wrap[data-aspect="4:3"] .embed-frame{aspect-ratio:4/3}
+/* AKIS (reflow) GERI DUSUSU: stage modu dar/kisa ekranda fitStage ile data-fit="flow"e duser
+   (ve <=640px'te medya sorgusu ayni seyi yapar); orada .screen-inner yuksekligi serbest kalir
+   (BASE_CSS: height:auto;min-height:100%;overflow:visible). Yukaridaki `overflow:hidden` orada
+   icerigi kirpabilirdi -> geri acilir; `fill` sarmalayicisina da bir taban yukseklik verilir,
+   yoksa serbest-yukseklikli bir flex sutununda 0px'e cokerdi. */
+body[data-layout="stage"][data-fit="flow"] .screen[data-type="embed_html"] .screen-inner{overflow:visible}
+body[data-layout="stage"][data-fit="flow"] .embed-wrap[data-aspect="fill"]{min-height:60vh}
+/* layout_mode="flow" (sabit tuval HIC yok): .stage-scaler/.stage-frame height:auto -> .screen ve
+   .screen-inner'in height:100%'u de auto'ya cozulur, yani `fill` sarmalayici serbest yukseklikli
+   bir flex sutunundadir ve TEK icerigi position:absolute iframe'dir (yukseklige katki 0) -> 0px'e
+   cokerdi. Ayni kurtarma, medya sorgusundan BAGIMSIZ olarak (>640px'te de) gerekir. */
+body[data-layout="flow"] .embed-wrap[data-aspect="fill"]{min-height:60vh}
+@media(max-width:640px){
+  .screen[data-type="embed_html"] .screen-inner{padding:10px;overflow:visible}
+  .embed-wrap[data-aspect="fill"]{min-height:60vh}
+}
+"""
+
+
+# --------------------------------------------------------------------------- #
+# embed_html (artifact) köprüsü — YALNIZ embed_html ekranı olan pakete, _REVIEW_JS_SLOT
+# sentineliyle enjekte edilir (ana IIFE kapsamı → sSet/S2004 erişilebilir). Embed'siz kursta
+# boş string geçilir → çıktı bayt-bayt aynı kalır.
+# --------------------------------------------------------------------------- #
+EMBED_JS = r"""
+// ---- Artifact köprüsü (embed_html): iframe postMessage → SCORM ----
+(function(){
+  var frames = Array.prototype.slice.call(document.querySelectorAll("iframe.embed-frame"));
+  if(!frames.length) return;
+  var EMB = window.SCORMEMBED || {};
+  var wins = frames.map(function(f){ return f.contentWindow; });
+  // fix round 2 / FINDING 2 — köprünün kalıcı kaydı: state.eb (KOMPAKT + anlamsal; cmi anahtarı
+  // İÇERMEZ, embed.js:embedWrites ile türetilir). scorm.js encodeSuspend BİLİNMEYEN state
+  // alanlarını tail'deki `o` sözlüğüne taşır, decodeSuspend/_salvageV2 geri kurar → eb
+  // suspend/resume'da hayatta kalır (suspend ŞEMASI DEĞİŞMEZ). Round-1'in ayrıntılı cmi-anahtarlı
+  // state.embedWrites haritası bırakıldı (bütçe + doğrulanmamış geri okuma) ve varsa temizlenir.
+  state.eb = state.eb || {}; if(state.embedWrites) delete state.embedWrites;
+  var eb = state.eb;
+  // fix round 4 / FIX 2 — artifact pini (eb'den türetilen yazımlar) bekleyen kapının ALTINDADIR:
+  // kapı beklerken TAMAMLANMA İDDİASI içeren pin (1.2 completed/passed, 2004 completed) LMS'e
+  // GİTMEZ. Skor, 2004 success_status ve tamamlanma ima etmeyen durumlar aynen geçer.
+  // task-5 / FIX 3 — bunu yapan AYRI katman (embed.js'in pin süzgeci) SİLİNDİ: aşağıdaki
+  // `sSet = EMB.wrapSet(...)` sarmalaması onu tam olarak kapsıyor. Her iki yazım yolu da (bu
+  // fonksiyonun çıktısını uygulayan `applyWrites` ve `wrapEvaluate`) sSet'ten geçer; wrapSet
+  // aynı `pending()`'e bakar ve yüklemi (isGatedCompletionWrite = isCompletionAssertion ∪
+  // isTransientExit) süzgecin yükleminin KATI ÜST KÜMESİDİR. `pending()` çağrısı da düşer.
+  function ebWrites(){
+    return EMB.embedWrites ? EMB.embedWrites(eb, !!S2004) : [];
+  }
+  function applyWrites(w){ for(var i=0;i<w.length;i++){ sSet(w[i].key, w[i].value); } return w.length; }
+  // fix round 2 / FINDING 1 — launcher'ın KENDİ otomatik tamamlanması cmi'ye ARTIK YAZMAZ (aksi
+  // hâlde state.embedWrites'a pinlenip quiz "failed"ini/2004 "incomplete"ini kalıcı olarak ezerdi).
+  // on_view: motor showAt'te state.visited[id]=true yapar → evaluate() tamamlanmayı KENDİ türetir,
+  // burada EK İŞ YOK.
+  // fix round 3 / FINDING A+B — KAPILAR: round 2, time_threshold'u motorun GİRDİSİNİ (state.visited)
+  // geri çekerek uyguluyordu; motorun viewedAll()'ı state.reachedEnd'i de kabul ettiği için bu
+  // TEK ekranlı (ve embed'i son ekranda olan) kursta HİÇBİR ŞEY yapmıyordu. Artık kapı motorun
+  // girdisine DOKUNMAZ: bekleyen kapı varsa tamamlanma evaluate() SONRASI GERİ ÇEKİLİR
+  // (embed.js:holdBackWrites — yalnız düşürür, ASLA yükseltmez). on_message de kapılıdır
+  // (core/project.py sözleşmesi: "yalnız köprü {scorm:'complete'} ile tamamlanır") — defteri
+  // EKRAN BAŞINA eb.m'de tutulur (eb.c tek global değerdir, ekran atfı yoktur).
+  var byScreen = {}, gates = [], msgGate = {}, winIds = frames.map(function(){ return null; });
+  frames.forEach(function(f, fi){
+    var sec = f.closest("[data-screen-id]"), sid = sec && sec.dataset.screenId;
+    if(!sid) return;
+    winIds[fi] = sid;
+    (byScreen[sid] = byScreen[sid] || []).push(f);
+    var mode = f.dataset.completion || "on_view";
+    if(mode !== "time_threshold" && mode !== "on_message") return;   // on_view kapısız
+    if(mode === "on_message") msgGate[sid] = 1;
+    for(var i=0;i<gates.length;i++){ if(gates[i].id===sid && gates[i].mode===mode) return; }  // tekilleştir
+    gates.push({id: sid, mode: mode});
+  });
+  function pending(){
+    if(!gates.length || !EMB.gatesPending) return false;
+    var live = [];
+    for(var i=0;i<gates.length;i++){
+      // Faz 5 koşullu ekran: visible_if false ise ekrana ULAŞILAMAZ → kapısı kursu SONSUZA DEK
+      // kilitlemesin (round 3 öncesi bu kurslar reachedEnd ile tamamlanıyordu).
+      if(typeof isVisible === "function" && !isVisible(gates[i].id)) continue;
+      live.push(gates[i]);
+    }
+    return EMB.gatesPending(live, eb);
+  }
+  // SIRA: önce kilit (geri çekme), SONRA artifact'in kendi yazımları → artifact komutu kilidin
+  // üstünde kalır (F1: evaluate()'i yalnız artifact ezebilir; kilit yalnız MOTORU geri çeker).
+  function lockedWrites(){
+    var hb = EMB.holdBackWrites ? EMB.holdBackWrites(pending(), !!S2004) : [];
+    return hb.concat(ebWrites());
+  }
+  // fix round 4 / FIX 1 — sSet SARMALANIR (kilitten ÖNCE devreye girer): kapı beklerken motorun
+  // KENDİ tamamlanma yazımı cmi'ye HİÇ gitmez. Round 3'te sıra "origEvaluate() → kilit" idi ve
+  // origEvaluate içindeki persist() → sCommit() motorun "completed"ini kilit çalışmadan ÖNCE
+  // COMMIT ediyordu; yani geçici "completed" açılışta DEĞİL, kapı beklerken HER evaluate()'te
+  // LMS'e gidiyordu (tamamlanmayı ilk commit'te mandallayan LMS'te kapı sessizce çalışmıyordu).
+  // sSet bu kapsamda tanımlıdır ve HER ZAMAN ADIYLA çağrılır (tek saklanan referans aşağıdaki
+  // wrapEvaluate argümanıdır → o da sarmalanmışını alsın diye sarmalama BU SATIRDAN ÖNCE yapılır).
+  // Bastırma kapsamı dardır (embed.js:isCompletionAssertion): yalnız 1.2 lesson_status
+  // completed/passed ve 2004 completion_status completed. Skor, success_status, hedef/etkileşim
+  // anahtarları ve suspend_data (sSetChecked, buradan geçmez) dokunulmaz.
+  if(EMB.wrapSet){ sSet = EMB.wrapSet(sSet, pending, !!S2004); }
+  if(EMB.wrapEvaluate){ evaluate = EMB.wrapEvaluate(evaluate, sSet, lockedWrites, sCommit); }
+  // fix round 5 — DEVİR: LMS-adaptör vekili (EMBED_SHIM_JS, extras'ta engine_js'ten ÖNCE koşar)
+  // yalnız BOOTSTRAP penceresini kapatır; gerçek kilit (yukarıdaki wrapSet) kurulur kurulmaz
+  // görevi devralır. Vekil BURADA bırakılır: (a) çift bastırma olmasın, (b) vekil kapı defterini
+  // (eb.d/eb.m — suspend_data'dan gelir) BİLEMEZ, dolayısıyla devam eden bir oturumda ZATEN
+  // AŞILMIŞ kapıyı da tutardı; devirden sonra aşağıdaki evaluate() doğru durumu yazar.
+  // Vekil yoksa (LMS API'si yok / kapısız kurs) bu satır sessizce hiçbir şey yapmaz.
+  if(window.__SCORM_EMBED_SHIM__) window.__SCORM_EMBED_SHIM__.release();
+  window.addEventListener("message", function(ev){
+    var wi = wins.indexOf(ev.source);
+    if(wi < 0) return;                               // yalnız kendi iframe'lerimiz (origin değil, source)
+    var patch = EMB.embedStateFromMsg ? EMB.embedStateFromMsg(ev.data, !!S2004) : null;
+    if(!patch) return;
+    for(var k in patch){ if(Object.prototype.hasOwnProperty.call(patch,k)) eb[k]=patch[k]; }
+    // FINDING B — on_message kapısı: YALNIZ o ekranın artifact'i "tamamlandı" bildirince açılır
+    // ({scorm:'complete'} veya setStatus:'completed' → patch.c === "completed"). passed/failed
+    // başarı bilgisidir, tamamlanma bildirmez (2004'te zaten ayrı kanal).
+    var sid = winIds[wi], flipped = false;
+    if(sid && msgGate[sid] && patch.c === "completed" && !(eb.m && eb.m[sid])){
+      (eb.m = eb.m || {})[sid] = 1; flipped = true;
+    }
+    // FINDING 3 — artifact yazımı HEMEN commit edilir; persist() ayrıca state.eb'yi suspend_data'ya
+    // yazar (yalnız sCommit deseydik, oturum beforeunload/pagehide olmadan ölürse — süreç kapanması,
+    // mobil bellek baskısı — kayıt suspend_data'ya HİÇ girmemiş olurdu).
+    if(flipped){ evaluate(); updateChrome(); return; }   // kapı açıldı → motor yeniden hesaplasın
+    // fix round 4 / FIX 2'nin ZORUNLU sonucu: persist() ARTIK KOŞULSUZ. applyWrites'ın SAYISI
+    // "LMS'e ne ulaştı"yı ölçmez — sSet sarmalayıcısı (wrapSet) kapı beklerken tamamlanma
+    // iddiasını sessizce düşürür. Koşullu bırakılsaydı eb.c (ör. kapı beklerken gelen
+    // {scorm:'complete'}) suspend_data'ya HİÇ yazılmaz, oturum beforeunload'sız ölürse kayıt
+    // kaybolurdu. Buraya YALNIZ patch geçerliyken (eb değişmişken) gelinir → koşulsuz doğrudur.
+    applyWrites(ebWrites()); persist();
+  }, false);
+  // fix round 1 / IMPORTANT 2 — time_threshold sayacı YALNIZ o ekrana GİRİLDİĞİNDE kurulur (sayfa
+  // yüklenince DEĞİL: kurs tek-sayfalık SPA'dır, tüm ekranlar init'te DOM'dadır).
+  // on_view/on_message'ta sayaç yoktur.
+  var armed = {};
+  function enterScreen(id){
+    var list = byScreen[id]; if(!list) return;
+    list.forEach(function(f){
+      if((f.dataset.completion||"on_view")!=="time_threshold") return;
+      if(armed[id] || (eb.d && eb.d[id])) return;    // sayaç zaten kurulu / eşik önceden aşılmış
+      armed[id]=true;
+      var secs=parseInt(f.dataset.minSeconds||"0",10)||0;
+      // Eşik aşıldı → kapı açılır; evaluate() motora yeniden hesaplatır, updateChrome() ilerleme
+      // çubuğu/noktalar/outline'ı tazeler (fix round 3 / FINDING D).
+      setTimeout(function(){ (eb.d = eb.d || {})[id]=1; evaluate(); updateChrome(); }, secs*1000);
+    });
+  }
+  // fix round 3 / FINDING C — GİRİŞ KANCASI showAt DEĞİL updateChrome: prev()'in history hızlı
+  // yolu showAt'i HİÇ çağırmaz (templates.py prev()), dolayısıyla o yoldan girilen bir
+  // time_threshold ekranında sayaç kurulmuyordu ve kilit tamamlanmayı sonsuza dek geri çekerdi.
+  // prev sarmalanamaz (btnPrev listener'ı sentinel'den ÖNCE prev referansını bağlar), ama
+  // updateChrome HER gezinme yolunda (showAt + prev) ADIYLA çağrılır → sarmalanabilir; OUTLINE_JS
+  // aynı tekniği kullanır (refreshTree). enterScreen idempotenttir (armed/eb.d koruması).
+  var _origUpdateChrome = updateChrome;
+  updateChrome = function(){ _origUpdateChrome(); enterScreen(state.cursorId); };
+  enterScreen(order[cursor]);   // sentinel showAt(startIdx,false) zaten çalıştı — ilk ekranı burada yakala
+  // Bootstrap düzeltmesi: o showAt'in evaluate()'i kilitsiz + eb'siz koştu (sentinel'den ÖNCE).
+  // Burada bir kez sarmalanmış evaluate çağrılır → kilit uygulanır, resume'dan gelen eb yazımları
+  // (ör. önceki oturumun setScore'u; init 0 yazmıştı) geri konur ve commit edilir.
+  evaluate();
+})();
+"""
+
+
+# --------------------------------------------------------------------------- #
+# fix round 5 — EMBED_SHIM_JS: LMS-ADAPTÖR VEKİLİ (yalnız embed_html ekranı olan pakete,
+# `extras`/`extra_runtime` üzerinden → SHELL'de `{engine_js}`'ten ÖNCE basılır).
+#
+# KAPATTIĞI DELİK: ENGINE_JS'in bootstrap `showAt(startIdx,false)`'u (bu dosyada, sentinel'den
+# ÖNCE) kapılı TEK ekranlı (ya da embed'i son ekranda olan) kursta tam olarak bir
+# `lesson_status=completed` + `Commit` gönderiyordu — EMBED_JS'in kilidi (round 4) daha
+# kurulmadan. Tamamlanmayı İLK commit'te mandallayan LMS'te (1.2 raporlaması, 2004 rollup)
+# kapı özelliği açılıştan itibaren sessizce yeniliyordu. ENGINE_JS'in İÇ SIRASI bayt-parite
+# yüzünden değiştirilemez → kapı motorun ALTINA, SCORM API katmanına kurulur.
+#
+# NEDEN BURADA, embed.js'te DEĞİL: embed.js SAF bir modüldür (DOM yok, window yok, vitest ile
+# birim test edilir) — mimari gerekçesi budur. Vekil ise tanımı gereği DOM + window işidir.
+# Kural yine TEK yerdedir: bastırma yüklemi embed.js'ten gelir
+# (`window.SCORMEMBED.isGatedCompletionWrite`) — bu script extras'ta embed bundle'ından SONRA
+# basıldığı için o global hazırdır.
+#
+# TASARIM KISITLARI (hepsi yükleyici):
+#  1. LMS'İN KENDİ ADAPTÖRÜNE DOKUNULMAZ — metotları yamalanmaz. Kendi vekilimizi KENDİ
+#     window'umuza koyarız; ENGINE_JS'in findAPI'si window'dan başlar ve İLK bulduğunu döndürür.
+#  2. API ADI SNIFF EDİLİR: `window.__SCORM_2004__` bu script'ten SONRA atanır (SHELL sırası),
+#     bu yüzden okunamaz. `API_1484_11` ve `API` için AYNI zincir (findAPI + getAPI'nin opener
+#     bacağı) YÜRÜNÜR; sürüm bulunan ADDAN türetilir.
+#  3. TAM 8-METOTLU yüzey vekillenir (eksik `LMSGetValue`/`GetLastError` motoru bozardı).
+#     Yalnız üst akışta GERÇEKTEN var olan metotlar tanımlanır → vekilin yüzeyi = gerçeğin yüzeyi.
+#  4. ÜST AKIŞTA API YOKSA HİÇBİR ŞEY KURULMAZ: ENGINE_JS `getAPI()` API bulamayınca yerel
+#     `new Scorm12API/Scorm2004API` fallback'ine düşer (LMS'siz önizleme) — vekil kurmak onu bozardı.
+#  5. KAPI YAPILANDIRMASI DOM'DAN okunur (`iframe.embed-frame` + `data-completion`), EMBED_JS ile
+#     AYNI kaynak. `data-min-seconds` KULLANILMAZ ve gerekmez: vekil yalnız SENKRON açılış
+#     penceresinde yaşar, 0 saniyelik bir eşik bile senkron init'ten SONRA (setTimeout) dolar →
+#     açılışta her `time_threshold`/`on_message` kapısı tanım gereği BEKLİYORDUR.
+#  6. FAILSAFE (fix round 6): `DOMContentLoaded`. OUTLINE_JS/EMBED_JS fırlatırsa bastırma senkron
+#     başlatmayı ATLATAMAZ — kurs sonsuza dek kilitli kalamaz. `setTimeout(release, 0)` DEĞİL:
+#     o görev, ENGINE_JS'ten ÖNCEKİ bir parser yield'inde koşabilir ve bastırmayı motorun
+#     bootstrap'inden önce emekli ederdi (turun engellediği kusurun ta kendisi). (Tüm gövde try/catch içinde:
+#     çapraz-kaynak `opener`/`parent` erişimi fırlatabilir; fırlarsa vekil HİÇ kurulmaz =
+#     round-4 davranışı. BİLİNÇLİ "fail-open".)
+#  7. DEVİR: EMBED_JS gerçek kilidi (wrapSet) kurar kurmaz `__SCORM_EMBED_SHIM__.release()`
+#     çağırır → vekil şeffaflaşır VE window'daki ad ESKİ HÂLİNE döner (kendi koyduğumuz özellik
+#     silinir/geri yazılır). Çift bastırma yok; ayrıca vekil kapı defterini (eb.d/eb.m,
+#     suspend_data'dan) bilemediği için devam eden oturumda ZATEN AŞILMIŞ kapıyı da tutardı —
+#     devir bunu EMBED_JS'in son evaluate()'ine bırakır. Motorun `getAPI()`'si vekili DEĞİŞKENE
+#     aldığı için devirden sonra da yazımlar vekilden geçer (artık şeffaf).
+#  9. BASTIRMA KAPSAMI dardır ve embed.js'te tanımlıdır: 1.2 `cmi.core.lesson_status`
+#     completed/passed, 2004 `cmi.completion_status` completed, ve her ikisinde geçici
+#     `exit=normal`. `cmi.success_status`, skor anahtarları, `cmi.suspend_data`, hedef/etkileşim
+#     anahtarları ve tamamlanma ima etmeyen durumlar (failed/incomplete/browsed/not attempted)
+#     AYNEN geçer. Bastırılan `SetValue` üst akışa HİÇ gitmez ve "true" döner (motor sSet'in
+#     dönüşünü zaten yok sayar; `sSetChecked` yalnız suspend_data için kullanılır ve o bastırılmaz).
+# --------------------------------------------------------------------------- #
+EMBED_SHIM_JS = r"""
+(function(){
+try{
+  var W = window, D = document;
+  var EMB = W.SCORMEMBED;
+  if(!EMB || !EMB.isGatedCompletionWrite) return;            // yüklem yoksa HİÇ dokunma
+  // KASITLI OLARAK KABA (DÜZELTMEYİN — "düzeltmek" bunu EKSİK-bastırmaya çevirir):
+  // Bu tarama EMBED_JS'in gatesPending()'inden daha genişi kapsar — `visible_if` ile gizlenmiş
+  // ekranları AYIRT ETMEZ ve `[data-screen-id]` atası olmayan çerçeveleri de kapı sayar. Yani
+  // pending()'in sonradan FALSE çıkacağı kurslarda da bootstrap yazımını tutabilir.
+  // Bu AŞIRI-bastırmadır ve doğru yöndür: EMBED_JS'in devirden SONRA koşan son evaluate()'i
+  // gerçeği aynı senkron turda geri yazar (kendi kendini onarır). Ters yön — EKSİK-bastırma —
+  // onarılamaz: kaçan tek bir `completed`+Commit, ilk terminal durumu MANDALLAYAN bir LMS'te
+  // kalıcıdır. Vekil `state.eb` defterini okuyamaz (suspend_data henüz geri yüklenmedi), bu
+  // yüzden burada kesinlik zaten mümkün değil; tercih bilinçli olarak güvenli taraftadır.
+  var frames = D.querySelectorAll("iframe.embed-frame"), gated = false;
+  for(var i=0;i<frames.length;i++){
+    var m = (frames[i].dataset && frames[i].dataset.completion) || "on_view";
+    if(m === "time_threshold" || m === "on_message"){ gated = true; break; }
+  }
+  if(!gated) return;                                          // kapısız kurs → vekil YOK
+  var released = false, undo = [];
+  var release = function(){
+    if(released) return; released = true;
+    for(var u=0;u<undo.length;u++){ try{ undo[u](); }catch(e){} }
+    undo = [];
+  };
+  // ENGINE_JS findAPI ile AYNI yürüyüş (bu dosyadaki findAPI: 12 sıçrama, window'dan yukarı).
+  var findUp = function(win, name){ var hops=0;
+    while(win && !win[name] && win.parent && win.parent!==win && hops<12){ win=win.parent; hops++; }
+    return win ? win[name] : null; };
+  var proxyMethod = function(real, m, isSet, is2004){
+    return function(){
+      if(isSet && !released && EMB.isGatedCompletionWrite(arguments[0], arguments[1], is2004)) return "true";
+      // fix round 6 — metot varlığı ÇAĞRI anında sınanır, KURULUM anında değil. Eski LMS
+      // başlatıcıları `window.API`'yi bir yer tutucu nesne (ya da <object>/applet öğesi) olarak
+      // yayınlar ve LMSSetValue vb. ancak eklenti hazır olunca belirir. Ad kümesini kurulumda
+      // dondurmak, sıfır-metotlu bir vekilin motorun `api` değişkenine KALICI olarak girmesi
+      // demekti → tüm SCORM raporlaması sessizce kaybolurdu.
+      var f = real[m];
+      // KARAR: üst akış metodu HÂLÂ yoksa UYDURMA DEĞER DÖNMEYİZ — atarız. Vekilsiz hâlde motor
+      // `api.LMSSetValue(...)` çağırıp aynen TypeError alırdı ve sSet/sGet/sInit/sCommit bunu
+      // zaten yutuyor; atmak birebir aynı davranıştır. "true" dönmek başarısızlığı MASKELER,
+      // metot başına sahte değer üretmek ise vekilsiz hâlde OLMAYAN bir hata yüzeyi icat eder.
+      if(typeof f !== "function") throw new TypeError("SCORM API method unavailable: " + m);
+      return f.apply(real, arguments);                        // `this` GERÇEK adaptöre bağlanır
+    };
+  };
+  var install = function(name, is2004){
+    var real = null;
+    try{ real = findUp(W, name); }catch(e){}
+    if(!real){ try{ if(W.opener) real = findUp(W.opener, name); }catch(e){} }   // getAPI'nin 2. bacağı
+    if(!real || real.__scormEmbedShim) return;
+    var setName = is2004 ? "SetValue" : "LMSSetValue";
+    var ms = is2004
+      ? ["Initialize","Terminate","GetValue","SetValue","Commit","GetLastError","GetErrorString","GetDiagnostic"]
+      : ["LMSInitialize","LMSFinish","LMSGetValue","LMSSetValue","LMSCommit","LMSGetLastError","LMSGetErrorString","LMSGetDiagnostic"];
+    var proxy = { __scormEmbedShim: true };
+    for(var j=0;j<ms.length;j++){                             // KOŞULSUZ tanımla (bkz. proxyMethod)
+      proxy[ms[j]] = proxyMethod(real, ms[j], ms[j] === setName, is2004);
+    }
+    var had = Object.prototype.hasOwnProperty.call(W, name), prev = W[name];
+    W[name] = proxy;
+    undo.push(function(){
+      if(W[name] !== proxy) return;                           // başkası ezmişse KARIŞMA
+      if(had) W[name] = prev;
+      else { try{ delete W[name]; }catch(e){ W[name] = undefined; } }   // zincir şekli AYNEN geri
+    });
+  };
+  install("API_1484_11", true);
+  install("API", false);
+  // TUTAMAK BIRAKILIR (silinmez): EMBED_JS devir satırında `if(window.__SCORM_EMBED_SHIM__)` ile
+  // varlığını YOKLAR; emeklilikten sonra da çağrılabilir olması zararsızdır — release() idempotent
+  // ve undo zaten koşmuş durumda, `pending()` de sabit false döner. Belgelenmiş güven sınırına
+  // (CONTRACTS.md §9) göre bu bir yetki genişlemesi DEĞİLDİR: tutamağın yapabildiği tek şey
+  // "bastırmayı erken bitir"tir ve artifact zaten gerçek LMS API'sine doğrudan erişebiliyor.
+  W.__SCORM_EMBED_SHIM__ = { release: release, pending: function(){ return !released; } };
+  // fix round 6 — BIRAKMA TETİĞİ: DOMContentLoaded, setTimeout(0) DEĞİL. Satır içi script'lerin
+  // TEK bir parser görevinde koşması GARANTİ DEĞİLDİR: bu <script> ile {engine_js} arasında
+  // ~4.5KB şablon + kurs büyüdükçe büyüyen `window.__COURSE__` JSON'u var; oraya bir chunk sınırı
+  // ya da parser yield'i düşerse setTimeout(0) görevi ENGINE_JS'ten ÖNCE koşar, bastırma emekli
+  // olur ve bootstrap showAt() LMS'e `completed` yazar — yani bu turun ENGELLEDİĞİ kusur geri
+  // gelirdi. DOMContentLoaded tanımı gereği TÜM senkron script'lerden SONRA ateşlenir; EMBED_JS
+  // hiç koşmasa ya da ATSA bile ateşlenir, dolayısıyla kurs asla sonsuza kadar kilitli kalmaz.
+  // readyState dalı yalnız savunma amaçlıdır (bu script ayrıştırma sürerken koşar, oraya
+  // düşülmez): olay ÇOKTAN geçmişse dinleyici hiç ateşlenmezdi.
+  if(D.readyState !== "loading") setTimeout(release, 0);
+  else D.addEventListener("DOMContentLoaded", release);
+}catch(e){}
+})();
+"""
+
+
+# --------------------------------------------------------------------------- #
 # Vendor henüz yapılmadıysa no-op SCORM shim (yalnız fallback; gerçek paket runtime'ı gerektirir)
 # --------------------------------------------------------------------------- #
 FALLBACK_RUNTIME_SHIM = r"""
