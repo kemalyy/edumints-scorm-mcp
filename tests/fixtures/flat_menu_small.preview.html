@@ -2264,6 +2264,9 @@ function checkDrag(el,s){
   return {ok:ok, response:placed, correct:s.correct};
 }
 function bindHotspot(el,s){
+  // #138 — keşif (explore) kipi: skorlanmaz, kontrol butonu YOK → bindCheck çağrılamaz.
+  // Bağlamayı koşullu HOTSPOT2_JS üstlenir. (#126 ld-display guard'ıyla AYNI desen.)
+  var _hs=el.querySelector(".hotspot"); if(_hs&&_hs.classList.contains("hs-explore")) return;
   var img=el.querySelector(".hotspot-img"); var picked=null;
   function place(){
     var w=img.clientWidth, h=img.clientHeight; if(!w) return;
@@ -2285,6 +2288,8 @@ function bindHotspot(el,s){
     el.querySelectorAll(".hotspot-region").forEach(function(r){
       if(s.correct.indexOf(r.dataset.region)>=0) r.classList.add("correct");
       else if(r.dataset.region===picked) r.classList.add("wrong"); });
+    // #138 — bölgeye özel gerekçe: YALNIZ seçilen bölgeninki açılır (Choice.feedback_html deseni).
+    var _nt=picked?el.querySelector('.hs-note[data-note="'+picked+'"]'):null; if(_nt) _nt.hidden=false;
     return {ok:ok, response:picked?[picked]:[], correct:s.correct}; });
 }
 function bindCheck(el,s,checker){
@@ -2905,6 +2910,8 @@ function pacedSeek(t){ if(!TL) return; TL.elapsed=Math.max(0,Math.min(t,TL.durat
   document.getElementById("plTime").textContent=fmtTime(TL.elapsed)+" / "+fmtTime(TL.duration); }
 
 function onScreenEnter(section, cfg){
+  // #138 — hotspot "hepsini bul" kapısı; blok basılmamışsa (kullanmayan kurs) no-op.
+  if(window.__HS_REQUIRE_ALL__) try{ window.__HS_REQUIRE_ALL__(section, cfg); }catch(e){}
   clearTL();
   var play=document.getElementById("btnPlay"), seek=document.getElementById("seekbar"),
       plTime=document.getElementById("plTime"), mute=document.getElementById("btnMute");
