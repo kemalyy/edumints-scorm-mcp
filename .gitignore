@@ -22,6 +22,10 @@ coverage/
 # package-lock tutulur (CI reproducibility)
 .superpowers/
 tests/a11y/fixtures/
+# #150 gorsel regresyon: fixture'lar examples/'dan URETILIR (34 x ~550 KB), diff'ler
+# yalniz hata aninda olusur. Depoya YALNIZ baseline/*.png girer (~2 MB).
+tests/visual/fixtures/
+tests/visual/diff/
 
 # kök dizine düşen build artefaktları (D3)
 /*.html

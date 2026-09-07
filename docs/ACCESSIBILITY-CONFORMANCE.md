@@ -91,7 +91,7 @@ Status values: **Supports** / **Partial** / **Does not support** / **N/A**.
 | 6 | `drag_drop` | **Does not support** | Partial | Supports | N/A¹ | HTML5 drag + touch fallback only; **no keyboard alternative** (fails 2.1.1, 2.5.7). Use `matching` instead where keyboard access is required. |
 | 7 | `hotspot` | Supports | Partial | Supports | N/A¹ | Regions are `<button>`s (focusable/activatable). Since #138 every region carries an `aria-label` — the author's `label_html` flattened to plain text, otherwise a localized generic name (`Region {n}`) — so the name no longer depends on `title`, which is now only a mouse tooltip. Residual: the generic fallback name does not describe the region (`lint_course` warns via `hotspot_region_without_label`) and the image alt is author-supplied (linted). See Section 3, item 8. |
 | 8 | `branching` | Supports | Supports | Supports | N/A¹ | Choices are `<button>`s. |
-| 9 | `video` | Supports | Partial | Supports | N/A¹ | Native `controls` (pause/seek); autoplay is muted. **No synchronized captions** (no `<track>`/WebVTT) — see Section 3. Static `caption` + optional `narration_text` description only. |
+| 9 | `video` | Supports | Partial | Supports | N/A¹ | Native `controls` (pause/seek); autoplay is muted. **Synchronized captions are supported since #145**: `captions_asset_id` emits a `<track kind="captions" default>` fed by an author-supplied WebVTT file, embedded in the package (no network at runtime). Without that asset there are still no captions — only the static `caption` and the optional `narration_text` block, neither time-synced. See Section 3, item 1. |
 | 10 | `summary` | Supports | Supports | Supports | N/A¹ | Static content + score/completion text. |
 | 11 | `accordion` | Supports | Supports | Supports | N/A¹ | Native `<details>/<summary>` disclosure. |
 | 12 | `tabs` | Supports | Supports | Supports | N/A¹ | `role="tablist"/"tab"/"tabpanel"`, `aria-selected`, Left/Right arrow-key navigation. |
@@ -131,16 +131,27 @@ board.
 
 ## 3. Known limitations (honest)
 
-1. **No synchronized captions or transcripts for video** (WCAG 1.2.2 fail for videos with
-   audio). `_r_video` emits a `<video controls>` without any `<track>` element; there is no
-   WebVTT pipeline. Mitigations available today: the static `caption` (figcaption) and the
-   optional `narration_text` block rendered next to the video — neither is time-synced.
-   Autoplayed video is muted, but a learner who unmutes a video that contains speech has no
-   caption support.
+1. ~~**No synchronized captions or transcripts for video.**~~ **Partly fixed (#145).**
+   `VideoScreen.captions_asset_id` now emits `<track kind="captions" srclang default>` from an
+   author-supplied **WebVTT** asset, embedded in the package (no runtime network request), and
+   toggled from the player's own caption control. `srclang` follows the course language.
+   **Remaining limits, stated plainly:** (a) the caption file is the **author's** responsibility —
+   the server never generates or transcribes one (it calls no LLM and no ASR), so a video whose
+   author supplies no VTT still fails WCAG 1.2.2; (b) exactly **one** track is emitted and there
+   is no in-player language picker, so multilingual captions are not supported; (c) audio
+   descriptions (1.2.3/1.2.5) are not covered at all. `lint_course` does not yet warn about a
+   video without captions, because the player cannot tell a narrated video from a decorative
+   muted one.
 2. **TTS/audio narration has captions only when the author provides `narration_text`.**
    When present, the player shows it via the CC bar (toggle button, `aria-live`) — as a
    full-screen text block, not word-level synced captions. When the author supplies only a
-   narration audio asset without `narration_text`, there is **no transcript at all**.
+   narration audio asset without `narration_text`, there is **no transcript at all** — the
+   content is entirely lost for a learner who cannot hear it. Unchanged as a limitation, but
+   **no longer silent since #145**: `lint_course` emits `narration_without_transcript` (WARN)
+   for exactly that combination, so the author sees the gap before shipping. It stays a WARN
+   rather than a hard error because narration audio can legitimately be decorative, and
+   existing courses ship this way. WebVTT `<track>` support currently covers `video` screens
+   only, not the per-screen narration `<audio>` element.
 3. **`drag_drop` is pointer-only.** Mouse drag (HTML5 DnD) and a touch fallback exist; there
    is no keyboard or select-based alternative in this screen type (fails 2.1.1 and 2.5.7
    Dragging Movements). The documented workaround is authoring the same task as `matching`

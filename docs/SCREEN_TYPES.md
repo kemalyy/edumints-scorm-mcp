@@ -206,6 +206,7 @@ bağlanmaz; `require_all` yalnız ekranın `visited` sayılmasını geciktirir, 
 | `caption` | `str` | Hayır | Video alt yazısı / açıklaması. |
 | `poster_asset_id`| `str` | Hayır | Video kapak görseli. |
 | `require_complete`| `bool` | Hayır | İzleme zorunluluğu (Varsayılan: false). |
+| `captions_asset_id`| `str` | Hayır | **WebVTT** altyazı asset'i (#145). `<track kind="captions" srclang default>` olarak basılır; `srclang` kursun dilinden gelir. Dosya pakete gömülür — çalışma zamanında ağ isteği yok. Verilmezse hiç `<track>` üretilmez (çıktı bayt-aynı). Tek track basılır; oynatıcıda dil seçici yoktur. |
 
 ## 10. Özet (summary)
 

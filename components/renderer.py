@@ -1167,9 +1167,20 @@ def _r_video(s) -> str:
     # a11y: controls (öğrenci duraklat/seek edebilmeli — WCAG). loop YALNIZ require_complete YOKKEN
     # (loop'ta 'ended' tetiklenmez → tamamlanma yazılmaz; dekoratif video için loop serbest).
     loop = "" if s.require_complete else " loop"
+    # #145 — WebVTT altyazi (a11y kisit #1). YALNIZ captions_asset_id verilince basilir;
+    # bossa bos string -> altyazisiz kursun cikti bayt-ayni kalir. src'yi jenerik
+    # [data-asset] cozucusu yaziyor (templates.py ~928) — preview'de data: URI, pakette
+    # goreli yol. data:text/vtt'nin file:// sayfasinda YUKLENDIGI olculdu (readyState=2).
+    # default: tek altyazi var, dil secici yok -> acilista gosterilir; ogrenci oynaticinin
+    # kendi CC dugmesinden kapatabilir.
+    track = ""
+    caps = getattr(s, "captions_asset_id", None)
+    if caps:
+        track = (f'<track kind="captions" data-asset="{_attr(caps)}"'
+                 f' srclang="{_attr(_LANG.get())}" label="{_attr(_T("player_captions"))}" default>')
     video_html = (
         f'<figure class="video-wrap"><video class="video" preload="auto" autoplay{loop} muted '
-        f'playsinline controls{poster}{req}>{src}</video>{cap}</figure>'
+        f'playsinline controls{poster}{req}>{src}{track}</video>{cap}</figure>'
     )
     if getattr(s, "narration_text", None):
         desc = f'<div class="video-desc rich"><p>{_text(s.narration_text)}</p></div>'

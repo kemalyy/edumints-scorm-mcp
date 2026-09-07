@@ -5,6 +5,83 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — #145: WebVTT altyazı hattı (a11y kısıt #1 kısmen kapandı, #2 artık sessiz değil)
+Sesli video içeren kurslarda WCAG 1.2.2 doğrudan fail'di ve kamu/kurumsal ihalede altyazı
+sözleşme şartı olabiliyor — yol haritasının a11y ekseninde en yüksek öncelikli madde buydu.
+- **`VideoScreen.captions_asset_id`** → `<track kind="captions" srclang label default>`.
+  WebVTT asset'i pakete gömülür, **çalışma zamanında ağ isteği yok**; `src`'yi jenerik
+  `[data-asset]` çözücüsü yazar (preview'de `data:` URI, pakette göreli yol).
+- **`srclang` kursun dilinden gelir**, ayrı bir alan AÇILMADI: çok-dilli altyazı ayrı bir iş ve
+  oynatıcıda bugün dil seçici yok. Tek track basılır, `default` ile açılışta gösterilir;
+  öğrenci oynatıcının kendi CC düğmesinden kapatabilir.
+- **`text/vtt` + `text/plain` mime allowlist'e eklendi** (bazı sunucular .vtt'yi text/plain ile
+  servis ediyor). Genişletme DAR: `text/` ailesi topluca açılmadı, `text/html` hâlâ reddediliyor.
+- **Validator:** sarkan `captions_asset_id` artık sert hata — sessiz altyazısızlık, altyazının
+  hiç olmamasından daha kötüdür (yazar altyazı verdiğini sanır).
+- **Anti-slop / kısıt #2:** `narration_without_transcript` (WARN) — seslendirme sesi var ama
+  `narration_text` yoksa işiten olmayan öğrenen için içerik tamamen kaybolur. Sert hata değil
+  (ses dekoratif olabilir, eski kurslar böyle çalışıyor) ama artık sessiz de değil.
+- **Bayt-parite:** `captions_asset_id` boşken hiç `<track>` üretilmez → altyazısız kursun çıktısı
+  bayt-aynı. Testle sabitlendi; bloklayıcı görsel kapı (#150) da yerelde 34/34 geçti.
+- **Tarayıcıda uçtan uca ölçüldü** (varsayılmadı): sabitlenmiş Playwright konteynerinde gerçek
+  preview HTML'i açıldı — `<track>` `data:text/vtt` URI'sinden **yüklendi**: `readyState=2`,
+  `cues=2`, `mode="showing"`, `kind="captions"`, `language="tr"`. `file://` sayfasında data-URI
+  track'i engellenmiyor, yani ek bir mekanizma gerekmedi.
+- **`docs/ACCESSIBILITY-CONFORMANCE.md` dürüstçe yeniden yazıldı** — kısıt #1 "kısmen düzeltildi"
+  olarak işaretlendi ve KALAN sınırlar açıkça sayıldı: (a) VTT dosyası **yazarın**
+  sorumluluğudur, sunucu ne üretir ne transkript eder (LLM de ASR de çağırmaz) — altyazı
+  vermeyen video hâlâ 1.2.2'de fail; (b) tek track, dil seçici yok; (c) sesli betimleme
+  (1.2.3/1.2.5) hiç kapsanmıyor. `lint_course` "altyazısız video" uyarısı VERMİYOR, çünkü
+  oynatıcı anlatımlı videoyu dekoratif sessiz videodan ayırt edemez.
+- **Kapsam kararı:** önerinin 2. maddesi (`narration_text`ten Piper süreleriyle otomatik VTT
+  üretimi) bu turda ALINMADI — opsiyonel/ağır `tts` extra'sına bağlı olduğu için "sunucuda TTS
+  kuruluysa altyazı var" gibi zayıf bir uygunluk iddiası doğururdu ve çıktısı tanım gereği
+  yaklaşık. Ayrı issue olarak açılacak; `<track>` tesisatı bu PR'da hazır.
+
+### Added — #150: görsel regresyon harness'ı (BLOKLAYICI)
+Görünen çıktıyı bugüne dek hiçbir şey korumuyordu. Bayt-parite fixture'ı yalnız HTML'i
+kilitliyor: bir CSS değişikliği düzeni bozduğunda "bayt farkı var" diyor ama **neyin nasıl
+bozulduğunu göstermiyor**. Tema/görünüm işlerinin ön koşulu olarak yol haritasının başına
+konmuştu.
+- **`tests/visual/generate_fixtures.py`** — ekran tipi başına TEK ekranlık kursun preview
+  HTML'i. İçerik uydurulmuyor: `examples/**` 31 tipin 30'unu zaten kapsıyor, üreteç oradan
+  ilgili ekranı + referans verdiği asset'leri çekiyor; yalnız `embed_html` sentezleniyor
+  (tip sonradan geldi). `build_from_spec` DEĞİL doğrudan `renderer.render_html` kullanılıyor —
+  build yolu fixture başına ~2 dk sürüyordu (ölçüldü), render yolu 34 fixture'ı ~3 sn'de bitiriyor.
+- **`tests/visual/snapshot.mjs`** — Playwright + pixelmatch; fark çıkarsa `diff/<ad>.diff.png`
+  (kırmızı = değişen piksel) ve `.actual.png` yazar, CI bunları artefakt olarak yükler.
+- **`ci.yml` → yeni `visual` job'ı, BLOKLAYICI.** `a11y-audit`in aksine: kasıtsız bir görsel
+  değişiklik CI'ı düşürmeli — kabul kriteri bu, ve non-blocking bir görsel kapı çürür.
+- **Kapsam bilinçli olarak dar** (31×18×2 = 1116 snapshot ALINMADI): (A) 31 tipin her biri bir
+  kez, tek tema, açık kip; (B) TEK sabit ekran (`mcq`) × {marka açık, marka koyu, ikinci stil
+  preseti}. B katmanı tema regresyonunu ekran regresyonundan ayırır. Toplam 34 PNG, 2.0 MB.
+- **Snapshot'lar SABİTLENMİŞ konteynerde alınır** (`mcr.microsoft.com/playwright:v1.61.1-noble`),
+  runner'ın ya da geliştiricinin kendi font setinde değil. Gerekçe ölçülmüş bir tuzak: kursların
+  font yığını `'Outfit', system-ui, …` ile başlıyor ama Outfit/Inter **vendor'lanmamış** ve CDN
+  yasak → render `system-ui`ye düşüyor, o da Windows/Linux/macOS'ta farklı. Doğrudan geliştirici
+  makinesinde alınan snapshot CI'da metin taşıyan HER ekranda kırılırdı. Aynı komut yerelde de
+  koşar (tests/README.md).
+- **`playwright` tam sürüme sabitlendi** (`^1.48.0` → `1.61.1`); aralık, `npm ci`de yeni bir
+  Chromium çekip rasterizasyonu değiştirir ve 34 baseline'ı sebepsiz kırar. Yeni
+  `tests/test_visual_harness.py` bunu ve CI imaj tag'i ↔ sabit sürüm eşleşmesini test olarak
+  kilitler; ayrıca yeni bir `ScreenType` fixture kaynağı olmadan eklenirse normal pytest turunda
+  (saniyeler içinde) hata verir.
+- **Determinizm** — üç ardışık koşuda 34/34 eşleşme ölçüldü. Kaynak kaynak çözüldü: sabit
+  konteyner (font/OS), tam sürüm sabiti (Chromium), `reducedMotion` + tüm animasyon/geçişi
+  kapatan enjekte CSS, `page.clock.install()` ile sanal saat (geri sayım ekranları),
+  **tohumlanmış `Math.random`** (matching/sorting karıştırması), `<video>` maskesi (decode
+  karesi), `deviceScaleFactor: 1`, `--disable-lcd-text`/`--font-render-hinting=none`/sRGB.
+  Kalan gürültü payı toplam pikselin %0.02'si.
+- **Kanıt:** kasıtlı bir CSS değişikliği (`.screen-title` `fs-h2`→`fs-h1`) denendi — 34
+  snapshot'ın 33'ü kırıldı (etkilenmeyen tek ekran `title_slide`, `.screen-title` taşımıyor),
+  diff PNG'si büyüyen başlığı ve altındaki kaymayı okunur biçimde gösterdi, süreç `exit 1` verdi.
+- **Bilinçli takas:** `<video>` maskesi kutunun İÇİNDEKİ görsel değişiklikleri görünmez kılar;
+  konum/boyut regresyonu yakalanmaya devam eder. `tests/README.md`'de yazılı.
+- **Yan bulgu (bu PR'da düzeltilmedi):** `components/templates.py` iki yerde ham `Math.random()`
+  kullanıyor (matching `<select>` sıralaması ~1661, sorting başlangıç sırası ~2049) — oysa
+  `components/engine/rng.js` "tüm rastgelelik buradan türer (Math.random YASAK)" diyor.
+  Öğrenen için doğru davranış; harness tarafında tohumlanarak çözüldü, ürün kodu değiştirilmedi.
+
 ### Added — #141: `exploration.input_kind="slider"` (sayısal ölçek / tahmin taahhüdü)
 Yeni ekran tipi DEĞİL — mevcut `exploration`ın parametresi (tip enflasyonu yasağı 3.7;
 `hotspot.mode` #138 ve `labeled_diagram.mode` #126 presedanı). "Kaç yüzde?", Likert, "kaç yıl?"

@@ -106,7 +106,8 @@ def validate_project(project: Project, *, strict: bool = False) -> list[Validati
         # assetSrc() "" dönüp iframe'e src HİÇ verilmiyordu — üstelik varsayılan on_view ile kurs
         # LMS'e yine `completed` raporluyordu (doğrulamayı geçen BOŞ kurs).
         for field in ("background_asset_id", "media_asset_id", "image_asset_id",
-                      "video_asset_id", "poster_asset_id", "html_asset_id"):
+                      "video_asset_id", "poster_asset_id", "html_asset_id",
+                      "captions_asset_id"):   # #145 — sarkan VTT referansi sessiz altyazisizlik
             ref = getattr(s, field, None)
             if ref and ref not in asset_ids:
                 errors.append(ValidationError(code="validation_error",

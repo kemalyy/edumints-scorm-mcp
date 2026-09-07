@@ -537,6 +537,11 @@ class VideoScreen(ScreenBase):
     caption: str | None = None
     poster_asset_id: str | None = None
     require_complete: bool = False
+    # #145 — zaman-senkron altyazı (WCAG 1.2.2). WebVTT asset'i <track kind="captions"> olarak
+    # basılır; srclang kursun diline (project.language) düşer, ayrı bir alan AÇILMADI —
+    # çok-dilli altyazı ayrı bir iş ve bugün oynatıcıda dil seçici yok. Boşsa hiçbir <track>
+    # üretilmez → altyazısız kursun çıktısı bayt-aynı kalır.
+    captions_asset_id: str | None = None
 
 
 class SummaryScreen(ScreenBase):

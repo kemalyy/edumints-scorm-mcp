@@ -8,12 +8,17 @@
     "test:watch": "vitest",
     "coverage": "vitest run --coverage",
     "a11y-audit": "node tests/a11y/audit.mjs",
-    "scorm-probe": "node tests/runtime/scorm-probe.mjs"
+    "scorm-probe": "node tests/runtime/scorm-probe.mjs",
+    "visual:fixtures": "python tests/visual/generate_fixtures.py",
+    "visual": "node tests/visual/snapshot.mjs",
+    "visual:update": "node tests/visual/snapshot.mjs --update"
   },
   "devDependencies": {
-    "vitest": "^2.1.9",
-    "@vitest/coverage-v8": "^2.1.9",
     "@axe-core/playwright": "^4.10.0",
-    "playwright": "^1.48.0"
+    "@vitest/coverage-v8": "^2.1.9",
+    "pixelmatch": "^6.0.0",
+    "playwright": "1.61.1",
+    "pngjs": "^7.0.0",
+    "vitest": "^2.1.9"
   }
 }
