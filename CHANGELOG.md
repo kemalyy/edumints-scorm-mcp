@@ -5,6 +5,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed — a11y uygunluk matrisi ↔ ScreenType kayması (+ bekçi test)
+`docs/ACCESSIBILITY-CONFORMANCE.md` §2 matrisi elle tutuluyordu ve üç yerden kaymıştı. Bu belge
+kurumsal/kamu alıcısına verilen dürüst beyan ve a11y yol haritasının (#145-#149) tek doğruluk
+kaynağı olduğu için işe ondan başlandı.
+- **`embed_html` matriste hiç yoktu** (tip `dd3be4d` ile geldi, satır eklenmedi) → 31. satır
+  eklendi: sandbox'lı iframe'in erişilebilir adı var (`title` = ekran başlığı, yoksa i18n yedeği),
+  ama çerçeve içindeki her şey yazarın artifact'i — oynatıcı klavye/semantik garantisi veremez ve
+  kendi reduced-motion CSS'i çerçeveye geçmez (işletim sistemi tercihi çerçeveye ULAŞIR, ona uymak
+  artifact'in sorumluluğu).
+- **Başlık "29 screen types" diyordu**; matriste 30 satır, modelde 31 tip vardı → 31.
+- **`hotspot` satırı (#7) bayattı** — hâlâ "accessible name only via `title`" diyordu, oysa aynı
+  belgenin §3 madde 8'i bunu "Fixed (#138)" olarak işaretliyor. Satır #138 sonrası gerçeğe göre
+  yeniden yazıldı (her bölgede `aria-label`, `title` artık yalnız fare ipucu; kalan uyarı: jenerik
+  yedek ad bölgeyi tarif etmez, `lint_course` uyarır).
+- **Yeni `tests/test_docs_a11y_matrix.py`** — kayma bir daha sessiz kalmasın: her `ScreenType`'ın
+  satırı var mı, matriste modelde olmayan tip var mı, başlıktaki sayı satır ve model sayısıyla
+  tutuyor mu, satır numaraları kesintisiz mi. Kapsam bilinçli DAR: satırın **varlığı** denetlenir,
+  içeriği (Supports/Partial) denetlenmez — o insan yargısı ve teste kilitlenmesi yanlış olur.
+
+### Fixed — tema adı üretimi işletim sisteminden bağımsız (`as_posix`)
+`tests/test_theme_layers.py::_theme_name` ve `tests/test_theme_contrast.py::shipped_presets`
+tema adını `str(Path.relative_to(...))` ile üretiyordu; Windows'ta bu ters bölü veriyor
+(`corporate\brand-academy`) ve `tests/fixtures/themes_resolved.json`'daki posix anahtarlarla
+eşleşmiyordu → `test_resolved_tokens_match_fixture` YALNIZ Windows'ta kırıktı (Linux CI yeşil).
+İkisi de `p.relative_to(THEMES_DIR).with_suffix("").as_posix()` kullanıyor: fixture anahtarları,
+`_load_theme` adları ve pytest id'leri artık her platformda aynı. Davranış değişikliği yok —
+alt klasörlü temalar (`corporate/*`) dışında üretilen ad zaten aynıydı.
+
 ### Fixed — tema adı üretimi işletim sisteminden bağımsız (`as_posix`)
 `tests/test_theme_layers.py::_theme_name` ve `tests/test_theme_contrast.py::shipped_presets`
 tema adını `str(Path.relative_to(...))` ile üretiyordu; Windows'ta bu ters bölü veriyor

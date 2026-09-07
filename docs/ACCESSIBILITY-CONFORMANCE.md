@@ -70,7 +70,7 @@ Player-wide behaviors verified in code:
   This player-level timer has **no extend/disable control** (unlike `game` screens) — see
   Section 3.
 
-## 2. Conformance matrix — 29 screen types
+## 2. Conformance matrix — 31 screen types
 
 Column meanings:
 - **Keyboard** — 2.1.1 Keyboard, 2.4.7 Focus Visible: fully operable without a mouse.
@@ -89,7 +89,7 @@ Status values: **Supports** / **Partial** / **Does not support** / **N/A**.
 | 4 | `true_false` | Supports | Supports | Supports | N/A¹ | Same button pattern as `mcq`. |
 | 5 | `fill_blank` | Supports | Supports | Supports | N/A¹ | Inputs wrapped in `<label>`; Enter submits (keydown handler). |
 | 6 | `drag_drop` | **Does not support** | Partial | Supports | N/A¹ | HTML5 drag + touch fallback only; **no keyboard alternative** (fails 2.1.1, 2.5.7). Use `matching` instead where keyboard access is required. |
-| 7 | `hotspot` | Supports | Partial | Supports | N/A¹ | Regions are `<button>`s (focusable/activatable); accessible name only via `title` attribute; image alt is author-supplied (linted). |
+| 7 | `hotspot` | Supports | Partial | Supports | N/A¹ | Regions are `<button>`s (focusable/activatable). Since #138 every region carries an `aria-label` — the author's `label_html` flattened to plain text, otherwise a localized generic name (`Region {n}`) — so the name no longer depends on `title`, which is now only a mouse tooltip. Residual: the generic fallback name does not describe the region (`lint_course` warns via `hotspot_region_without_label`) and the image alt is author-supplied (linted). See Section 3, item 8. |
 | 8 | `branching` | Supports | Supports | Supports | N/A¹ | Choices are `<button>`s. |
 | 9 | `video` | Supports | Partial | Supports | N/A¹ | Native `controls` (pause/seek); autoplay is muted. **No synchronized captions** (no `<track>`/WebVTT) — see Section 3. Static `caption` + optional `narration_text` description only. |
 | 10 | `summary` | Supports | Supports | Supports | N/A¹ | Static content + score/completion text. |
@@ -113,6 +113,7 @@ Status values: **Supports** / **Partial** / **Does not support** / **N/A**.
 | 28 | `adaptive_practice` | Supports | Supports | Supports | N/A¹ | Option `<button>`s; mastery HUD is a live region. |
 | 29 | `worked_example` | Supports | Supports | Supports | N/A¹ | Fading reveals are native `<button>`s with `aria-expanded`/`aria-controls`; reveal animation disabled under reduced motion; artifact alt comes from `artifact_caption` (linted); self-explanation textarea has an `aria-label`. |
 | 30 | `exploration` | Supports | Supports | Supports | N/A¹ | Text input is a `<textarea>` with an explicit `<label for>`; choice/prediction is a `role="radiogroup"` of native radio inputs labelled by the prompt (`aria-labelledby`); saved indicator is `role="status" aria-live="polite"`; replayed values are injected as textContent only. |
+| 31 | `embed_html` | Partial | Partial | Partial | N/A¹ | Sandboxed `<iframe>` with an accessible name (`title` = the screen title, else a localized fallback). Everything inside the frame is the author's artifact: the player cannot enforce keyboard operability or semantics across the frame boundary, and its own reduced-motion CSS does not apply inside the frame. The OS-level `prefers-reduced-motion` preference does reach the framed document, but whether the artifact honors it is up to its author. |
 
 ¹ **N/A only while no `timer_sec` is set.** Any screen type can carry an author-set
 countdown (`timer_sec`), which is announced via the `aria-live` timer HUD but **cannot be
