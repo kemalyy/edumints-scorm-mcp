@@ -5,6 +5,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed — #159: rastgelelik kuralının kapsamı yazıldı + CI kapısına bağlandı
+`components/engine/rng.js` koşulsuz "tüm rastgelelik buradan türer (Math.random YASAK)" diyordu
+ama kuralı **hiçbir şey denetlemiyordu** ve `components/templates.py` iki yerde ham
+`Math.random()` çağırıyordu. Kayma, görsel regresyon harness'ı (#150) kurulurken
+`screen-sorting` snapshot'ı her koşuda değişince ortaya çıktı.
+- **Kural dürüstçe kapsamlandırıldı.** `rng.js` başlığı artık kuralın **motor bundle'ını**
+  (`components/engine/**`) yönettiğini yazıyor: orada rastgelelik ölçmeyi sürüyor, seed'siz
+  olamaz. İnline motordaki iki çağrı **belgelenmiş istisna** olarak, gerekçesiyle kaydedildi.
+- **Neden taşınmadılar** (ölçüldü, tembellikten değil): `createRng` yalnız `window.SCORMGame`
+  üzerinden erişilebilir ve bundle YALNIZ `game`/`adaptive_practice` ekranı olan ya da xAPI açık
+  kurslara inline edilir (`_uses_engine_bundle`). Sadece `sorting`/`term_match_race` içeren kurs
+  bundle'ı hiç yüklemez — bilinçli "zero-load" kararı. Taşımak ya mulberry32'yi ENGINE_JS'e
+  İKİNCİ kez yazmayı (tam da `rng.js`'in önlediği tekrar) ya da o kurslara bundle'ı zorlamayı
+  gerektirirdi. Ayrıca iki ekranın `seed` alanı YOK; ekran id'sine tohumlamak sırayı her
+  öğrencide ve her denemede aynı yapardı — sunum çeşitliliğinde istenen bu değil.
+- **Yeni `tests/test_rng_rule.py` (19 test)** kuralı denetlenebilir yapıyor: bundle'da tek bir
+  ham çağrı bile olamaz (dosya başına parametrik); inline motorda TAM İKİ belgelenmiş istisna
+  olabilir, üçüncüsü CI'ı düşürür; ve istisna listesi bayatlamasın diye iki çağrının hâlâ orada
+  olduğu da denetlenir (biri tohumlu RNG'ye taşınırsa test "allowlist'i daralt" diyerek düşer).
+- Bekçi, satır numarasına değil satırın **imzasına** bağlı — kod kayınca kırılmaz, yeni çağrı
+  eklenince kırılır. İki yüzeye ihlal enjekte edilerek doğrulandı.
+- `//` yorumları taranırken eleniyor: kuralı ANLATAN bir yorum ihlal sayılmamalı (bu test
+  yazılırken tam olarak bu yanlış pozitif yaşandı).
+- **Bayt-parite:** `templates.py`ye HİÇ dokunulmadı — o iki satıra açıklayıcı yorum eklemek
+  ENGINE_JS baytlarını değiştirir, yani golden fixture + 34 görsel baseline yenilemesi demekti;
+  bir yorum için ağır bedel. Açıklama `rng.js`te ve testin docstring'inde duruyor.
+
 ### Added — #145: WebVTT altyazı hattı (a11y kısıt #1 kısmen kapandı, #2 artık sessiz değil)
 Sesli video içeren kurslarda WCAG 1.2.2 doğrudan fail'di ve kamu/kurumsal ihalede altyazı
 sözleşme şartı olabiliyor — yol haritasının a11y ekseninde en yüksek öncelikli madde buydu.
