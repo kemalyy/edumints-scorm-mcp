@@ -95,6 +95,45 @@ jobs:
           fi
           grep -q "SCORM probe: S1/S2/S3/S4 tum kontroller gecti" scorm-probe.log
 
+  visual:
+    # Gorsel regresyon (#150). BLOKLAYICI — a11y-audit'in AKSINE: kasitsiz bir gorsel
+    # degisiklik CI'i dusurmeli, kabul kriteri bu. Non-blocking bir gorsel kapi curur.
+    #
+    # Snapshot karsilastirmasi SABITLENMIS Playwright konteynerinde kosar, runner'in kendi
+    # font setinde DEGIL. Gerekce: kurslarin font yigini 'Outfit'/'Inter' ile basliyor ama bu
+    # fontlar vendor'lanmamis ve CDN yasak -> render system-ui'ye dusuyor, o da isletim
+    # sistemine gore degisiyor. Ayrica runner imaji zamanla degisir (font paketleri dahil);
+    # konteyner tag'i bunu dondurur. Ayni komut yerelde de kosar (tests/README.md).
+    #
+    # Imaj tag'i package.json'daki TAM playwright surumuyle eslesmeli —
+    # tests/test_visual_harness.py bunu test olarak kilitler.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install package (fixture generator renders through the real preview path)
+        run: pip install -q -e .
+      - name: Generate fixtures
+        run: python tests/visual/generate_fixtures.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install JS dev deps
+        run: npm ci
+      - name: Compare snapshots (pinned container)
+        run: |
+          docker run --rm -v "$PWD":/work -w /work             mcr.microsoft.com/playwright:v1.61.1-noble             node tests/visual/snapshot.mjs
+      - name: Upload visual diffs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-diff
+          path: tests/visual/diff/
+          if-no-files-found: ignore
+
   a11y-audit:
     runs-on: ubuntu-latest
     timeout-minutes: 15
