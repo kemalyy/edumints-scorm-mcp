@@ -40,7 +40,7 @@ def _shipped_theme_files() -> list[Path]:
 
 
 def _theme_name(p: Path) -> str:
-    return str(p.relative_to(THEMES_DIR))[: -len(".json")]
+    return p.relative_to(THEMES_DIR).with_suffix("").as_posix()
 
 
 # --------------------------------------------------------------------------- #
