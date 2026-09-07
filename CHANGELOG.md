@@ -5,6 +5,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed — #153: hotspot bölge geometrisi doğrulanıyor (şekil + koordinat aritesi)
+`HotspotRegion.shape` `"poly"`yi kabul ediyordu ama oynatıcı onu HİÇ konumlandırmıyor —
+`components/templates.py` `place()` yalnız `rect`/`circle` dallarını yazar. Arıza sessizdi:
+`position:absolute`lu buton offset'siz kalıyor → **sıfır boyutlu, görünmez, tıklanamaz**, ama
+tab sırasında duruyor ve `correct` listesinde olabiliyordu → **doğru cevap poly ise ekran hiç
+geçilemiyordu**. Aynı sessiz arıza yanlış koordinat sayısında da oluşuyor (NaN offset) ve
+`coords: list[float]` bugüne dek hiç doğrulanmıyordu.
+- **`core/validator.py` — SERT hata**: desteklenmeyen şekil ve şekle göre yanlış koordinat
+  sayısı (`rect` 4: x,y,w,h · `circle` 3: cx,cy,r) build'i keser, bölge yolunu ve beklenen
+  sayıyı söyleyerek. `require_all` (#138) ile aynı desen: sessizce yok saymak yerine sert hata.
+- **`core/antislop.py` — iki yeni `error` kodu** (`hotspot_unsupported_shape`,
+  `hotspot_bad_coords`): yazar build denemeden `lint_course`ta görür.
+- **`core/project.py` — `HOTSPOT_COORD_ARITY`**: validator ve antislop'un paylaştığı tek
+  doğruluk kaynağı; `place()` dallarıyla eşleşir.
+- **`poly` bilerek `Literal`'da BIRAKILDI.** Enum'u daraltmak veri yükleme yolunu kırardı:
+  `core/store.py` her projeyi `Project.model_validate_json` ile okuyor (`get_project`,
+  `list_projects`, `list_projects_page`) — kayıtlı poly'li tek bir proje yüklenemez hale gelir
+  ve `list_projects` sayfanın TAMAMINI patlatırdı; bu bugünkü hatadan daha kötü bir arıza olurdu.
+  `test_legacy_poly_project_still_loads` bu kararın bekçisi.
+- **Bayt-parite:** render yolu hiç değişmedi (yalnız doğrulama + doküman) → geçerli kursların
+  çıktısı bayt-aynı. Depodaki hiçbir örnek poly ya da hatalı arite kullanmıyor (tarandı).
+
 ### Fixed — a11y uygunluk matrisi ↔ ScreenType kayması (+ bekçi test)
 `docs/ACCESSIBILITY-CONFORMANCE.md` §2 matrisi elle tutuluyordu ve üç yerden kaymıştı. Bu belge
 kurumsal/kamu alıcısına verilen dürüst beyan ve a11y yol haritasının (#145-#149) tek doğruluk

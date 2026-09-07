@@ -299,9 +299,22 @@ class DropTarget(BaseModel):
     label_html: str
 
 
+# #153 — oynatıcının GERÇEKTEN konumlandırabildiği şekiller ve bekledikleri koordinat sayısı.
+# Kaynak: components/templates.py place() — rect: x,y,w,h · circle: cx,cy,r. Başka şekil için
+# place() hiçbir offset yazmaz. core/validator.py ve core/antislop.py bu sözlüğü paylaşır.
+HOTSPOT_COORD_ARITY: dict[str, int] = {"rect": 4, "circle": 3}
+
+
 class HotspotRegion(BaseModel):
     id: str
+    # #153 — "poly" hâlâ KABUL edilir ama build'de SERT hatayla reddedilir. Literal'dan
+    # çıkarmak veri yükleme yolunu kırar: store her projeyi Project.model_validate_json ile
+    # okur (store.py:398/422) → kayıtlı poly'li bir proje yüklenemez hale gelir ve
+    # list_projects sayfanın TAMAMINI patlatır. require_all (#138) ile aynı desen:
+    # model kabul eder, validator keser.
     shape: Literal["rect", "circle", "poly"]
+    # #153 — arite şekle bağlı (HOTSPOT_COORD_ARITY); validator doğrular. Yanlış sayı JS'te
+    # NaN üretip bölgeyi görünmez bırakıyordu ve hiç denetlenmiyordu.
     coords: list[float]
     correct: bool = True
     label_html: str | None = None

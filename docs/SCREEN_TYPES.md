@@ -152,7 +152,7 @@ jenerik "Bölge {n}" adına düşülür. Görünür numara rozeti `explore` kipi
 | Alan | Tip | Zorunlu mu? | Açıklama |
 | :--- | :--- | :---: | :--- |
 | `id` | `str` | Evet | Bölge ID'si. |
-| `shape` | `str` | Evet | `rect` \| `circle` \| `poly`. |
+| `shape` | `str` | Evet | `rect` (coords: `x,y,w,h`) \| `circle` (coords: `cx,cy,r`). **`poly` şema tarafından kabul edilir ama build reddedilir** (#153): oynatıcı onu konumlandırmaz, bölge görünmez/tıklanamaz kalırdı. |
 | `coords` | `list[float]` | Evet | Görselin **doğal piksel** uzayında koordinatlar (`rect`: x,y,w,h — `circle`: cx,cy,r). |
 | `correct` | `bool` | Hayır | Quiz kipinde doğru bölge mi (vars. `true`). |
 | `label_html` | `str` | Hayır | Bölge adı. Erişilebilir adı besler; `explore` kipinde açılan kutunun başlığıdır. |

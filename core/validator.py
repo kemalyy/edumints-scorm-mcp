@@ -12,6 +12,7 @@ import zipfile
 from lxml import etree
 
 from .project import (
+    HOTSPOT_COORD_ARITY,
     AdaptivePracticeScreen,
     BranchingScreen,
     ExplorationScreen,
@@ -76,6 +77,29 @@ def validate_project(project: Project, *, strict: bool = False) -> list[Validati
                           message="hotspot.require_all yalnız mode=\"explore\" ile kullanılabilir; "
                                   "quiz kipinde çok-seçim gerektirir (henüz desteklenmiyor)",
                           path=f"{path}.require_all"))
+
+        # #153 — bölge geometrisi. place() (components/templates.py) YALNIZ rect ve circle
+        # konumlandırır; shape="poly" bölgeye hiç offset yazılmaz → position:absolute'lu buton
+        # sıfır boyutlu, görünmez ve tıklanamaz kalır, ama tab sırasında durur ve `correct`
+        # listesinde olabilir: doğru cevap poly ise ekran HİÇ geçilemez. Aynı sessiz arıza
+        # yanlış koordinat sayısında da oluşur (NaN offset) ve coords bugüne dek hiç
+        # doğrulanmıyordu. Sessizce yok saymak yerine SERT hata — require_all (#138) deseni.
+        if isinstance(s, HotspotScreen):
+            for j, rg in enumerate(s.regions):
+                rpath = f"{path}.regions[{j}]"
+                if rg.shape not in HOTSPOT_COORD_ARITY:
+                    errors.append(ValidationError(code="validation_error",
+                                  message=f"hotspot bölge şekli '{rg.shape}' desteklenmiyor — "
+                                          "oynatıcı yalnız 'rect' (x,y,w,h) ve 'circle' "
+                                          "(cx,cy,r) konumlandırır",
+                                  path=f"{rpath}.shape"))
+                    continue
+                want = HOTSPOT_COORD_ARITY[rg.shape]
+                if len(rg.coords) != want:
+                    errors.append(ValidationError(code="validation_error",
+                                  message=f"hotspot '{rg.shape}' bölgesi {want} koordinat ister, "
+                                          f"{len(rg.coords)} verildi",
+                                  path=f"{rpath}.coords"))
         # asset referansları
         # task-5 / FIX 2 — html_asset_id (embed_html) BURADA olmak ZORUNDA: eksikken hatalı bir
         # id doğrulamayı geçiyordu, build_package başarılı oluyor, manifest geçerli kalıyor ama

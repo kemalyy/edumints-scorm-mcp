@@ -25,6 +25,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from .project import (
+    HOTSPOT_COORD_ARITY,
     QUIZ_TYPES,
     is_unscored_view,
     AccordionScreen,
@@ -264,6 +265,22 @@ def _lint_hotspot(s: HotspotScreen, path: str) -> list[LintIssue]:
                              "mode='explore' ama hiçbir bölgede label_html/feedback_html yok — "
                              "bölgeye tıklayınca gösterilecek içerik olmaz",
                              f"{path}.regions"))
+
+    # ERROR: oynatıcının konumlandıramadığı şekil / yanlış koordinat sayısı (#153). Validator
+    # build'i zaten keser; burada da raporlanır ki yazar build denemeden lint_course'ta görsün.
+    for rg in s.regions:
+        if rg.shape not in HOTSPOT_COORD_ARITY:
+            out.append(LintIssue("error", "hotspot_unsupported_shape",
+                                 f"Bölge '{rg.id}' şekli '{rg.shape}' — oynatıcı yalnız "
+                                 "rect/circle konumlandırır; bu bölge görünmez ve tıklanamaz olur",
+                                 f"{path}.regions[{rg.id}]"))
+        elif len(rg.coords) != HOTSPOT_COORD_ARITY[rg.shape]:
+            out.append(LintIssue("error", "hotspot_bad_coords",
+                                 f"Bölge '{rg.id}' ({rg.shape}) "
+                                 f"{HOTSPOT_COORD_ARITY[rg.shape]} koordinat ister, "
+                                 f"{len(rg.coords)} verildi — bölge yanlış konumlanır ya da "
+                                 "hiç görünmez",
+                                 f"{path}.regions[{rg.id}]"))
 
     # WARN: etiketsiz bölge — erişilebilir ad jenerik "Bölge {n}"e düşer (a11y kısıt #8).
     # Sert hata DEĞİL: eski kurslar etiketsiz çalışıyor ve jenerik ad hiç yoktan iyidir.
