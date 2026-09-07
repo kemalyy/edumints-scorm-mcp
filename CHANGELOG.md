@@ -5,6 +5,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed — tema adı üretimi işletim sisteminden bağımsız (`as_posix`)
+`tests/test_theme_layers.py::_theme_name` ve `tests/test_theme_contrast.py::shipped_presets`
+tema adını `str(Path.relative_to(...))` ile üretiyordu; Windows'ta bu ters bölü veriyor
+(`corporate\brand-academy`) ve `tests/fixtures/themes_resolved.json`'daki posix anahtarlarla
+eşleşmiyordu → `test_resolved_tokens_match_fixture` YALNIZ Windows'ta kırıktı (Linux CI yeşil).
+İkisi de `p.relative_to(THEMES_DIR).with_suffix("").as_posix()` kullanıyor: fixture anahtarları,
+`_load_theme` adları ve pytest id'leri artık her platformda aynı. Davranış değişikliği yok —
+alt klasörlü temalar (`corporate/*`) dışında üretilen ad zaten aynıydı.
+
 ### Added — #138: `hotspot` v2 — keşif kipi, bölgeye özel gerekçe, erişilebilir ad
 Yeni ekran tipi DEĞİL (tip enflasyonu 3.7) — mevcut `hotspot`'a **parametre**.
 - **`hotspot.mode: "quiz" | "explore" = "quiz"`.** `quiz` (varsayılan) davranışı korunur.

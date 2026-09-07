@@ -199,7 +199,7 @@ PAIRS += [
 # --------------------------------------------------------------------------- #
 def shipped_presets() -> list[str]:
     return sorted(
-        str(p.relative_to(THEMES_DIR))[:-5]
+        p.relative_to(THEMES_DIR).with_suffix("").as_posix()
         for p in THEMES_DIR.rglob("*.json")
         if not p.name.startswith("_") and "audience" not in p.parts
     )
