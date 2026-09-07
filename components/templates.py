@@ -2476,6 +2476,53 @@ HOTSPOT2_JS = r"""
 """
 
 
+# #141 — exploration slider (sayısal ölçek/tahmin). YALNIZ slider'lı kursa inline edilir
+# (_uses_xp_slider) — slider'sız kursun CSS+JS çıktısı bayt-bayt eski hâlinde kalır.
+XPSLIDER_CSS = r"""
+/* ===== EXPLORATION SLIDER (#141) — yalniz input_kind="slider" ekrani olan kurslarda ===== */
+.xp-slider-row{display:flex;align-items:center;gap:var(--space-3);width:100%}
+.xp-range{flex:1 1 auto;min-width:0;accent-color:var(--c-primary)}
+.xp-value{flex:none;min-width:4ch;text-align:right;font-weight:var(--w-strong);
+  font-variant-numeric:tabular-nums}
+.xp-scale{display:flex;justify-content:space-between;width:100%;color:var(--c-muted);
+  font-size:13px}
+"""
+
+# #141 — slider baglayicisi. bindExploration'a DOKUNULMADI (ENGINE_JS bayt-ayni kalsin):
+# o fonksiyon .xp-text ve .xp-opts radyolarini arar, slider ikisi de degil -> sessizce gecer.
+# Kendi kucuk store'u var; 500-karakter kirpma dali burada anlamsiz (deger sayi).
+XPSLIDER_JS = r"""
+(function(){
+  document.querySelectorAll('.exploration[data-kind="slider"]').forEach(function(box){
+    var r=box.querySelector(".xp-range"); if(!r) return;
+    var key=box.dataset.storeKey, unit=box.dataset.unit||"";
+    var out=box.querySelector(".xp-value"), saved=box.querySelector(".xp-saved");
+    function fmt(v){ return unit ? (v+" "+unit) : String(v); }
+    function paint(v){
+      if(out) out.textContent=fmt(v);
+      // Native range yalniz sayiyi duyurur; birim aria-valuetext ile gelir ("60 %").
+      if(unit) r.setAttribute("aria-valuetext",fmt(v));
+    }
+    function store(doPersist){
+      var txt=fmt(r.value);
+      if(RT.setExploration){ RT.setExploration(state,key,txt); }
+      else { state.xp=state.xp||{}; state.xp[key]=txt; }
+      document.querySelectorAll('[data-exploration-ref="'+key+'"]').forEach(function(n){
+        n.textContent=txt; n.classList.remove("xp-ref-empty"); });
+      if(saved) saved.hidden=false;
+      if(doPersist) persist();
+    }
+    // resume: saklanan metin "60 %" bicimindedir; parseFloat birimde durur -> 60.
+    var cur=RT.getExploration?RT.getExploration(state,key):((state.xp&&state.xp[key])||"");
+    if(cur){ var n=parseFloat(cur); if(!isNaN(n)){ r.value=n; if(saved) saved.hidden=false; } }
+    paint(r.value);
+    r.addEventListener("input",function(){ paint(r.value); store(false); });
+    r.addEventListener("change",function(){ store(true); });
+  });
+})();
+"""
+
+
 EMBED_CSS = r"""
 /* ===== EMBED_HTML (artifact iframe) — yalniz embed_html ekrani olan kurslarda ===== */
 /* sahne dolgusu video ekraniyla ayni olcude kisilir: fill modu "tam kanama" olsun diye */

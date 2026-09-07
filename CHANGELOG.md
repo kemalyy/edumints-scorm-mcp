@@ -5,6 +5,83 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — #141: `exploration.input_kind="slider"` (sayısal ölçek / tahmin taahhüdü)
+Yeni ekran tipi DEĞİL — mevcut `exploration`ın parametresi (tip enflasyonu yasağı 3.7;
+`hotspot.mode` #138 ve `labeled_diagram.mode` #126 presedanı). "Kaç yüzde?", Likert, "kaç yıl?"
+gibi sayısal taahhütler artık serbest metne ya da sahte şıklara sığınmadan alınabiliyor.
+- **Alanlar:** `min_value` (vars. `0`), `max_value` (vars. `100`), `step` (vars. `1`),
+  ops. `unit`. Varsayılanlar tek başına "kaç yüzde?" ölçeği verir. Ad olarak `min`/`max`
+  **seçilmedi**: sınıfta zaten text kipine ait `min_length` var, yan yana durunca hangi alanın
+  hangi kipe ait olduğu okunmuyordu.
+- **Taahhüt semantiği:** kol `min_value`da başlar ve değer öğrenen kolu OYNATANA kadar
+  SAKLANMAZ — boş textarea ile aynı sözleşme. Orta noktada başlayan kol "bilinçli orta cevap"
+  gibi okunurdu; dokunulmamış slider geri-oynatmada "henüz cevaplamadın" gösterir.
+- **Saklanan değer görünen metindir** (`"60 %"`) — `choice` kipinin görünen etiketi saklaması
+  ile aynı desen, geri-oynatma doğal okunur; resume'da `parseFloat` birimde durur.
+- **a11y:** görünür `<label for>` (text kipiyle aynı iskelet), native `<input type=range>`
+  (klavye tam destekli), ve birim varsa `aria-valuetext` — native range yalnız sayıyı duyurur,
+  "60" ile "60 %" arasındaki farkı ekran okuyucuya taşıyan tek yol budur.
+- **Anti-slop:** `slider_range_too_coarse` (WARN) — ölçek ≤3 konum sunuyorsa bu bir ölçek değil,
+  birkaç şıklı seçimdir; `fake_choice`in kardeşi (yüzey vaadi ↔ gerçek seçenek uzayı).
+  Model ayrıca yapısal saçmalığı reddeder: `max_value ≤ min_value`, `step ≤ 0`, `step > aralık`.
+- **Bayt-parite — koşullu üretim:** `XPSLIDER_CSS` ve `XPSLIDER_JS` yalnız `_uses_xp_slider`
+  doğruyken inline edilir. **`ENGINE_JS`e ve `BASE_CSS`e HİÇ dokunulmadı**: `bindExploration`
+  `.xp-text` ve `.xp-opts` radyolarını arar, slider ikisi de değil → sessizce geçer; slider
+  bağlayıcısı kendi küçük store'uyla ayrı modülde. Böylece fixture yenilemesi GEREKMEDİ —
+  slider'sız her kursun çıktısı bayt-bayt eski hâlinde.
+- `tests/test_exploration.py::test_model_rejects_unknown_input_kind` "bilinmeyen kip" sentineli
+  olarak tam da `"slider"`ı kullanıyordu; sentinel hâlâ tanımsız olan `"dial"`a taşındı.
+
+### Fixed — #153: hotspot bölge geometrisi doğrulanıyor (şekil + koordinat aritesi)
+`HotspotRegion.shape` `"poly"`yi kabul ediyordu ama oynatıcı onu HİÇ konumlandırmıyor —
+`components/templates.py` `place()` yalnız `rect`/`circle` dallarını yazar. Arıza sessizdi:
+`position:absolute`lu buton offset'siz kalıyor → **sıfır boyutlu, görünmez, tıklanamaz**, ama
+tab sırasında duruyor ve `correct` listesinde olabiliyordu → **doğru cevap poly ise ekran hiç
+geçilemiyordu**. Aynı sessiz arıza yanlış koordinat sayısında da oluşuyor (NaN offset) ve
+`coords: list[float]` bugüne dek hiç doğrulanmıyordu.
+- **`core/validator.py` — SERT hata**: desteklenmeyen şekil ve şekle göre yanlış koordinat
+  sayısı (`rect` 4: x,y,w,h · `circle` 3: cx,cy,r) build'i keser, bölge yolunu ve beklenen
+  sayıyı söyleyerek. `require_all` (#138) ile aynı desen: sessizce yok saymak yerine sert hata.
+- **`core/antislop.py` — iki yeni `error` kodu** (`hotspot_unsupported_shape`,
+  `hotspot_bad_coords`): yazar build denemeden `lint_course`ta görür.
+- **`core/project.py` — `HOTSPOT_COORD_ARITY`**: validator ve antislop'un paylaştığı tek
+  doğruluk kaynağı; `place()` dallarıyla eşleşir.
+- **`poly` bilerek `Literal`'da BIRAKILDI.** Enum'u daraltmak veri yükleme yolunu kırardı:
+  `core/store.py` her projeyi `Project.model_validate_json` ile okuyor (`get_project`,
+  `list_projects`, `list_projects_page`) — kayıtlı poly'li tek bir proje yüklenemez hale gelir
+  ve `list_projects` sayfanın TAMAMINI patlatırdı; bu bugünkü hatadan daha kötü bir arıza olurdu.
+  `test_legacy_poly_project_still_loads` bu kararın bekçisi.
+- **Bayt-parite:** render yolu hiç değişmedi (yalnız doğrulama + doküman) → geçerli kursların
+  çıktısı bayt-aynı. Depodaki hiçbir örnek poly ya da hatalı arite kullanmıyor (tarandı).
+
+### Fixed — a11y uygunluk matrisi ↔ ScreenType kayması (+ bekçi test)
+`docs/ACCESSIBILITY-CONFORMANCE.md` §2 matrisi elle tutuluyordu ve üç yerden kaymıştı. Bu belge
+kurumsal/kamu alıcısına verilen dürüst beyan ve a11y yol haritasının (#145-#149) tek doğruluk
+kaynağı olduğu için işe ondan başlandı.
+- **`embed_html` matriste hiç yoktu** (tip `dd3be4d` ile geldi, satır eklenmedi) → 31. satır
+  eklendi: sandbox'lı iframe'in erişilebilir adı var (`title` = ekran başlığı, yoksa i18n yedeği),
+  ama çerçeve içindeki her şey yazarın artifact'i — oynatıcı klavye/semantik garantisi veremez ve
+  kendi reduced-motion CSS'i çerçeveye geçmez (işletim sistemi tercihi çerçeveye ULAŞIR, ona uymak
+  artifact'in sorumluluğu).
+- **Başlık "29 screen types" diyordu**; matriste 30 satır, modelde 31 tip vardı → 31.
+- **`hotspot` satırı (#7) bayattı** — hâlâ "accessible name only via `title`" diyordu, oysa aynı
+  belgenin §3 madde 8'i bunu "Fixed (#138)" olarak işaretliyor. Satır #138 sonrası gerçeğe göre
+  yeniden yazıldı (her bölgede `aria-label`, `title` artık yalnız fare ipucu; kalan uyarı: jenerik
+  yedek ad bölgeyi tarif etmez, `lint_course` uyarır).
+- **Yeni `tests/test_docs_a11y_matrix.py`** — kayma bir daha sessiz kalmasın: her `ScreenType`'ın
+  satırı var mı, matriste modelde olmayan tip var mı, başlıktaki sayı satır ve model sayısıyla
+  tutuyor mu, satır numaraları kesintisiz mi. Kapsam bilinçli DAR: satırın **varlığı** denetlenir,
+  içeriği (Supports/Partial) denetlenmez — o insan yargısı ve teste kilitlenmesi yanlış olur.
+
+### Fixed — tema adı üretimi işletim sisteminden bağımsız (`as_posix`)
+`tests/test_theme_layers.py::_theme_name` ve `tests/test_theme_contrast.py::shipped_presets`
+tema adını `str(Path.relative_to(...))` ile üretiyordu; Windows'ta bu ters bölü veriyor
+(`corporate\brand-academy`) ve `tests/fixtures/themes_resolved.json`'daki posix anahtarlarla
+eşleşmiyordu → `test_resolved_tokens_match_fixture` YALNIZ Windows'ta kırıktı (Linux CI yeşil).
+İkisi de `p.relative_to(THEMES_DIR).with_suffix("").as_posix()` kullanıyor: fixture anahtarları,
+`_load_theme` adları ve pytest id'leri artık her platformda aynı. Davranış değişikliği yok —
+alt klasörlü temalar (`corporate/*`) dışında üretilen ad zaten aynıydı.
+
 ### Fixed — tema adı üretimi işletim sisteminden bağımsız (`as_posix`)
 `tests/test_theme_layers.py::_theme_name` ve `tests/test_theme_contrast.py::shipped_presets`
 tema adını `str(Path.relative_to(...))` ile üretiyordu; Windows'ta bu ters bölü veriyor

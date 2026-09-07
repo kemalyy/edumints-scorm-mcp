@@ -54,6 +54,8 @@ from .templates import (
     FALLBACK_RUNTIME_SHIM,
     HOTSPOT2_CSS,
     HOTSPOT2_JS,
+    XPSLIDER_CSS,
+    XPSLIDER_JS,
     OUTLINE_CSS,
     OUTLINE_JS,
     REVIEW_JS,
@@ -149,6 +151,15 @@ def _uses_hotspot2(project: Project) -> bool:
             or getattr(s, "require_all", False)
             or any(rg.label_html or rg.feedback_html for rg in s.regions)
         )
+        for s in project.screens
+    )
+
+
+def _uses_xp_slider(project: Project) -> bool:
+    """#141 — exploration slider yüzeyi kullanılıyor mu? CSS+JS YALNIZ o zaman inline edilir;
+    slider'sız kursun çıktısı bayt-bayt eski hâlinde kalır (HOTSPOT2 presedanı)."""
+    return any(
+        s.type is ScreenType.exploration and getattr(s, "input_kind", "text") == "slider"
         for s in project.screens
     )
 
@@ -384,8 +395,11 @@ def _render_html_inner(
     # #138 — hotspot v2 bağlayıcısı AYNI sentineli paylaşır (embed presedanı): kullanmayan
     # kursta boş string → birleştirme bayt-bayt eski çıktı.
     hotspot2_js = HOTSPOT2_JS if _uses_hotspot2(project) else ""
+    # #141 — exploration slider bağlayıcısı AYNI sentineli paylaşır (embed/hotspot2 presedanı).
+    xpslider_js = XPSLIDER_JS if _uses_xp_slider(project) else ""
     engine_js = ENGINE_JS.replace(
-        _REVIEW_JS_SLOT, outline_js + embed_js + hotspot2_js + (REVIEW_JS if review else "")
+        _REVIEW_JS_SLOT,
+        outline_js + embed_js + hotspot2_js + xpslider_js + (REVIEW_JS if review else ""),
     )
     menu_tree_attrs, menu_tree_items = _render_menu_tree(project)
 
@@ -403,7 +417,8 @@ def _render_html_inner(
         # kursta boş string → BASE_CSS + "" birleşimi bayt-bayt eski çıktı (golden/outline kapısı).
         base_css=(BASE_CSS + (OUTLINE_CSS if project.outline else "")
                   + (EMBED_CSS if _uses_embed(project) else "")
-                  + (HOTSPOT2_CSS if _uses_hotspot2(project) else "") + dark_css),
+                  + (HOTSPOT2_CSS if _uses_hotspot2(project) else "")
+                  + (XPSLIDER_CSS if _uses_xp_slider(project) else "") + dark_css),
         custom_css=theme.custom_css or "",
         bg_pattern=theme.background_pattern,
         layout_mode=project.layout_mode,
@@ -1769,6 +1784,25 @@ def _r_exploration(s) -> str:
             f' placeholder="{_attr(s.placeholder or _T("xp_input_placeholder"))}"{minattr}>'
             f'</textarea>{hint}'
         )
+    elif s.input_kind == "slider":
+        # #141 — sayısal ölçek / tahmin taahhüdü. Yüzey text kipiyle AYNI iskelet: görünür
+        # `<label for>` + tek girdi (kipler arası tutarlılık). Başlangıç değeri min_value —
+        # orta nokta "bilinçli orta cevap" gibi okunurdu; min'de duran kol "henüz dokunulmadı"
+        # der. Değer, öğrenen kolu OYNATANA kadar SAKLANMAZ (boş textarea ile aynı taahhüt
+        # semantiği): dokunulmamış slider geri-oynatmada "henüz cevaplamadın" gösterir.
+        iid = f"xp-{sid}-input"
+        lo, hi = _num(s.min_value), _num(s.max_value)
+        unit = f" {s.unit}" if s.unit else ""
+        field = (
+            f'<label class="xp-label" for="{iid}">{_text(_T("xp_input_label"))}</label>'
+            f'<div class="xp-slider-row">'
+            f'<input class="xp-range" id="{iid}" type="range" min="{lo}" max="{hi}"'
+            f' step="{_num(s.step)}" value="{lo}">'
+            f'<span class="xp-value">{_text(lo + unit)}</span>'
+            f'</div>'
+            f'<div class="xp-scale" aria-hidden="true">'
+            f'<span>{_text(lo + unit)}</span><span>{_text(hi + unit)}</span></div>'
+        )
     else:  # choice / prediction — radiogroup (taahhüt yüzeyi; prompt grubu etiketler)
         opts = "".join(
             f'<label class="xp-opt poll-opt"><input type="radio" name="xp-{sid}"'
@@ -1783,8 +1817,10 @@ def _r_exploration(s) -> str:
         f'<span class="xp-unscored ui-chip">{_text(_T("xp_unscored"))}</span></div>'
     )
     mind = f' data-min="{int(s.min_length)}"' if s.min_length else ""
+    # #141 — birim YALNIZ slider kipinde basilir; diger kiplerde bos string -> bayt-parite.
+    unitattr = f' data-unit="{_attr(s.unit)}"' if s.input_kind == "slider" and s.unit else ""
     return (f'{head}<div class="exploration" data-exploration'
-            f' data-store-key="{_attr(s.store_key)}" data-kind="{s.input_kind}"{mind}>'
+            f' data-store-key="{_attr(s.store_key)}" data-kind="{s.input_kind}"{mind}{unitattr}>'
             f'{field}{meta}</div>')
 
 

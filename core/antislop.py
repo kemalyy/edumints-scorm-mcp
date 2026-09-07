@@ -25,7 +25,9 @@ from functools import lru_cache
 from pathlib import Path
 
 from .project import (
+    HOTSPOT_COORD_ARITY,
     QUIZ_TYPES,
+    ExplorationScreen,
     is_unscored_view,
     AccordionScreen,
     AdaptivePracticeScreen,
@@ -92,6 +94,8 @@ def lint_course(project: Project) -> list[LintIssue]:
             issues += _lint_worked_example(s, path)
         elif isinstance(s, HotspotScreen):
             issues += _lint_hotspot(s, path)
+        elif isinstance(s, ExplorationScreen):
+            issues += _lint_exploration(s, path)
         issues += _lint_missing_alt(s, path)
         issues += _lint_generic_title(s, path)
         issues += _lint_list_items(s, path)
@@ -251,6 +255,32 @@ def _lint_worked_example(s: WorkedExampleScreen, path: str) -> list[LintIssue]:
     return out
 
 
+def _lint_exploration(s: ExplorationScreen, path: str) -> list[LintIssue]:
+    """#141 — slider kuralları."""
+    out: list[LintIssue] = []
+    if s.input_kind != "slider":
+        return out
+
+    # WARN: ölçek o kadar kaba ki aslında birkaç şıklı bir seçim — slider yüzeyi öğrenene
+    # "sürekli bir tahmin yap" der, gerçekte 3 konum sunar. `fake_choice`in kardeşi:
+    # yüzey vaadi ile gerçek seçenek uzayı uyuşmuyor. Model zaten tek-konumlu ölçeği reddeder;
+    # bu kural onun üstündeki gri bölgeyi yakalar.
+    positions = int((s.max_value - s.min_value) / s.step) + 1
+    if positions <= 3:
+        out.append(LintIssue("warn", "slider_range_too_coarse",
+                             f"Slider {positions} konum sunuyor "
+                             f"({_num_txt(s.min_value)}-{_num_txt(s.max_value)}, adım "
+                             f"{_num_txt(s.step)}) — bu bir ölçek değil, birkaç şıklı seçim; "
+                             "input_kind='choice'/'prediction' daha dürüst bir yüzeydir",
+                             f"{path}.step"))
+    return out
+
+
+def _num_txt(v: float) -> str:
+    """Lint mesajlarında 5.0 yerine 5 yazsın (renderer._num'un lint tarafındaki eşi)."""
+    return str(int(v)) if float(v).is_integer() else f"{v:g}"
+
+
 # --- erişilebilirlik: eksik alt-text (W9 P0) ------------------------------
 def _lint_hotspot(s: HotspotScreen, path: str) -> list[LintIssue]:
     """#138 — hotspot v2 kuralları."""
@@ -264,6 +294,22 @@ def _lint_hotspot(s: HotspotScreen, path: str) -> list[LintIssue]:
                              "mode='explore' ama hiçbir bölgede label_html/feedback_html yok — "
                              "bölgeye tıklayınca gösterilecek içerik olmaz",
                              f"{path}.regions"))
+
+    # ERROR: oynatıcının konumlandıramadığı şekil / yanlış koordinat sayısı (#153). Validator
+    # build'i zaten keser; burada da raporlanır ki yazar build denemeden lint_course'ta görsün.
+    for rg in s.regions:
+        if rg.shape not in HOTSPOT_COORD_ARITY:
+            out.append(LintIssue("error", "hotspot_unsupported_shape",
+                                 f"Bölge '{rg.id}' şekli '{rg.shape}' — oynatıcı yalnız "
+                                 "rect/circle konumlandırır; bu bölge görünmez ve tıklanamaz olur",
+                                 f"{path}.regions[{rg.id}]"))
+        elif len(rg.coords) != HOTSPOT_COORD_ARITY[rg.shape]:
+            out.append(LintIssue("error", "hotspot_bad_coords",
+                                 f"Bölge '{rg.id}' ({rg.shape}) "
+                                 f"{HOTSPOT_COORD_ARITY[rg.shape]} koordinat ister, "
+                                 f"{len(rg.coords)} verildi — bölge yanlış konumlanır ya da "
+                                 "hiç görünmez",
+                                 f"{path}.regions[{rg.id}]"))
 
     # WARN: etiketsiz bölge — erişilebilir ad jenerik "Bölge {n}"e düşer (a11y kısıt #8).
     # Sert hata DEĞİL: eski kurslar etiketsiz çalışıyor ve jenerik ad hiç yoktan iyidir.
