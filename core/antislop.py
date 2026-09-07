@@ -96,6 +96,7 @@ def lint_course(project: Project) -> list[LintIssue]:
             issues += _lint_hotspot(s, path)
         elif isinstance(s, ExplorationScreen):
             issues += _lint_exploration(s, path)
+        issues += _lint_narration_transcript(s, path)   # #145 — a11y kısıt #2
         issues += _lint_missing_alt(s, path)
         issues += _lint_generic_title(s, path)
         issues += _lint_list_items(s, path)
@@ -253,6 +254,22 @@ def _lint_worked_example(s: WorkedExampleScreen, path: str) -> list[LintIssue]:
                                  "listesi tarif kartıdır, çözümlü örnek değil",
                                  f"{path}.steps[{i}]"))
     return out
+
+
+def _lint_narration_transcript(s, path: str) -> list[LintIssue]:
+    """#145 (a11y kısıt #2) — seslendirme sesi var ama metni yok → transkript HİÇ yok.
+
+    Oynatıcı `narration_text`i CC çubuğunda gösterir (tam ekran metin bloğu; kelime düzeyinde
+    senkron DEĞİL). Yazar yalnız ses asset'i verdiyse işiten olmayan öğrenen için içerik
+    tamamen kaybolur. Sert hata DEĞİL: ses dekoratif de olabilir ve eski kurslar bu şekilde
+    çalışıyor — ama artık SESSİZ de değil."""
+    if getattr(s, "narration_asset_id", None) and not (getattr(s, "narration_text", "") or "").strip():
+        return [LintIssue("warn", "narration_without_transcript",
+                          "Seslendirme sesi var ama narration_text yok — işitme engelli öğrenen "
+                          "için bu içerik tamamen kaybolur (a11y kısıt #2); sesin metnini "
+                          "narration_text'e yazın",
+                          f"{path}.narration_text")]
+    return []
 
 
 def _lint_exploration(s: ExplorationScreen, path: str) -> list[LintIssue]:

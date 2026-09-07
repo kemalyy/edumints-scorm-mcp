@@ -38,6 +38,11 @@ DEFAULT_ALLOWED_MIMES = (
     "audio/webm",
     "application/pdf",
     "application/json",  # Lottie animasyon verisi (Faz 7)
+    # #145 — WebVTT altyazı hattı. Düz metin biçimi; oynatıcıya <track> olarak girer, ASLA
+    # HTML olarak yürütülmez. Bazı sunucular .vtt'yi text/plain ile servis ediyor, o yüzden
+    # ikisi de kabul edilir (uzantı/kullanım yeri belirleyici, mime tek başına değil).
+    "text/vtt",
+    "text/plain",
     "font/",
 )
 
