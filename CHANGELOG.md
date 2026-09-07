@@ -5,6 +5,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — #141: `exploration.input_kind="slider"` (sayısal ölçek / tahmin taahhüdü)
+Yeni ekran tipi DEĞİL — mevcut `exploration`ın parametresi (tip enflasyonu yasağı 3.7;
+`hotspot.mode` #138 ve `labeled_diagram.mode` #126 presedanı). "Kaç yüzde?", Likert, "kaç yıl?"
+gibi sayısal taahhütler artık serbest metne ya da sahte şıklara sığınmadan alınabiliyor.
+- **Alanlar:** `min_value` (vars. `0`), `max_value` (vars. `100`), `step` (vars. `1`),
+  ops. `unit`. Varsayılanlar tek başına "kaç yüzde?" ölçeği verir. Ad olarak `min`/`max`
+  **seçilmedi**: sınıfta zaten text kipine ait `min_length` var, yan yana durunca hangi alanın
+  hangi kipe ait olduğu okunmuyordu.
+- **Taahhüt semantiği:** kol `min_value`da başlar ve değer öğrenen kolu OYNATANA kadar
+  SAKLANMAZ — boş textarea ile aynı sözleşme. Orta noktada başlayan kol "bilinçli orta cevap"
+  gibi okunurdu; dokunulmamış slider geri-oynatmada "henüz cevaplamadın" gösterir.
+- **Saklanan değer görünen metindir** (`"60 %"`) — `choice` kipinin görünen etiketi saklaması
+  ile aynı desen, geri-oynatma doğal okunur; resume'da `parseFloat` birimde durur.
+- **a11y:** görünür `<label for>` (text kipiyle aynı iskelet), native `<input type=range>`
+  (klavye tam destekli), ve birim varsa `aria-valuetext` — native range yalnız sayıyı duyurur,
+  "60" ile "60 %" arasındaki farkı ekran okuyucuya taşıyan tek yol budur.
+- **Anti-slop:** `slider_range_too_coarse` (WARN) — ölçek ≤3 konum sunuyorsa bu bir ölçek değil,
+  birkaç şıklı seçimdir; `fake_choice`in kardeşi (yüzey vaadi ↔ gerçek seçenek uzayı).
+  Model ayrıca yapısal saçmalığı reddeder: `max_value ≤ min_value`, `step ≤ 0`, `step > aralık`.
+- **Bayt-parite — koşullu üretim:** `XPSLIDER_CSS` ve `XPSLIDER_JS` yalnız `_uses_xp_slider`
+  doğruyken inline edilir. **`ENGINE_JS`e ve `BASE_CSS`e HİÇ dokunulmadı**: `bindExploration`
+  `.xp-text` ve `.xp-opts` radyolarını arar, slider ikisi de değil → sessizce geçer; slider
+  bağlayıcısı kendi küçük store'uyla ayrı modülde. Böylece fixture yenilemesi GEREKMEDİ —
+  slider'sız her kursun çıktısı bayt-bayt eski hâlinde.
+- `tests/test_exploration.py::test_model_rejects_unknown_input_kind` "bilinmeyen kip" sentineli
+  olarak tam da `"slider"`ı kullanıyordu; sentinel hâlâ tanımsız olan `"dial"`a taşındı.
+
 ### Fixed — #153: hotspot bölge geometrisi doğrulanıyor (şekil + koordinat aritesi)
 `HotspotRegion.shape` `"poly"`yi kabul ediyordu ama oynatıcı onu HİÇ konumlandırmıyor —
 `components/templates.py` `place()` yalnız `rect`/`circle` dallarını yazar. Arıza sessizdi:

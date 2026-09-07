@@ -964,7 +964,8 @@ class ExplorationScreen(ScreenBase):
 
     - `input_kind`: "text" (serbest metin) | "choice" (sınıflama/seçim) | "prediction"
       (tahmin taahhüdü — choice ile aynı yüzey, pedagojik olarak commit-then-see; xAPI/lint
-      ayrımı için ayrı değer). choice/prediction ≥2 `choices` gerektirir (model doğrular).
+      ayrımı için ayrı değer) | "slider" (#141 — sayısal ölçek/tahmin taahhüdü: yüzde, Likert,
+      "kaç yıl?"). choice/prediction ≥2 `choices` gerektirir (model doğrular).
     - `store_key`: makine-dostu geri-oynatma adresi ([a-z0-9_-], kurs genelinde TEKİL —
       core/validator.py çakışmayı SERT hatayla keser; sessiz veri karışması olmasın).
     - Saklama: suspend v2 zarf kuyruğu `xp` haritası (components/engine/scorm.js
@@ -975,10 +976,17 @@ class ExplorationScreen(ScreenBase):
     puanlamak keşfi tahmin-yarışına çevirir). QUIZ_TYPES dışı, skor state'ine yazmaz."""
     type: Literal[ScreenType.exploration] = ScreenType.exploration
     prompt_html: str
-    input_kind: Literal["text", "choice", "prediction"] = "text"
+    input_kind: Literal["text", "choice", "prediction", "slider"] = "text"
     choices: list[Choice] | None = None      # choice/prediction için zorunlu (≥2)
     placeholder: str | None = None           # text: boşsa i18n varsayılanı
     min_length: int | None = None            # text: ops. asgari uzunluk ipucu
+    # #141 — slider ölçeği. Ad `min`/`max` DEĞİL: sınıfta zaten `min_length` var (text kipine
+    # ait) ve `min`/`max` yan yana durunca hangisinin hangi kipe ait olduğu okunmuyor.
+    # Varsayılan 0-100/1 = "kaç yüzde?" — en sık kullanım tek alanla çalışsın.
+    min_value: float = 0.0
+    max_value: float = 100.0
+    step: float = 1.0
+    unit: str | None = None                  # görünen birim ("%", "yıl"); aria-valuetext'e girer
     store_key: str = Field(pattern=r"^[a-z0-9_-]+$", max_length=64)
 
     @model_validator(mode="after")
@@ -986,6 +994,24 @@ class ExplorationScreen(ScreenBase):
         if self.input_kind in ("choice", "prediction") and len(self.choices or []) < 2:
             raise ValueError(
                 f"input_kind='{self.input_kind}' en az 2 seçenek (choices) gerektirir")
+        return self
+
+    @model_validator(mode="after")
+    def _check_slider(self) -> "ExplorationScreen":
+        """#141 — ölçek yapısal olarak tutarlı olmalı. Model seviyesinde reddedilir (hotspot
+        `poly` #153'ün AKSİNE): slider yeni bir alan, kayıtlı hiçbir projede yok, dolayısıyla
+        burada sertleşmek eski veriyi yüklenemez yapmaz."""
+        if self.input_kind != "slider":
+            return self
+        if self.max_value <= self.min_value:
+            raise ValueError(
+                f"slider max_value ({self.max_value}) min_value'dan ({self.min_value}) büyük olmalı")
+        if self.step <= 0:
+            raise ValueError(f"slider step pozitif olmalı (verilen: {self.step})")
+        if self.step > (self.max_value - self.min_value):
+            raise ValueError(
+                f"slider step ({self.step}) aralıktan "
+                f"({self.max_value - self.min_value}) büyük — tek konumlu ölçek olur")
         return self
 
 

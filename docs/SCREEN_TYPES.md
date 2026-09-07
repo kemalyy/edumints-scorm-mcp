@@ -570,6 +570,13 @@ atfı (`5e-inquiry` keşfet fazının kanıt kaynağı 1; `productive-failure` d
 - `input_kind: "choice"` — sınıflama/seçim (`choices`, ≥2).
 - `input_kind: "prediction"` — tahmin taahhüdü (choice ile aynı yüzey; pedagojik olarak
   commit-then-see — deneme ÖNCESİ alınan tahmin).
+- `input_kind: "slider"` (#141) — sayısal ölçek/tahmin (`min_value`, `max_value`, `step`,
+  ops. `unit`). Varsayılan `0-100` adım `1` = "kaç yüzde?"; Likert için `1-5` adım `1`.
+  Kol **`min_value`da başlar** ve değer öğrenen kolu **oynatana kadar saklanmaz** — boş
+  textarea ile aynı taahhüt semantiği; dokunulmamış slider geri-oynatmada "henüz
+  cevaplamadın" gösterir. Saklanan değer görünen metindir (`"60 %"`), `choice` kipinin
+  görünen etiketi saklamasıyla aynı desen; resume'da `parseFloat` birimde durur.
+  Birim varsa `aria-valuetext`e de yazılır (native range yalnız sayıyı duyurur).
 
 **Geri oynatma:** herhangi bir ekranın zengin HTML'inde
 `<span data-exploration-ref="store_key"></span>` — runtime saklanan değeri **textContent**
@@ -593,10 +600,14 @@ skorlu sorular `evidence_screen_ids` ile buna bağlanabilir).
 | :--- | :--- | :---: | :--- |
 | `prompt_html` | `str` | Evet | Keşif yönergesi (choice/prediction'da radiogroup'u da etiketler). |
 | `store_key` | `str` | Evet | Geri-oynatma adresi (`[a-z0-9_-]+`, ≤64, kurs genelinde tekil). |
-| `input_kind` | `str` | Hayır | `text` (vars.), `choice`, `prediction`. |
+| `input_kind` | `str` | Hayır | `text` (vars.), `choice`, `prediction`, `slider`. |
 | `choices` | `list[Choice]` | choice/prediction'da | Seçenekler (≥2; `correct` alanı YOK sayılır — skorsuz). |
 | `placeholder` | `str` | Hayır | text: girdi yer tutucusu (boşsa i18n varsayılanı). |
 | `min_length` | `int` | Hayır | text: asgari uzunluk ipucu (`minlength` + görünür ipucu). |
+| `min_value` | `float` | Hayır | slider: ölçek başlangıcı (vars. `0`). |
+| `max_value` | `float` | Hayır | slider: ölçek sonu (vars. `100`). `min_value`dan büyük olmalı. |
+| `step` | `float` | Hayır | slider: adım (vars. `1`). Pozitif ve aralıktan küçük olmalı. |
+| `unit` | `str` | Hayır | slider: görünen birim (`%`, `yıl`). Değere ve `aria-valuetext`e eklenir. |
 
 **Örnek:** `examples/exploration-5e.tr.json` (5e mini-döngü: prediction + choice + text,
 geri oynatma + kanıt bağı, lint-temiz).

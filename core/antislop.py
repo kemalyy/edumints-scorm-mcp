@@ -27,6 +27,7 @@ from pathlib import Path
 from .project import (
     HOTSPOT_COORD_ARITY,
     QUIZ_TYPES,
+    ExplorationScreen,
     is_unscored_view,
     AccordionScreen,
     AdaptivePracticeScreen,
@@ -93,6 +94,8 @@ def lint_course(project: Project) -> list[LintIssue]:
             issues += _lint_worked_example(s, path)
         elif isinstance(s, HotspotScreen):
             issues += _lint_hotspot(s, path)
+        elif isinstance(s, ExplorationScreen):
+            issues += _lint_exploration(s, path)
         issues += _lint_missing_alt(s, path)
         issues += _lint_generic_title(s, path)
         issues += _lint_list_items(s, path)
@@ -250,6 +253,32 @@ def _lint_worked_example(s: WorkedExampleScreen, path: str) -> list[LintIssue]:
                                  "listesi tarif kartıdır, çözümlü örnek değil",
                                  f"{path}.steps[{i}]"))
     return out
+
+
+def _lint_exploration(s: ExplorationScreen, path: str) -> list[LintIssue]:
+    """#141 — slider kuralları."""
+    out: list[LintIssue] = []
+    if s.input_kind != "slider":
+        return out
+
+    # WARN: ölçek o kadar kaba ki aslında birkaç şıklı bir seçim — slider yüzeyi öğrenene
+    # "sürekli bir tahmin yap" der, gerçekte 3 konum sunar. `fake_choice`in kardeşi:
+    # yüzey vaadi ile gerçek seçenek uzayı uyuşmuyor. Model zaten tek-konumlu ölçeği reddeder;
+    # bu kural onun üstündeki gri bölgeyi yakalar.
+    positions = int((s.max_value - s.min_value) / s.step) + 1
+    if positions <= 3:
+        out.append(LintIssue("warn", "slider_range_too_coarse",
+                             f"Slider {positions} konum sunuyor "
+                             f"({_num_txt(s.min_value)}-{_num_txt(s.max_value)}, adım "
+                             f"{_num_txt(s.step)}) — bu bir ölçek değil, birkaç şıklı seçim; "
+                             "input_kind='choice'/'prediction' daha dürüst bir yüzeydir",
+                             f"{path}.step"))
+    return out
+
+
+def _num_txt(v: float) -> str:
+    """Lint mesajlarında 5.0 yerine 5 yazsın (renderer._num'un lint tarafındaki eşi)."""
+    return str(int(v)) if float(v).is_integer() else f"{v:g}"
 
 
 # --- erişilebilirlik: eksik alt-text (W9 P0) ------------------------------

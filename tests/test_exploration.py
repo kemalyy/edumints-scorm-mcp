@@ -92,8 +92,10 @@ def test_model_choice_kinds_require_choices(kind):
 
 
 def test_model_rejects_unknown_input_kind():
+    # "slider" #141'de GERÇEK bir kip oldu (bkz. tests/test_exploration_slider.py) —
+    # sentinel hâlâ tanımsız olan bir değere taşındı.
     with pytest.raises(PydanticValidationError):
-        _xp(input_kind="slider")
+        _xp(input_kind="dial")
 
 
 def test_not_scorable_no_points_field():
