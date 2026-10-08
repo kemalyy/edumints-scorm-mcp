@@ -13,7 +13,29 @@ export function seedFromString(str) {
 }
 
 // mulberry32 — küçük, hızlı, iyi dağılımlı 32-bit PRNG.
-// Bir RNG nesnesi döndürür; tüm rastgelelik buradan türer (Math.random YASAK).
+// Bir RNG nesnesi döndürür.
+//
+// KURALIN KAPSAMI (#159 — eskiden koşulsuz "Math.random YASAK" yazıyordu, kapsam belirsizdi):
+// Bu kural MOTOR BUNDLE'ını (components/engine/**) yönetir. Oradaki her rastgelelik buradan
+// türer, çünkü bundle'ın işi ölçme: aynı seed → aynı dizi → golden-test edilebilir oynanış
+// (GameScreen.seed / AdaptivePracticeScreen.seed; ikisi de boşken ekran id'sinden türer).
+// Bundle'da `Math.random(` HİÇ geçmez ve tests/test_rng_rule.py bunu kapı olarak tutar.
+//
+// BELGELENMİŞ İKİ İSTİSNA — inline motorda (components/templates.py ENGINE_JS), ikisi de
+// SUNUM karıştırması, ölçme değil:
+//   1) term_match_race — <select> seçeneklerinin sırası
+//   2) sorting         — maddelerin başlangıç sırası
+// Neden buraya taşınmadılar (ölçüldü, tembellikten değil):
+//   - `createRng` yalnız `window.SCORMGame` üzerinden erişilebilir ve bundle YALNIZ
+//     game/adaptive_practice ekranı olan ya da xAPI açık kurslara inline edilir
+//     (renderer._uses_engine_bundle). Sadece sorting/term_match_race içeren kurs bundle'ı
+//     hiç yüklemez — bilinçli "zero-load" kararı.
+//   - Taşımak ya mulberry32'yi ENGINE_JS'e İKİNCİ kez yazmayı (tam da bu dosyanın önlediği
+//     tekrar) ya da o kurslara bundle'ı zorlamayı (zero-load'un iptali) gerektirirdi.
+//   - Ayrıca bu iki ekranın `seed` alanı YOK: ekran id'sine tohumlamak sırayı her öğrencide
+//     ve her denemede aynı yapardı — sunum çeşitliliği için istenen bu değil.
+// Bu iki yüzeye tohum vermek istenirse önce `seed` alanı ve tohumun neye bağlanacağı
+// (öğrenci? oturum? deneme?) karara bağlanmalı; o ayrı bir iştir.
 export function createRng(seed) {
   let a = (typeof seed === "string" ? seedFromString(seed) : (seed >>> 0)) || 1;
   const next = () => {
