@@ -5,6 +5,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.7.0] — 2026-10-08
+
+Artifact → SCORM, richer interactions, the scenario authoring line and stronger quality gates.
+Any self-contained HTML app (e.g. a Claude artifact) can now be wrapped as a tracked course in one
+call (`wrap_artifact` / `html_to_asset` + the sandboxed `embed_html` screen with a postMessage
+bridge). Existing screens gain per-option rationale (MCQ), hotspot v2 (unscored explore mode,
+find-them-all, per-region feedback, accessible names), a display mode for `labeled_diagram`, a
+numeric slider for `exploration` and a mastery loop for `adaptive_practice`; videos take WebVTT
+captions. The scenario line adds outline-driven authoring (scenario tools, gap report, compiler,
+media federation, hierarchical menu, resume-to-node, locks), theme consolidation with an automated
+AA contrast gate and dark mode. Quality: evidence-binding lint, opt-in strict mode, build-time zip
+validation, a blocking visual-regression gate and an enforced randomness rule. 28 → **31** screen
+types, 29 → **43** tools. All additive — existing specs build unchanged.
+
 ### Fixed — #159: rastgelelik kuralının kapsamı yazıldı + CI kapısına bağlandı
 `components/engine/rng.js` koşulsuz "tüm rastgelelik buradan türer (Math.random YASAK)" diyordu
 ama kuralı **hiçbir şey denetlemiyordu** ve `components/templates.py` iki yerde ham
@@ -176,15 +190,6 @@ kaynağı olduğu için işe ondan başlandı.
   satırı var mı, matriste modelde olmayan tip var mı, başlıktaki sayı satır ve model sayısıyla
   tutuyor mu, satır numaraları kesintisiz mi. Kapsam bilinçli DAR: satırın **varlığı** denetlenir,
   içeriği (Supports/Partial) denetlenmez — o insan yargısı ve teste kilitlenmesi yanlış olur.
-
-### Fixed — tema adı üretimi işletim sisteminden bağımsız (`as_posix`)
-`tests/test_theme_layers.py::_theme_name` ve `tests/test_theme_contrast.py::shipped_presets`
-tema adını `str(Path.relative_to(...))` ile üretiyordu; Windows'ta bu ters bölü veriyor
-(`corporate\brand-academy`) ve `tests/fixtures/themes_resolved.json`'daki posix anahtarlarla
-eşleşmiyordu → `test_resolved_tokens_match_fixture` YALNIZ Windows'ta kırıktı (Linux CI yeşil).
-İkisi de `p.relative_to(THEMES_DIR).with_suffix("").as_posix()` kullanıyor: fixture anahtarları,
-`_load_theme` adları ve pytest id'leri artık her platformda aynı. Davranış değişikliği yok —
-alt klasörlü temalar (`corporate/*`) dışında üretilen ad zaten aynıydı.
 
 ### Fixed — tema adı üretimi işletim sisteminden bağımsız (`as_posix`)
 `tests/test_theme_layers.py::_theme_name` ve `tests/test_theme_contrast.py::shipped_presets`

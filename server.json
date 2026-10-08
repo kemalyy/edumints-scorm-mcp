@@ -3,7 +3,7 @@
   "name": "io.github.kemalyy/edumints-scorm-mcp",
   "title": "edumints SCORM MCP",
   "description": "Compiles structured specs into SCORM 1.2/2004 e-learning packages. 43 tools, quality gate, no LLM.",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "websiteUrl": "https://mcp.edumints.com",
   "repository": {
     "url": "https://github.com/kemalyy/edumints-scorm-mcp",
