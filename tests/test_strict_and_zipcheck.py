@@ -60,6 +60,9 @@ def test_strict_promoted_codes_is_curated_set():
         "unbound_scored_question", "evidence_target_not_evidentiary",
         # Faz 6b (düzen ölçüm raporu §5.2) — dar düzen korkuluğu, E1 emsaliyle terfi
         "MEDIA_NO_CAPTION",
+        # K1 — kompozisyon/vurgu kalite uyarıları (spec §6.1: strict'te uyarılar hataya döner)
+        "emphasis_inflation", "mark_overuse", "lead_too_long", "multiple_focal_points",
+        "composition_monotony", "intensity_run",
     })
 
 

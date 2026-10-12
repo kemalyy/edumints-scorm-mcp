@@ -355,7 +355,8 @@ async def test_wrap_artifact_theme_matches_create_project():
     ref_p = await server.SVC.store.get_project(pid, "key_local")
     wrapped = await server.SVC.store.get_project(out["project_id"], "key_local")
     assert wrapped.theme == ref_p.theme
-    assert wrapped.theme == server._load_theme("default")
+    # K1 — yeni (auto) projelerde "default" yeni varsayılan palete (mint) yönlenir
+    assert wrapped.theme == server._load_theme(server._theme_for("default", "auto"))
 
 
 async def test_wrap_artifact_min_seconds_reaches_screen():

@@ -1,0 +1,16 @@
+{
+  "name": "z-flow",
+  "description": "Z göz akışı; adımlar köşeleri izler, odak sağ-alt bitişte.",
+  "symmetry": "asymmetric",
+  "grid": "thirds",
+  "areas": {
+    "support": "c1r1-c3r1",
+    "steps": "c1r2-c3r3"
+  },
+  "focal": "steps",
+  "flow": "z",
+  "whitespace": "normal",
+  "applies_to": [
+    "content_slide"
+  ]
+}

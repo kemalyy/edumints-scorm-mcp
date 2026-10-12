@@ -70,12 +70,15 @@ STRICT_PROMOTED_CODES = frozenset({
     # Faz 6b (düzen ölçüm raporu §5.2) — kalite WARN'ı, E1 emsaliyle strict'e terfi:
     # veri bütünlüğü değil öğretim kalitesi → varsayılanda danışsal kalır.
     "MEDIA_NO_CAPTION",
+    # K1 — kompozisyon/vurgu kalite uyarıları (varsayılanda danışsal, strict'te bloklar)
+    "emphasis_inflation", "mark_overuse", "lead_too_long", "multiple_focal_points",
+    "composition_monotony", "intensity_run",
 })
 
 
 @dataclass
 class LintIssue:
-    severity: str  # "error" | "warn"
+    severity: str  # "error" | "warn" | "info" (K1 — info hiçbir modda bloklamaz)
     code: str
     message: str
     path: str
@@ -112,7 +115,72 @@ def lint_course(project: Project) -> list[LintIssue]:
     issues += _lint_scored_over_objectives(project)
     issues += _lint_source_parity(project)
     issues += _lint_pack_conformance(project)
+    issues += _composition_issues(project)
     return issues
+
+
+# --- K1 kompozisyon -------------------------------------------------------------
+_MARK = re.compile(r"<mark>(.*?)</mark>", re.S | re.I)
+_STRONG = re.compile(r"<strong>(.*?)</strong>", re.S | re.I)
+_TAGS = re.compile(r"<[^>]+>")
+
+
+def _screen_html(s) -> str:
+    blocks = getattr(s, "blocks", None) or []
+    if blocks:
+        return " ".join(b.html or "" for b in blocks)
+    return getattr(s, "body_html", "") or ""
+
+
+def _composition_issues(project: Project) -> list[LintIssue]:
+    from core.composition_auto import resolve_project_safe, signals
+
+    out: list[LintIssue] = []
+    if project.composition != "auto":
+        for i, s in enumerate(project.screens):
+            if getattr(s, "lead", None) or getattr(s, "kicker", None) or getattr(
+                    s, "composition", None):
+                out.append(LintIssue("info", "composition_ignored_classic",
+                                     "Kompozisyon/vurgu alanları classic projede render edilmez — "
+                                     "set_composition(mode='auto') ile yükselt", f"screens[{i}]"))
+        return out
+    comps, errs = resolve_project_safe(project)
+    for i, e in errs:
+        out.append(LintIssue("error", e.code, str(e), f"screens[{i}].composition"))
+    run_preset, run_len, high_run = None, 0, 0
+    for i, (s, c) in enumerate(zip(project.screens, comps)):
+        path = f"screens[{i}]"
+        html = _screen_html(s)
+        words = len(_TAGS.sub(" ", html).split())
+        marks = _MARK.findall(html)
+        if len(marks) > 3:
+            out.append(LintIssue("warn", "mark_overuse", f"{len(marks)} <mark> (≤3)", path))
+        emph = sum(len(_TAGS.sub(" ", m).split()) for m in marks + _STRONG.findall(html))
+        if words >= 5 and emph / words > 0.20:
+            out.append(LintIssue("warn", "emphasis_inflation",
+                                 f"Vurgulu metin %{round(100 * emph / words)} (≤%20)", path))
+        lead = getattr(s, "lead", None) or ""
+        if len(lead.split()) > 20:
+            out.append(LintIssue("warn", "lead_too_long", "lead > 20 kelime", path))
+        if c is None:
+            run_preset, run_len, high_run = None, 0, 0
+            continue
+        sg = signals(s)
+        if c.focal == "__background__" and not (sg.has_bg or sg.media):
+            out.append(LintIssue("error", "focal_area_empty",
+                                 "Odak arka plan görseline işaret ediyor ama görsel yok", path))
+        if c.focal == "focal" and lead and sg.media and c.preset == "statement":
+            out.append(LintIssue("warn", "multiple_focal_points",
+                                 "lead ve medya aynı ekranda odak için yarışıyor", path))
+        run_len = run_len + 1 if c.preset == run_preset else 1
+        run_preset = c.preset
+        if run_len == 4:
+            out.append(LintIssue("warn", "composition_monotony",
+                                 f"'{c.preset}' art arda 4. kez", path))
+        high_run = high_run + 1 if c.intensity == "high" else 0
+        if high_run == 3:
+            out.append(LintIssue("warn", "intensity_run", "Art arda 3 yüksek yoğunluk", path))
+    return out
 
 
 def lint_errors(project: Project, strict: bool = False) -> list[LintIssue]:

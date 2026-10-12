@@ -112,6 +112,36 @@ p = Project(id=new_project_id(), title="probe-lock", scorm_version=ver,
 open(out, "w", encoding="utf-8").write(render_html(p, mode="preview", runtime_js="/*probe*/"))
 `;
 
+const COMP_RENDER_PY = `
+import sys
+from components.renderer import render_html
+from core.project import Project, new_project_id, ContentSlide
+out = sys.argv[1]
+p = Project(id=new_project_id(), title="comp", composition="auto", screens=[
+    ContentSlide(id="c1", title="Gonderen adresine bak", lead="Alan adi tek harf farkli.",
+                 body_html="<p>Harf harf oku.</p>", media_asset_id="img",
+                 composition={"preset": "split-thirds", "mirror": True}),
+])
+open(out, "w", encoding="utf-8").write(render_html(p, mode="preview", runtime_js="/*probe*/"))
+`;
+
+// z-flow: 4 adım (2 görselli) masaüstü sahnesine SIĞMALI — görsel adım kutusunu taşırmamalı.
+const ZFLOW_RENDER_PY = `
+import sys, base64
+from components.renderer import render_html
+from core.project import Project, new_project_id, ContentSlide, ContentBlock, AssetRef
+out = sys.argv[1]
+svg = b'<svg xmlns="http://www.w3.org/2000/svg" width="640" height="420"><rect width="640" height="420" fill="#ccc"/></svg>'
+p = Project(id=new_project_id(), title="z", composition="auto", screens=[
+    ContentSlide(id="z1", title="Tikla hasat saldiri", composition="z-flow", blocks=[
+        ContentBlock(html="<p>1</p>", asset_id="i"), ContentBlock(html="<p>2</p>", asset_id="i"),
+        ContentBlock(html="<p>3</p>"), ContentBlock(html="<p>4</p>")])],
+    assets=[AssetRef(id="i", filename="i.svg", mime="image/svg+xml", size_bytes=len(svg),
+                     sha256="0", rel_path="assets/i.svg")])
+open(out, "w", encoding="utf-8").write(render_html(p, mode="preview", runtime_js="/*probe*/",
+    asset_data={"i": ("image/svg+xml", svg)}))
+`;
+
 const failures = [];
 function check(label, actual, expected) {
   const ok = actual === expected;
@@ -544,6 +574,60 @@ async function main() {
         check("ilerleme sifirlanmadi (lineer yaklasim > 0%)", m1 > 0, true);
       } finally {
         await ctx.close();
+      }
+    }
+
+    // --- K1 z-flow: dort adim da masaustu sahnesinde gorunur (tasma yok) ---
+    console.log("\n== K1 — z-flow tasma yok ==");
+    const zfile = path.join(tmp, "zflow.html");
+    execFileSync("python3", ["-c", ZFLOW_RENDER_PY, zfile], { cwd: process.cwd() });
+    const zctx = await browser.newContext({ viewport: { width: 1024, height: 700 } });
+    try {
+      const zpage = await zctx.newPage();
+      await zpage.addInitScript(lmsInit, [false, "", "", null]);
+      await zpage.goto(`file://${zfile}`);
+      await zpage.waitForTimeout(200);
+      const z = await zpage.evaluate(() => {
+        const inner = document.querySelector(".screen.active .screen-inner, .screen .screen-inner")
+          .getBoundingClientRect();
+        const steps = [...document.querySelectorAll(".slot-steps .step")]
+          .map((e) => e.getBoundingClientRect());
+        return { n: steps.length, fits: steps.every((r) => r.bottom <= inner.bottom + 1) };
+      });
+      check("z-flow: 4 adim", z.n, 4);
+      check("z-flow: tum adimlar sahnenin icinde", z.fits, true);
+    } finally {
+      await zctx.close();
+    }
+
+    // --- K1 kompozisyon: mobilde tek sutun + odak-once okuma sirasi; masaustunde izgara ---
+    console.log("\n== K1 — kompozisyon (mobil tek sutun, odak once) ==");
+    const cfile = path.join(tmp, "comp.html");
+    execFileSync("python3", ["-c", COMP_RENDER_PY, cfile], { cwd: process.cwd() });
+    for (const [label, vp] of [["mobil", { width: 390, height: 844 }],
+                               ["masaustu", { width: 1024, height: 700 }]]) {
+      const cctx = await browser.newContext({ viewport: vp });
+      try {
+        const cpage = await cctx.newPage();
+        await cpage.addInitScript(lmsInit, [false, "", "", null]);
+        await cpage.goto(`file://${cfile}`);
+        await cpage.waitForTimeout(150);
+        const r = await cpage.evaluate(() => {
+          const f = document.querySelector(".slot-focal").getBoundingClientRect();
+          const s = document.querySelector(".slot-support").getBoundingClientRect();
+          const cols = getComputedStyle(document.querySelector(".comp-grid"))
+            .gridTemplateColumns.trim().split(/\s+/).length;
+          return { focalAbove: f.top < s.top, sideBySide: f.left !== s.left, cols };
+        });
+        if (label === "mobil") {
+          check("mobil: tek sutun", r.cols, 1);
+          check("mobil: odak destekten once (ustte)", r.focalAbove, true);
+        } else {
+          check("masaustu: 3 sutunlu izgara", r.cols, 3);
+          check("masaustu: odak ve destek yan yana", r.sideBySide, true);
+        }
+      } finally {
+        await cctx.close();
       }
     }
   } finally {

@@ -1,0 +1,16 @@
+{
+  "name": "centered",
+  "description": "Simetrik; tek mesaj tam merkezde.",
+  "symmetry": "symmetric",
+  "grid": "thirds",
+  "areas": {
+    "support": "c1r1-c3r3"
+  },
+  "focal": "support",
+  "flow": "center",
+  "whitespace": "high",
+  "applies_to": [
+    "title_slide",
+    "content_slide"
+  ]
+}

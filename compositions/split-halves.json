@@ -1,0 +1,17 @@
+{
+  "name": "split-halves",
+  "description": "Simetrik iki sütun; karşılaştırma.",
+  "symmetry": "symmetric",
+  "grid": "halves",
+  "areas": {
+    "support": "c1r1-c2r1",
+    "focal": "c1r2-c1r3",
+    "aux": "c2r2-c2r3"
+  },
+  "focal": "focal",
+  "flow": "z",
+  "whitespace": "normal",
+  "applies_to": [
+    "content_slide"
+  ]
+}

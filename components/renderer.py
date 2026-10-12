@@ -44,9 +44,14 @@ from core.project import (
     is_unscored_view,
 )
 
+from core.composition_auto import resolve_project_safe
+from core.theme_emphasis import resolve_emphasis
+
 from . import i18n
 from .templates import (
     BASE_CSS,
+    COMPOSITION_CSS,
+    EMPHASIS_CSS,
     EMBED_CSS,
     EMBED_JS,
     EMBED_SHIM_JS,
@@ -87,6 +92,10 @@ _ALLOWED_TAGS = {
     "img", "figure", "figcaption", "code", "pre", "blockquote",
     "table", "thead", "tbody", "tr", "td", "th", "span", "div",
 }
+# K1 — auto projede <mark> (E3 vurgu) beyaz listede; classic'te bugünkü gibi soyulur (bayt-aynı).
+# Mod render boyunca _COMP ContextVar'ıyla iletilir (_LANG presedanı).
+_ALLOWED_TAGS_AUTO = _ALLOWED_TAGS | {"mark"}
+_COMP: ContextVar[bool] = ContextVar("render_composition", default=False)
 _ALLOWED_ATTRS = {
     "a": {"href", "title", "target"},
     "img": {"src", "alt", "width", "height"},
@@ -111,7 +120,7 @@ def sanitize(html: str | None) -> str:
         return ""
     out = nh3.clean(
         html,
-        tags=_ALLOWED_TAGS,
+        tags=_ALLOWED_TAGS_AUTO if _COMP.get() else _ALLOWED_TAGS,
         attributes=_ALLOWED_ATTRS,
         url_schemes={"http", "https", "mailto", "data"},  # P5 — inline base64 <img src="data:..."> izni
         link_rel="noopener noreferrer",
@@ -201,13 +210,64 @@ def _uses_engine_bundle(project: Project) -> bool:
     return any(s.type in _ENGINE_SCREEN_TYPES for s in project.screens)
 
 
-def extra_runtime_files(project: Project) -> list[tuple[str, str]]:
+def extra_runtime_files(project: Project) -> list[tuple[str, str | bytes]]:
     """Paket için gereken EK runtime dosyaları (rel_path, içerik). Opt-in/lazy: animasyonsuz
-    kurs → boş liste → pakette lottie YOK (zero-load)."""
-    out: list[tuple[str, str]] = []
+    kurs → boş liste → pakette lottie YOK (zero-load). K1 — auto projede temanın kullandığı
+    gömülü fontlar (woff2, ikili) da eklenir; classic paket bayt-aynı kalır."""
+    out: list[tuple[str, str | bytes]] = []
     if _uses_lottie(project):
         out.append((_LOTTIE_REL, _load_lottie_js()))
+    if project.composition == "auto":
+        for _fam, stem, sub in _used_font_files(project.theme):
+            name = f"{stem}-{sub}.woff2"
+            out.append((f"runtime/fonts/{name}", (_FONTS_DIR / name).read_bytes()))
+        # OFL 1.1 — lisans metni gömülü fontla BİRLİKTE dağıtılmalı (aile başına bir kez)
+        for stem in dict.fromkeys(stem for _f, stem, _s in _used_font_files(project.theme)):
+            lic = _FONT_LICENSES[stem]
+            out.append((f"runtime/fonts/{lic}", (_FONTS_DIR / lic).read_text(encoding="utf-8")))
     return out
+
+
+# K1 / #160 — tema fontları vendor'lı (runtime/fonts, SIL OFL 1.1). Variable font: tek dosya
+# tüm ağırlıkları taşır; latin + latin-ext alt kümesi unicode-range ile (Türkçe ş ğ ı İ ext'te).
+_FONTS_DIR = Path(__file__).resolve().parent.parent / "runtime" / "fonts"
+_FONT_FAMILIES = {"Inter": "inter", "Outfit": "outfit", "JetBrains Mono": "jetbrains-mono"}
+_FONT_LICENSES = {"inter": "OFL-Inter.txt", "outfit": "OFL-Outfit.txt",
+                  "jetbrains-mono": "OFL-JetBrainsMono.txt"}
+_UNICODE = {
+    "latin": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,"
+             "U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+    "latin-ext": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,"
+                 "U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,"
+                 "U+2113,U+2C60-2C7F,U+A720-A7FF",
+}
+
+
+def _used_font_files(theme: ThemeTokens) -> list[tuple[str, str, str]]:
+    """(css aile adı, dosya kökü, alt küme) — temanın font dizgelerinde geçen vendor'lı aileler."""
+    ty = theme.typography
+    stacks = " ".join((ty.font_heading, ty.font_body, ty.font_mono))
+    out = []
+    for fam, stem in _FONT_FAMILIES.items():
+        if f"'{fam}'" in stacks or f'"{fam}"' in stacks:
+            out += [(fam, stem, sub) for sub in ("latin", "latin-ext")]
+    return out
+
+
+def _vendored_font_faces(theme: ThemeTokens, mode: str) -> str:
+    import base64
+
+    out = []
+    for fam, stem, sub in _used_font_files(theme):
+        if mode == "preview":
+            data = (_FONTS_DIR / f"{stem}-{sub}.woff2").read_bytes()
+            url = "data:font/woff2;base64," + base64.b64encode(data).decode()
+        else:
+            url = f"runtime/fonts/{stem}-{sub}.woff2"
+        out.append(f'@font-face{{font-family:"{fam}";src:url("{url}") format("woff2");'
+                   f"font-weight:100 900;font-style:normal;font-display:swap;"
+                   f"unicode-range:{_UNICODE[sub]}}}")
+    return "\n".join(out)
 
 
 # --------------------------------------------------------------------------- #
@@ -238,12 +298,14 @@ def render_html(
     # I1 — bu render'ın dilini bağlama koy; _T() bunu okur. Token ile reset → iç içe/eşzamanlı
     # render'lar sızdırmaz.
     _lang_token = _LANG.set(project.language)
+    _comp_token = _COMP.set(project.composition == "auto")
     try:
         return _render_html_inner(
             project, mode=mode, runtime_js=runtime_js, asset_data=asset_data, review=review,
             canonical_url=canonical_url,
         )
     finally:
+        _COMP.reset(_comp_token)
         _LANG.reset(_lang_token)
 
 
@@ -289,14 +351,18 @@ def _render_html_inner(
     # basılır: grafiksiz kursların çıktısı bayt-bayt değişmez (3.3 geriye uyum).
     has_chart = any(s.type == ScreenType.data_chart for s in project.screens)
 
-    def _mode_vars(t: ThemeTokens) -> str:
+    auto_comp = project.composition == "auto"
+
+    def _mode_vars(t: ThemeTokens, dark: bool = False) -> str:
         out = _css_vars(t)
         if has_chart:
             out += "\n  " + "".join(
                 f"--chart-{i}:{c};" for i, c in enumerate(t.color.chart_series))
+        if auto_comp:  # K1 — vurgu kademeleri yalnız auto projede (classic bayt-aynı)
+            out += _emphasis_vars(t, dark=dark)
         return out
 
-    css_vars = _mode_vars(theme)
+    css_vars = _mode_vars(theme, dark=project.theme_mode == "dark")
     if project.theme_mode == "dark":
         css_vars += "\n  color-scheme:dark;"  # form kontrolleri/kaydırma çubukları da koyu
     # Faz 9.1 — ayarlanabilir tuval ölçüsü → CSS değişkeni (stage modu bunları kullanır)
@@ -309,9 +375,13 @@ def _render_html_inner(
         # sıralama/DELTA çıkarımı kırılganlığına girmeden deterministik. Sahne ölçüleri
         # :root'tan miras (mod'dan bağımsız).
         dark_css = ("\n@media (prefers-color-scheme: dark){:root{"
-                    + _mode_vars(derive_dark_theme(project.theme))
+                    + _mode_vars(derive_dark_theme(project.theme), dark=True)
                     + "\n  color-scheme:dark;}}")
-    screens_html = "\n".join(_render_screen(s, i) for i, s in enumerate(project.screens))
+    # K1 — classic → hepsi None (bugünkü yol). Hatalı kompozisyonlu ekran render'ı DÜŞÜRMEZ:
+    # o ekran klasik yolla çizilir; hatayı lint/build kapısı raporlar (önizleme döngüsü kırılmasın).
+    comps, _comp_errs = resolve_project_safe(project)
+    screens_html = "\n".join(_render_screen(s, i, comps[i])
+                             for i, s in enumerate(project.screens))
     course_cfg = _course_config(project)
 
     if mode == "preview":
@@ -375,6 +445,8 @@ def _render_html_inner(
         brand_mark = '<span class="brand-dot"></span>'
 
     font_faces = _font_faces_css(theme, asset_map)
+    if project.composition == "auto":  # K1 / #160 — vendor'lı tema fontları
+        font_faces = "\n".join(x for x in (_vendored_font_faces(theme, mode), font_faces) if x)
 
     # I1/I2 — kabuk dizgeleri dile göre çözülür; yön dilden türetilir (RTL betikleri)
     t_attr = {k: _attr(v) for k, v in i18n.table(project.language).items()}
@@ -418,7 +490,9 @@ def _render_html_inner(
         base_css=(BASE_CSS + (OUTLINE_CSS if project.outline else "")
                   + (EMBED_CSS if _uses_embed(project) else "")
                   + (HOTSPOT2_CSS if _uses_hotspot2(project) else "")
-                  + (XPSLIDER_CSS if _uses_xp_slider(project) else "") + dark_css),
+                  + (XPSLIDER_CSS if _uses_xp_slider(project) else "")
+                  # K1 — kompozisyon + vurgu CSS'i yalnız auto projede (classic bayt-aynı)
+                  + (COMPOSITION_CSS + EMPHASIS_CSS if auto_comp else "") + dark_css),
         custom_css=theme.custom_css or "",
         bg_pattern=theme.background_pattern,
         layout_mode=project.layout_mode,
@@ -498,6 +572,22 @@ def _css_vars(t: ThemeTokens) -> str:
   --d-fast:{m.duration_fast}; --d-base:{m.duration_base}; --d-slow:{m.duration_slow};
   --ease:{m.easing_standard}; --ease-emph:{m.easing_emphasized};
 """
+
+
+_FS = {"h1": "var(--fs-h1)", "h2": "var(--fs-h2)", "h3": "var(--fs-h3)", "h4": "var(--fs-h4)",
+       "base": "var(--fs-base)", "sm": "calc(var(--fs-base) * .8125)"}
+
+
+def _emphasis_vars(t: ThemeTokens, *, dark: bool = False) -> str:
+    """K1 — vurgu kademeleri → --em1…--em5 (+ -fs, -w) ve --em3-bg. --e1…--e4 elevation'dır."""
+    em = resolve_emphasis(t, dark=dark)
+    out = []
+    for n in ("e1", "e2", "e3", "e4", "e5"):
+        lvl = getattr(em, n)
+        k = n[1]
+        out.append(f"--em{k}:{lvl.color};--em{k}-fs:{_FS[lvl.size]};--em{k}-w:{lvl.weight};")
+    out.append(f"--em3-bg:{em.e3_bg};")
+    return "\n  " + "".join(out)
 
 
 # --------------------------------------------------------------------------- #
@@ -938,9 +1028,111 @@ def _wrap_blocks(body: str) -> str:
     return "".join(out)
 
 
-def _render_screen(s, idx: int) -> str:
+def _comp_attrs(c) -> str:
+    return (f' data-comp="{_attr(c.preset or "custom")}" data-focal="{_attr(c.focal)}"'
+            f' data-flow="{c.flow}" data-ws="{c.whitespace}" data-intensity="{c.intensity}"'
+            f' data-sym="{c.symmetry}"'
+            f' style="--comp-cols:{c.cols};--comp-rows:{c.rows}"')
+
+
+def _slot(name: str, html: str, comp) -> str:
+    if not html or name not in comp.areas:
+        return ""
+    rs, cs, re_, ce = comp.areas[name]
+    return (f'<div class="slot slot-{name}" style="grid-area:{rs} / {cs} / {re_} / {ce}">'
+            f'{html}</div>')
+
+
+def _place(comp, parts: dict[str, str]) -> str:
+    """Yuvaları DOM'a odak-önce sırayla basar (mobil tek sütunda okuma sırası = odak → akış).
+    Masaüstü yerleşimini grid-area belirler; DOM sırası yalnız akışı etkiler."""
+    order = [comp.focal] + [n for n in ("support", "focal", "aux", "steps") if n != comp.focal]
+    return '<div class="comp-grid">' + "".join(_slot(n, parts.get(n, ""), comp)
+                                               for n in order) + "</div>"
+
+
+def _kicker(s) -> str:
+    k = getattr(s, "kicker", None)
+    return f'<p class="kicker">{_text(k)}</p>' if k else ""
+
+
+def _lead(s) -> str:
+    lead = getattr(s, "lead", None)
+    return f'<p class="lead">{_text(lead)}</p>' if lead else ""
+
+
+def _slots_title(s, comp) -> str:
+    sub = f'<p class="title-sub">{_text(s.subtitle)}</p>' if s.subtitle else ""
+    body = f'<div class="rich">{sanitize(s.body_html)}</div>' if s.body_html else ""
+    head = f'{_kicker(s)}<h1 class="title-main">{_text(s.title)}</h1>'
+    bg = f' data-bg-asset="{_attr(s.background_asset_id)}"' if s.background_asset_id else ""
+    lead = _lead(s)
+    if comp.focal == "focal":
+        parts = {"focal": lead or head, "support": (head if lead else "") + sub + body}
+    else:
+        parts = {"support": head + lead + sub + body}
+    return f'<div class="title-slide comp"{bg}>{_place(comp, parts)}</div>'
+
+
+def _figure(asset_id, caption, alt) -> str:
+    cap = f'<figcaption>{_text(caption)}</figcaption>' if caption else ""
+    return (f'<figure class="block-media">{_media(asset_id, "item-media", alt or "")}'
+            f'{cap}</figure>')
+
+
+def _blocks_in_order(blocks) -> str:
+    out = []
+    for b in blocks:
+        if b.html:
+            out.append(f'<div class="rich">{sanitize(b.html)}</div>')
+        if b.asset_id:
+            out.append(_figure(b.asset_id, b.caption, b.caption))
+    return "".join(out)
+
+
+def _slots_content(s, comp) -> str:
+    head = f'{_kicker(s)}<h2 class="screen-title">{_text(s.title)}</h2>'
+    blocks = getattr(s, "blocks", None) or []
+    if blocks:
+        texts = "".join(f'<div class="rich">{sanitize(b.html)}</div>' for b in blocks if b.html)
+        figs = [_figure(b.asset_id, b.caption, b.caption) for b in blocks if b.asset_id]
+        ordered = _blocks_in_order(blocks)  # yazarın paragraf→görsel→paragraf sırası
+    else:
+        texts = f'<div class="rich">{sanitize(s.body_html)}</div>' if s.body_html else ""
+        figs = [_figure(s.media_asset_id, None, s.media_alt)] if s.media_asset_id else []
+        ordered = texts + "".join(figs)
+    lead = _lead(s)
+    if "steps" in comp.areas and blocks:
+        steps = []
+        for j, b in enumerate(blocks):
+            inner = (f'<div class="rich">{sanitize(b.html)}</div>' if b.html else "") + (
+                _figure(b.asset_id, b.caption, b.caption) if b.asset_id else "")
+            cls = "step step-focal" if j == len(blocks) - 1 else "step"
+            steps.append(f'<div class="{cls}">{inner}</div>')
+        parts = {"support": head + lead, "steps": "".join(steps)}
+    elif "focal" in comp.areas and figs:
+        parts = {"focal": figs[0], "support": head + lead + texts, "aux": "".join(figs[1:])}
+    elif "focal" in comp.areas:
+        parts = {"focal": lead or head, "support": (head if lead else "") + ordered}
+    else:
+        parts = {"support": head + lead + ordered}
+    # Güvenlik ağı: içerik HİÇBİR koşulda düşmez — kompozisyonda karşılığı olmayan yuvanın
+    # içeriği destek yuvasına (yoksa ilk tanımlı yuvaya) eklenir.
+    home = "support" if "support" in comp.areas else next(iter(comp.areas))
+    for k in [k for k in parts if k not in comp.areas and parts[k]]:
+        parts[home] = parts.get(home, "") + parts.pop(k)
+    return _place(comp, parts)
+
+
+_SLOT_RENDERERS = {"title_slide": _slots_title, "content_slide": _slots_content}
+
+
+def _render_screen(s, idx: int, comp=None) -> str:
     sid = s.id or f"idx{idx}"
-    body = _SCREEN_DISPATCH.get(s.type, _render_unknown)(s)
+    if comp is not None and s.type.value in _SLOT_RENDERERS:
+        body = _SLOT_RENDERERS[s.type.value](s, comp)
+    else:
+        body = _SCREEN_DISPATCH.get(s.type, _render_unknown)(s)
     reveal = _effective_reveal(s)
     if reveal != "none":
         body = _wrap_blocks(body)
@@ -956,7 +1148,8 @@ def _render_screen(s, idx: int) -> str:
     anim = _attr(getattr(s, "animation", None) or "fade-up")
     return (
         f'<section class="screen" data-screen-id="{_attr(sid)}" data-type="{s.type.value}"'
-        f' data-index="{idx}" data-reveal="{reveal}" data-anim="{anim}" aria-hidden="true">'
+        f' data-index="{idx}" data-reveal="{reveal}" data-anim="{anim}"'
+        f'{_comp_attrs(comp) if comp is not None else ""} aria-hidden="true">'
         f'<div class="screen-inner">{narration}{body}{cap}</div></section>'
     )
 

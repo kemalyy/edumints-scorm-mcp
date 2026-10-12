@@ -13,6 +13,13 @@
 GSAP (used by the optional HyperFrames video pipeline) is loaded from a CDN at render time and is not
 redistributed by this repository.
 
+## Fonts shipped in packages (`runtime/fonts/`) — `composition: "auto"` projects only
+
+- **Inter**, **Outfit**, **JetBrains Mono** — variable fonts (latin + latin-ext subsets, woff2),
+  taken from the `@fontsource-variable/*` 5.3.0 npm packages. Licensed under the
+  **SIL Open Font License 1.1**; license texts in `runtime/fonts/OFL-*.txt`, provenance and
+  checksums in `runtime/fonts/FONTS.lock`. Only the families a course's theme uses are embedded.
+
 ## Used for server-side validation only (`runtime/schemas/`) — NOT shipped in packages
 
 ### ADL schemas (vendored)

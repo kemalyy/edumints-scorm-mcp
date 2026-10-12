@@ -31,7 +31,8 @@ MANDATORY_COLOR = {
 
 # Tüm temaların birleşimi (union) - izin verilen tüm token'lar.
 ALLOWED_TOP_LEVEL = MANDATORY_KEYS | {
-    "spacing", "radii", "elevation", "motion", "logo_asset_id", "logo_alt", "custom_fonts", "custom_css"
+    "spacing", "radii", "elevation", "motion", "logo_asset_id", "logo_alt", "custom_fonts", "custom_css",
+    "emphasis",  # K1 — vurgu kademeleri (opsiyonel; yoksa paletten türetilir)
 }
 
 ALLOWED_SPACING = {"base_px", "scale", "content_max_width", "gutter"}

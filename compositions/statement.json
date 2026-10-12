@@ -1,0 +1,17 @@
+{
+  "name": "statement",
+  "description": "Tek çarpıcı sayı/cümle sol-üst kesişimde; sağda bilinçli boşluk.",
+  "symmetry": "asymmetric",
+  "grid": "thirds",
+  "areas": {
+    "focal": "c1r1-c2r2",
+    "support": "c1r3-c2r3"
+  },
+  "focal": "focal",
+  "flow": "f",
+  "whitespace": "high",
+  "applies_to": [
+    "title_slide",
+    "content_slide"
+  ]
+}

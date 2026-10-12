@@ -17,6 +17,9 @@ Tüm ekran tipleri aşağıdaki alanlara sahiptir:
 | `on_enter` | `list[VarAction]` | Hayır | Girişte yapılacak değişken atamaları. |
 | `timer_sec` | `int` | Hayır | Ekran süresi (saniye). |
 | `section` | `str` | Hayır | Bölüm/Ünite adı. |
+| `kicker` | `str` | Hayır | K1 — üst etiket (E3, ≤40 karakter). Yalnız `composition: "auto"` projede render edilir; K1'de `title_slide`/`content_slide`. |
+| `lead` | `str` | Hayır | K1 — ekranın tek ana mesajı (E1 odak metni, ≤20 kelime önerilir). Yalnız auto projede. |
+| `composition` | `str` \| `CompositionSpec` | Hayır | K1 — desen adı (`list_compositions`) veya `{preset, mirror, grid, areas, focal, flow, whitespace, intensity}`. Verilmezse auto projede otomatik seçilir. |
 
 ---
 

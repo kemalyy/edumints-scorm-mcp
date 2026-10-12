@@ -41,6 +41,12 @@ os.environ.setdefault("PUBLIC_BASE_URL", "https://mcp.test/scorm")
 os.environ.setdefault("SCORM_NO_TTL_CLEANER", "1")
 os.environ.setdefault("SCORM_SCHEMA_DIR", os.path.join(_TMP, "no_schemas"))
 
+# Repo kökü sys.path'in BAŞINDA olmalı: `pip install -e .` server.py'yi site-packages'a KOPYALAR
+# (pyproject force-include) ve o kopyanın yanında themes/ yok → tema sessizce varsayılana düşer.
+import sys  # noqa: E402
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+
 import server  # noqa: E402
 
 from auth.ssrf import decode_data_uri  # noqa: E402
@@ -86,6 +92,47 @@ SYNTHETIC = {
 }
 
 
+# K1 — kompozisyon fixture'ları: deterministik sentetik görsel (harici dosya yok) + sabit içerik.
+_COMP_SVG = (
+    '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="420" viewBox="0 0 640 420">'
+    '<rect width="640" height="420" fill="#e7ece9"/><rect x="40" y="40" width="560" height="56" '
+    'rx="8" fill="#cfd8d3"/><rect x="40" y="120" width="360" height="18" rx="4" fill="#b9c5bf"/>'
+    '<rect x="40" y="150" width="300" height="18" rx="4" fill="#b9c5bf"/>'
+    '<rect x="420" y="230" width="180" height="150" rx="10" fill="#9fb3a9"/></svg>')
+COMP_ASSET = {"id": "compimg", "filename": "comp.svg",
+              "source": "data:image/svg+xml;base64," + base64.b64encode(
+                  _COMP_SVG.encode()).decode()}
+COMP_SCREENS = {
+    "centered": {"type": "title_slide", "title": "Üç e-postadan biri tuzak", "kicker": "Bölüm 2",
+                 "lead": "Hangisi olduğunu 90 saniyede bulacaksın.", "composition": "centered"},
+    "split-thirds": {"type": "content_slide", "title": "Gönderen adresine bak",
+                     "kicker": "Adım 1", "lead": "Alan adı tek harf farklı.",
+                     "media_asset_id": "compimg", "media_alt": "E-posta başlığı",
+                     "body_html": "<p>Saldırganlar gerçek adrese çok benzeyen bir alan adı "
+                                  "kaydeder; <mark>harf harf</mark> oku.</p>",
+                     "composition": "split-thirds"},
+    "split-halves": {"type": "content_slide", "title": "Gerçek ve klon",
+                     "composition": "split-halves",
+                     "blocks": [{"asset_id": "compimg", "caption": "Gerçek"},
+                                {"asset_id": "compimg", "caption": "Klon"}]},
+    "hero-focal": {"type": "title_slide", "title": "Gelen kutunda bir tuzak var",
+                   "kicker": "Pazartesi 08:47", "lead": "Bul, tıklama.",
+                   "background_asset_id": "compimg", "composition": "hero-focal"},
+    "statement": {"type": "content_slide", "title": "Akılda kalan", "lead": "%91",
+                  "body_html": "<p>saldırının ilk adımı bir <mark>e-posta</mark>.</p>",
+                  "composition": "statement"},
+    "z-flow": {"type": "content_slide", "title": "Tıkla → hasat → saldırı", "composition": "z-flow",
+               "blocks": [{"html": "<p>08:49 tıklama</p>", "asset_id": "compimg"},
+                          {"html": "<p>08:50 parola hasadı</p>", "asset_id": "compimg"},
+                          {"html": "<p>11:20 hesap ele geçti</p>"},
+                          {"html": "<p>3. gün fidye</p>"}]},
+    "f-flow": {"type": "content_slide", "title": "Tıklamadan önce 4 işaret",
+               "lead": "Biri bile varsa dur.", "composition": "f-flow",
+               "body_html": "<ol><li>Gönderen</li><li>Aciliyet</li><li>Bağlantı</li>"
+                            "<li>Ek</li></ol>"},
+}
+
+
 def _asset_ids(node) -> set[str]:
     """Ekran sözlüğünde geçen tüm *_asset_id değerlerini toplar (iç içe yapılar dahil)."""
     out: set[str] = set()
@@ -124,21 +171,28 @@ def collect_screens() -> dict[str, tuple[dict, list, str]]:
 
 
 def render_fixture(title: str, screen: dict, assets: list, preset: str | None = None,
-                   theme_mode: str = "light") -> str:
+                   theme_mode: str = "light", composition: str | None = None) -> str:
     """Tek ekranlık projeyi server'ın kendi spec ayrıştırıcısı + tema çözücüsüyle kurar ve
     `_render_preview_html`in çağırdığı render yolunun aynısını çalıştırır."""
     spec_dict = {"title": title, "scorm_version": "1.2", "language": "tr",
                  "theme_mode": theme_mode, "screens": [screen]}
     if preset:
-        spec_dict["theme"] = {"preset": preset}
+        # Tema ADI string olarak verilir. Eski {"preset": ...} sözlüğü ThemeTokens'a ayrışıp
+        # sessizce varsayılan temaya düşüyordu — tema varyantları marka temasını hiç test etmiyordu.
+        spec_dict["theme"] = preset
     spec = server._parse_spec(spec_dict)
+    # K1 — composition verilmezse Project varsayılanı (classic) → mevcut fixture'lar bayt-aynı.
+    # Verilirse sunucunun yeni-proje yolu: "default" tema auto'da mint'e yönlenir.
+    theme_name = server._theme_for(spec.theme, composition) if composition else spec.theme
+    extra = {"composition": composition} if composition else {}
 
     p = Project(
         id=new_project_id(),
         title=spec.title,
         scorm_version=spec.scorm_version,
         language=spec.language,
-        theme=server._load_theme(spec.theme, audience=spec.audience_pack),
+        theme=server._load_theme(theme_name, audience=spec.audience_pack),
+        **extra,
         theme_mode=spec.theme_mode,
         tracking=spec.tracking,
         layout_mode=spec.layout_mode,
@@ -192,6 +246,21 @@ def main() -> None:
         html = render_fixture(f"Gorsel: {name}", screen, assets, preset, mode)
         (OUT_DIR / f"{name}.html").write_text(html, encoding="utf-8", newline="")
         print(f"{name}.html  ({len(html)} bayt)")
+
+    # C) K1 kompozisyon katmanı — 7 desen × açık/koyu (mint) + iki mobil + iki palet (ink/slate)
+    for name, screen in COMP_SCREENS.items():
+        for mode in ("light", "dark"):
+            html = render_fixture(f"Gorsel: comp {name}", screen, [COMP_ASSET], None, mode,
+                                  composition="auto")
+            (OUT_DIR / f"comp-{name}-{mode}.html").write_text(html, encoding="utf-8", newline="")
+    for name in ("split-thirds", "z-flow"):
+        html = render_fixture(f"Gorsel: comp {name} mobil", COMP_SCREENS[name], [COMP_ASSET],
+                              composition="auto")
+        (OUT_DIR / f"comp-{name}@mobile.html").write_text(html, encoding="utf-8", newline="")
+    for pal in ("ink", "slate"):
+        html = render_fixture(f"Gorsel: palet {pal}", COMP_SCREENS["split-thirds"], [COMP_ASSET],
+                              pal, composition="auto")
+        (OUT_DIR / f"comp-palette-{pal}.html").write_text(html, encoding="utf-8", newline="")
 
     print(f"\ntoplam {len(list(OUT_DIR.glob('*.html')))} fixture -> {OUT_DIR}")
 

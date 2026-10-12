@@ -1,0 +1,16 @@
+{
+  "name": "hero-focal",
+  "description": "Tam görsel sahne; metin alt-sol üçte, odak üst-sağ kesişimde.",
+  "symmetry": "asymmetric",
+  "grid": "thirds",
+  "areas": {
+    "support": "c1r2-c2r3"
+  },
+  "focal": "r1c3",
+  "flow": "z",
+  "whitespace": "normal",
+  "applies_to": [
+    "title_slide",
+    "content_slide"
+  ]
+}

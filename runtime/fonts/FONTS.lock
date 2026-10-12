@@ -1,0 +1,48 @@
+{
+  "source": "npm @fontsource-variable (SIL OFL 1.1)",
+  "vendored_at": "2026-10-12T11:24:30.461478+00:00",
+  "files": {
+    "inter-latin-ext.woff2": {
+      "package": "@fontsource-variable/inter@5.3.0",
+      "source_url": "https://registry.npmjs.org/@fontsource-variable/inter/-/inter-5.3.0.tgz",
+      "origin": "files/inter-latin-ext-wght-normal.woff2",
+      "sha256": "34b9c504cab7a73e37b746343a449132e56cf7b5481af2cb81dc74dcff25c956",
+      "bytes": 85068
+    },
+    "inter-latin.woff2": {
+      "package": "@fontsource-variable/inter@5.3.0",
+      "source_url": "https://registry.npmjs.org/@fontsource-variable/inter/-/inter-5.3.0.tgz",
+      "origin": "files/inter-latin-wght-normal.woff2",
+      "sha256": "3100e775e8616cd2611beecfa23a4263d7037586789b43f035236a2e6fbd4c62",
+      "bytes": 48256
+    },
+    "jetbrains-mono-latin-ext.woff2": {
+      "package": "@fontsource-variable/jetbrains-mono@5.3.0",
+      "source_url": "https://registry.npmjs.org/@fontsource-variable/jetbrains-mono/-/jetbrains-mono-5.3.0.tgz",
+      "origin": "files/jetbrains-mono-latin-ext-wght-normal.woff2",
+      "sha256": "79bfdab9ba467e26eea4122e6f2567e188dd8a09a8c730d501fc487c4ab99c6e",
+      "bytes": 15196
+    },
+    "jetbrains-mono-latin.woff2": {
+      "package": "@fontsource-variable/jetbrains-mono@5.3.0",
+      "source_url": "https://registry.npmjs.org/@fontsource-variable/jetbrains-mono/-/jetbrains-mono-5.3.0.tgz",
+      "origin": "files/jetbrains-mono-latin-wght-normal.woff2",
+      "sha256": "18be452724bfdc236c074ca94a249a7f41a86752c7d04ab258ce9ed5651f6a7e",
+      "bytes": 40404
+    },
+    "outfit-latin-ext.woff2": {
+      "package": "@fontsource-variable/outfit@5.3.0",
+      "source_url": "https://registry.npmjs.org/@fontsource-variable/outfit/-/outfit-5.3.0.tgz",
+      "origin": "files/outfit-latin-ext-wght-normal.woff2",
+      "sha256": "0f53d1c03b3918d744a843b5039001ee31695ca1e255e3914188df81beb461e9",
+      "bytes": 14808
+    },
+    "outfit-latin.woff2": {
+      "package": "@fontsource-variable/outfit@5.3.0",
+      "source_url": "https://registry.npmjs.org/@fontsource-variable/outfit/-/outfit-5.3.0.tgz",
+      "origin": "files/outfit-latin-wght-normal.woff2",
+      "sha256": "6c18d579fd87c3776be068b762cbc83fde3acb543d49eabd3ade842eb987e887",
+      "bytes": 32292
+    }
+  }
+}

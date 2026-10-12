@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Annotated, Literal, Union
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from ulid import ULID
 
 # W3b/W4/W5 — kompozisyonel oyun + adaptif + telemetri (additive). game_primitives project'i import ETMEZ → döngü yok.
@@ -146,6 +146,22 @@ class CustomFont(BaseModel):
     style: Literal["normal", "italic"] = "normal"
 
 
+class EmphasisLevel(BaseModel):
+    color: str
+    size: Literal["h1", "h2", "h3", "h4", "base", "sm"] = "base"
+    weight: int = 400
+
+
+class Emphasis(BaseModel):
+    """K1 — vurgu kademeleri. E1 odak · E2 yapı · E3 vurgu · E4 gövde · E5 geri plan."""
+    e1: EmphasisLevel
+    e2: EmphasisLevel
+    e3: EmphasisLevel
+    e3_bg: str
+    e4: EmphasisLevel
+    e5: EmphasisLevel
+
+
 class ThemeTokens(BaseModel):
     name: str = "default"
     typography: Typography = Field(default_factory=Typography)
@@ -159,6 +175,7 @@ class ThemeTokens(BaseModel):
     custom_fonts: list[CustomFont] = Field(default_factory=list)
     background_pattern: Literal["none", "dots", "grid", "gradient"] = "none"
     custom_css: str | None = None
+    emphasis: Emphasis | None = None  # K1 — yoksa paletten türetilir (core/theme_emphasis.py)
 
 
 # --------------------------------------------------------------------------- #
@@ -360,6 +377,20 @@ class BranchChoice(BaseModel):
 # --------------------------------------------------------------------------- #
 # Ekran tipleri (discriminated union, `type` alanı ile)
 # --------------------------------------------------------------------------- #
+class CompositionSpec(BaseModel):
+    """K1 — ekran kompozisyonu: preset adı + ince ayar ya da tamamen serbest parametreler.
+    Bilinmeyen alan REDDEDİLİR (yazım hatası sessizce yok sayılmasın)."""
+    model_config = ConfigDict(extra="forbid")
+    preset: str | None = None
+    mirror: bool | None = None
+    grid: str | None = None  # "thirds" | "halves" | "a:b" (1-9)
+    areas: dict[str, str] | None = None  # yuva → "c1r1-c2r3"
+    focal: str | None = None  # yuva adı veya hücre "r1c3"
+    flow: Literal["z", "f", "center"] | None = None
+    whitespace: Literal["low", "normal", "high"] | None = None
+    intensity: Literal["calm", "normal", "high"] | None = None
+
+
 class ScreenType(str, Enum):
     title_slide = "title_slide"
     content_slide = "content_slide"
@@ -423,6 +454,10 @@ class ScreenBase(BaseModel):
     # menüde sondaki "diğer ekranlar" düz grubunda gösterilir. `section` (düz metin gruplama)
     # eski mekanizmadır; outline varken menü node_id'yi esas alır.
     node_id: str | None = None
+    # K1 — kompozisyon + vurgu rolleri (yalnız Project.composition == "auto" iken render edilir)
+    kicker: str | None = Field(default=None, max_length=40)  # E3 üst etiket (düz metin)
+    lead: str | None = None  # E1 — ekranın tek ana mesajı (düz metin)
+    composition: str | CompositionSpec | None = None
 
 
 class TitleSlide(ScreenBase):
@@ -1205,6 +1240,9 @@ class Project(BaseModel):
     objectives: list[Objective] = Field(default_factory=list)  # S2 (2.4) — cmi.objectives.* kaynağı
     # Senaryo hattı Faz 1 (additive) — hiyerarşik kurs iskeleti; boş = bugünkü düz davranış.
     outline: list[OutlineNode] = Field(default_factory=list)
+    # K1 — kompozisyon modu. Model varsayılanı "classic": diskte bu alanı taşımayan ESKİ projeler
+    # bayt-aynı kalır. Yeni projeleri sunucu oluşturma noktaları açıkça "auto" yaratır.
+    composition: Literal["classic", "auto"] = "classic"
     # Senaryo hattı Faz 1 — REZERVE alan (CourseSpec.audience_pack aynası); davranış Faz 5.
     audience_pack: str | None = Field(default=None, pattern=r"^[a-z0-9_-]{1,64}$")
     # E1 (#110) — beyan-temelli: kursun türetildiği kaynak dokümanın madde/başlık sayısı.
@@ -1247,6 +1285,7 @@ class CourseSpec(BaseModel):
     theme: Union[str, ThemeTokens] = "default"
     # Faz 6b — Project.theme_mode aynası: light (vars., bayt-parite) | dark | auto
     theme_mode: Literal["light", "dark", "auto"] = "light"
+    composition: Literal["classic", "auto"] = "auto"  # K1 — yeni kurslar varsayılan auto
     tracking: Tracking = Field(default_factory=Tracking)
     variables: list[Variable] = Field(default_factory=list)  # Faz 5
     points_var: str | None = None  # Faz 6
@@ -1307,6 +1346,7 @@ class ListScreensOut(BaseModel):
 class PreviewOut(BaseModel):
     inline_html: str
     hosted_url: str
+    compositions: list[dict] = Field(default_factory=list)  # K1 — çözülmüş kompozisyon özeti
 
 
 class BuildOut(BaseModel):

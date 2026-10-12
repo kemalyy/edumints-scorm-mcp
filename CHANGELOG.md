@@ -5,6 +5,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — K1: kompozisyon sistemi (odak, vurgu kademeleri, desen kataloğu)
+Spec: `docs/superpowers/specs/2026-10-12-composition-k1-design.md`. Yeni projeler `composition: "auto"`
+ile başlar; mevcut projeler `classic` kalır ve çıktıları **bayt-aynıdır** (bayt-parite testleri + 34 görsel
+baseline değişmedi).
+- **Veri modeli:** `Project.composition`, `CourseSpec.composition` (vars. auto), ekran başına `kicker`
+  (E3), `lead` (E1 odak metni), `composition` (desen adı | `CompositionSpec`).
+- **Desen kataloğu** `compositions/*.json` (7): centered, split-thirds, split-halves, hero-focal, statement,
+  z-flow, f-flow — yeni desen = yeni JSON. Preset + ince ayar (mirror, focal, whitespace, intensity…) veya
+  tamamen serbest ızgara (`grid` thirds/halves/oran, `areas`, `focal` hücresi).
+- **Otomatik seçim + kurs ritmi:** yazar vermezse içerik sinyallerinden deterministik desen; ilk/son/ünite
+  açılışı yüksek, açıklama sakin, pratik normal yoğunluk; monotonluk kırıcı.
+- **Vurgu kademeleri** E1–E5 (`ThemeTokens.emphasis`; yoksa paletten türetilir), `<mark>` (auto'da),
+  koyu modda kademeler koyu paletten. **Yeni paletler** `mint` (yeni varsayılan), `ink`, `slate` — AA kapısı
+  açık + koyu.
+- **Fontlar gömülü (#160):** Inter, Outfit, JetBrains Mono (OFL, latin + latin-ext) auto paketlerde.
+- **Araçlar (43 → 45):** `list_compositions`, `set_composition`; `create_project(composition=…)`;
+  `lint_course`/`preview` çözülmüş kompozisyon özeti döner.
+- **Lint (9 kod):** composition_unknown, focal_area_empty (error); multiple_focal_points,
+  emphasis_inflation, mark_overuse, lead_too_long, composition_monotony, intensity_run (warn, strict'te
+  error); composition_ignored_classic (info).
+- **Görsel regresyon:** 18 yeni fixture (7 desen × açık/koyu, mobil, ink/slate) + mobil viewport; probe'da
+  mobil okuma sırası. Dockerfile `compositions/` klasörünü kopyalar (bekçi test).
+
+### Fixed
+- `core/theme_dark.deep_merge_theme`: tabanda `None` olan opsiyonel alt-model birleştirmesi.
+- Test ortamı: paylaşılan yerel anahtarın 100 proje kotası sıraya bağlı `quota_exceeded` üretiyordu.
+
+
 ## [1.7.0] — 2026-10-08
 
 Artifact → SCORM, richer interactions, the scenario authoring line and stronger quality gates.

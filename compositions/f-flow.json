@@ -1,0 +1,15 @@
+{
+  "name": "f-flow",
+  "description": "F göz akışı; sol hizalı taranabilir metin, odak başlık + ilk maddeler.",
+  "symmetry": "asymmetric",
+  "grid": "thirds",
+  "areas": {
+    "support": "c1r1-c3r3"
+  },
+  "focal": "support",
+  "flow": "f",
+  "whitespace": "low",
+  "applies_to": [
+    "content_slide"
+  ]
+}

@@ -317,3 +317,37 @@ def test_no_cdn_font_in_rendered_output():
         low = html.lower()
         for marker in _CDN_MARKERS:
             assert marker not in low, f"tema '{name}' render çıktısında CDN izi: {marker}"
+
+
+# --------------------------------------------------------------------------- #
+# K1 — vurgu kademeleri (E1–E5) her yeni palette, açık + koyu modda AA
+# --------------------------------------------------------------------------- #
+from core.theme_emphasis import resolve_emphasis  # noqa: E402
+
+_LARGE = {"h1", "h2", "h3"}
+
+
+def _emphasis_pairs(theme, dark: bool):
+    em = resolve_emphasis(theme, dark=dark)
+    bg = theme.color.surface
+    out = []
+    for name in ("e1", "e2", "e4", "e5"):
+        lvl = getattr(em, name)
+        need = 3.0 if (lvl.size in _LARGE and lvl.weight >= 600) else 4.5
+        out.append((name, lvl.color, bg, need))
+    if em.e3_bg.startswith("#"):
+        out.append(("e3-on-e3bg", em.e3.color, em.e3_bg, 4.5))
+    out.append(("e3-on-surface", em.e3.color, bg, 4.5))
+    return out
+
+
+@pytest.mark.parametrize("preset", ["mint", "ink", "slate"])
+@pytest.mark.parametrize("mode", ["light", "dark"])
+def test_emphasis_levels_aa(preset, mode):
+    t = server._load_theme(preset)
+    if mode == "dark":
+        from core.theme_dark import derive_dark_theme
+        t = derive_dark_theme(t)
+    fails = [(n, round(contrast(fg, bg), 2), need) for n, fg, bg, need
+             in _emphasis_pairs(t, mode == "dark") if contrast(fg, bg) < need]
+    assert not fails, f"{preset}@{mode} kademe AA ihlali: {fails}"
