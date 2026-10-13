@@ -1,6 +1,6 @@
 # Accessibility Conformance — WCAG 2.2 AA
 
-**Scope version:** v1.6.0 · **Date:** 2026-07-26 · **Standard targeted:** WCAG 2.2 Level AA
+**Scope version:** v1.8.0 (matrix §2 verified at v1.6.0; v1.8.0 composition changes verified in §6) · **Date:** 2026-10-13 · **Standard targeted:** WCAG 2.2 Level AA
 
 ## 1. Claim & scope
 
@@ -220,6 +220,26 @@ board.
   labels, never to a third language.
 - Author content (screen text, alt text, captions) is whatever language the author wrote —
   the toolchain does not translate or validate content language.
+
+## 6. v1.8.0 — composition system (`composition: "auto"`)
+
+v1.8.0 adds an optional layout layer for new projects (slots, focal point, emphasis levels). Classic
+projects render byte-identically except for three global CSS fixes listed below. What changed for
+accessibility, and how it was verified (`tests/runtime/scorm-probe.mjs`, Playwright, real Chromium):
+
+| Criterion | Change | Verified by |
+|---|---|---|
+| 1.3.2 Meaningful Sequence | DOM order follows reading order per screen (`dom_order`): title/prompt before the answers; a case (stimulus) before its question; check/submit and feedback **after** the inputs on every composed type. Visual order on wide screens follows the same sequence (case above or beside, never after). | render tests (controls after inputs, all 31 types) + mobile-order probes |
+| 2.4.3 Focus Order | Follows the DOM order above; no `tabindex` reordering. | as above |
+| 1.4.10 Reflow | Long screens in mobile/flow mode now start at the top and scroll (previously the top could be pushed out of reach); long content in composed slots starts at the top (title stays reachable); flashcards with images keep image + text inside the card. | K6 probes (classic + auto, 390×844 and 1280×800) |
+| 2.1.1 Keyboard | Tabs in master–detail layout: ↑/↓ added, ←/→ unchanged; no other interaction changed (the JS engine body is untouched). | probe (click, ↑/↓, ←/→) |
+| 1.4.3 Contrast (Minimum) | Emphasis levels (`--em1…--em5`) derived per theme with an AA check; the `mint` / `ink` / `slate` palettes pass the existing contrast gate in light and dark. | theme contrast tests |
+| 1.1.1 Non-text Content | New `stimulus` images require `alt` (`stimulus_without_alt` is a build-blocking error). | lint tests |
+
+**Known limitations added in v1.8.0:** the tab list keeps `aria-orientation="vertical"` on narrow
+screens where it is shown horizontally (both arrow-key pairs work); a scrollable case text inside a
+slot has no `tabindex` (older Safari/Firefox cannot keyboard-scroll it); in composed layouts very long
+content scrolls inside the stage rather than paginating.
 
 ---
 

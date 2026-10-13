@@ -113,9 +113,13 @@ async function shoot(browser, file) {
       // gerekceyle yalniz VIDEO fixture'inda maskelenir; diger ekranlarda deterministik.
       // (@mobile: denetimler iki satira sarildigi icin ayni gurultu orada da esigi asiyor — olculdu
       //  comp-split-thirds@mobile 103 px, oynatici bolgesinde; kompozisyon bolgesi MASKELENMEZ.)
-      mask: (file.startsWith("screen-video") || file.includes("@mobile"))
-        ? [page.locator("video"), page.locator("#seekbar"), page.locator("#plTime")]
-        : [page.locator("video")],
+      // (k2-video-*: ayni oynatici gurultusu — olculdu 149 px, oynatici cubugunda)
+      // K6 — oynatıcı çubuğu (#seekbar, #plTime) ARTIK TÜM fixture'larda maskeli: anlatım/zaman
+      // çizelgesi olan HER ekranda ilerleme noktası koşudan koşuya kayıyor ve eşiği az farkla aşıp
+      // CI'ı ara sıra kırıyordu (ölçüldü: K4'te k2-data_chart-split-thirds 156 px, K5'te
+      // comp-palette-slate 146 px — ikisi de yalnız oynatıcı noktasında). Kompozisyon bölgesi
+      // maskelenmez; oynatıcı çubuğunun kendi düzeni bu maskeyle görünmez olur (bilinçli takas).
+      mask: [page.locator("video"), page.locator("#seekbar"), page.locator("#plTime")],
       maskColor: "#ff00ff",
     });
   } finally {

@@ -11,6 +11,7 @@
   "whitespace": "high",
   "applies_to": [
     "title_slide",
-    "content_slide"
+    "content_slide",
+    "summary"
   ]
 }

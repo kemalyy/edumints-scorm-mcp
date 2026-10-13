@@ -1,0 +1,36 @@
+{
+  "name": "question-column",
+  "description": "Okunaklı tek soru sütunu: istem üstte, cevaplar altta.",
+  "symmetry": "symmetric",
+  "grid": "thirds",
+  "areas": {
+    "support": "c1r1-c3r1",
+    "focal": "c1r2-c3r3"
+  },
+  "focal": "focal",
+  "flow": "f",
+  "whitespace": "normal",
+  "applies_to": [
+    "mcq",
+    "true_false",
+    "fill_blank",
+    "drag_drop",
+    "matching",
+    "sorting",
+    "adaptive_practice",
+    "accordion",
+    "tabs",
+    "flashcards",
+    "timeline",
+    "results_breakdown",
+    "poll",
+    "worked_example",
+    "exploration",
+    "game",
+    "decision_scenario",
+    "escape_room",
+    "term_match_race",
+    "branching",
+    "embed_html"
+  ]
+}

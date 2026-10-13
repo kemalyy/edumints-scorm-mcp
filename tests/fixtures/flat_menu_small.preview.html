@@ -217,7 +217,8 @@ body[data-bg="grid"]{background-image:linear-gradient(color-mix(in srgb,var(--c-
 .content-blocks figure.block-media{margin:0}
 .content-blocks figcaption{font-size:13px;color:var(--c-muted);text-align:center;margin-top:var(--space-2)}
 .acc-body .item-media,.tl-content .item-media,.tab-panel .item-media{max-height:240px}
-.fc-face .item-media{max-height:130px;margin:0 auto var(--space-2)}
+.fc-face .item-media{max-height:130px;max-width:100%;width:auto;margin:0}
+.fc-text{display:block;max-width:100%}
 
 /* title slide */
 .title-slide{text-align:center;padding:var(--space-5) 0;flex:1;display:flex;flex-direction:column;
@@ -588,11 +589,12 @@ body[data-bg="grid"]{background-image:linear-gradient(color-mix(in srgb,var(--c-
 .tab:focus-visible{outline:3px solid var(--c-focus);outline-offset:-2px;border-radius:var(--r-sm)}
 
 /* flashcards */
-.flashcard{background:transparent;border:none;padding:0;cursor:pointer;perspective:1000px;min-height:160px;font:inherit}
-.fc-inner{position:relative;display:block;width:100%;min-height:160px;transform-style:preserve-3d;
+.flashcard{display:grid;background:transparent;border:none;padding:0;cursor:pointer;perspective:1000px;min-height:160px;font:inherit}
+.fc-inner{position:relative;display:grid;width:100%;min-height:160px;transform-style:preserve-3d;
   transition:transform .5s cubic-bezier(.4,0,.2,1)}
 .flashcard.flipped .fc-inner{transform:rotateY(180deg)}
-.fc-face{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;
+.fc-face{grid-area:1 / 1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;
   padding:var(--space-4);border:1px solid var(--c-border);border-radius:var(--r-md);box-shadow:var(--e1);
   background:var(--c-bg);backface-visibility:hidden;-webkit-backface-visibility:hidden}
 .fc-back{transform:rotateY(180deg);background:color-mix(in srgb,var(--c-primary) 7%,var(--c-bg))}
@@ -672,7 +674,7 @@ body[data-layout="flow"] .stage-scaler,body[data-layout="flow"] .stage-frame{
 /* Faz 17 — JS-tetikli reflow: sabit-tuval ölçeği okunabilirlik eşiğinin (k<0.85) altına
    düşünce fitStage data-fit="flow" set eder → dar/kısa ekran ve LMS iframe'lerde içerik
    küçülmek yerine doğal akışla (≤640px reflow ile aynı) yerleşir, dikey kaydırılır. */
-body[data-layout="stage"][data-fit="flow"] .stage{align-items:center;justify-content:flex-start;overflow-y:auto}
+body[data-layout="stage"][data-fit="flow"] .stage{align-items:safe center;justify-content:flex-start;overflow-y:auto}
 body[data-layout="stage"][data-fit="flow"] .stage-scaler{width:100%!important;height:auto!important;margin:0}
 body[data-layout="stage"][data-fit="flow"] .stage-frame{width:100%!important;height:auto!important;transform:none!important}
 body[data-layout="stage"][data-fit="flow"] .stage-frame .screen[aria-hidden="false"]{position:relative;inset:auto;min-height:100%;overflow:visible}
@@ -806,7 +808,7 @@ body[data-layout="flow"] .stage{position:relative}
   .options.tf{flex-direction:column}
   /* Faz 16 — mobil/dar ekran: sabit-tuval ölçeklemesini BIRAK, içerik doğal akışla reflow
      + dikey kaydırma (metin okunabilir kalır, tuval küçülmez) */
-  body[data-layout="stage"] .stage{align-items:center;justify-content:flex-start;overflow-y:auto}
+  body[data-layout="stage"] .stage{align-items:safe center;justify-content:flex-start;overflow-y:auto}
   body[data-layout="stage"] .stage-scaler{width:100%!important;height:auto!important;margin:0}
   body[data-layout="stage"] .stage-frame{width:100%!important;height:auto!important;transform:none!important}
   body[data-layout="stage"] .stage-frame .screen[aria-hidden="false"]{position:relative;inset:auto;min-height:100%;overflow:visible}

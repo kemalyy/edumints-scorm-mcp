@@ -47,7 +47,7 @@ class Typography(BaseModel):
     letter_spacing_heading: str = "-0.01em"
     # Türetilen başlık boyutları base_size_px * scale_ratio^n (renderer hesaplar): h1..h4
 
-class ColorPalette(BaseModel):
+class ColorPalette(BaseModel):        # OTORİTER varsayılanlar: themes/_tokens.json (Faz 5 AA-uyumlu; testle senkron)
     # marka
     primary: str = "#2563eb"
     primary_hover: str = "#1d4ed8"
@@ -61,16 +61,21 @@ class ColorPalette(BaseModel):
     border: str = "#e2e8f0"
     # metin
     text: str = "#0f172a"
-    text_muted: str = "#64748b"
+    text_muted: str = "#6c6c75"
     text_on_dark: str = "#f8fafc"
     # semantik (geri bildirim / quiz)
-    success: str = "#16a34a"
+    success: str = "#168139"
     success_bg: str = "#dcfce7"
-    error: str = "#dc2626"
+    error: str = "#cb2323"
     error_bg: str = "#fee2e2"
-    warning: str = "#d97706"
+    warning: str = "#975606"
     info: str = "#0284c7"
     focus_ring: str = "#2563eb"           # erişilebilirlik odak halkası
+    # Faz 6b — data_chart seri renkleri (düzen ölçüm raporu §4.1: sabit hex → token).
+    # Renderer YALNIZ data_chart içeren kursa --chart-N basar (3.3 bayt-parite); SVG
+    # var(--chart-N, <fallback>) kullanır. Her seri × her sevk edilen yüzey 1.4.11 ≥3:1
+    # AA matris kapısındadır (tests/test_theme_contrast.py).
+    chart_series: list[str] = [...]       # 8 renk; otoriter değerler themes/_tokens.json
 
 class Spacing(BaseModel):
     # 4px tabanlı skala; renderer --space-1..--space-12 olarak basar
@@ -135,6 +140,45 @@ anahtarı içerebilir — yükleme zamanında miras alınan preset'in üzerine d
 yönerge `ThemeTokens` şemasının parçası DEĞİLDİR, yalnızca `_load_theme`'in tükettiği bir dosya-seviyesi
 direktiftir.
 
+**Tema katman sırası (Faz 5 — senaryo hattı Kol D):**
+
+```
+_tokens (themes/_tokens.json, taban semantik set — ThemeTokens model varsayılanlarıyla senkron)
+  → stil preseti (themes/<preset>.json, extends zinciri; HER preset _tokens'a ulaşır)
+  → kitle override'ı (themes/audience/<audience_pack>.json — VARSA; sözleşme:
+    themes/audience/_README.md — sıfırdan tema olamaz [extends yasak, AUDIENCE_NO_EXTENDS],
+    tema kimliğini/ekran tiplerini değiştiremez [3.4/3.7], dosya yoksa no-op)
+  → kurs custom (spec.theme inline ThemeTokens / set_theme — yalnız AÇIKÇA verilen alanlar)
+```
+
+Her katman alan-bazlı derin merge'dür. `audience_pack` verilmediğinde çözüm eski davranışla
+bayt-bayt aynıdır (3.3). Sevk edilen her preset ve her preset×audience kombinasyonu
+`tests/test_theme_contrast.py` otomatik AA kontrast kapısından geçmek ZORUNDADIR (3.5 —
+erişilebilirlik zemindir; ayrıntılı çift matrisi test dosyasında belgelidir).
+
+**Karanlık mod ekseni (Faz 6b — plan 7.3: kozmetik mod, preset'lere ORTOGONAL):**
+
+`theme_mode: "light" | "dark" | "auto" = "light"` (CourseSpec + Project). Karanlık mod ayrı
+preset DEĞİLDİR; katman zincirinin ÇÖZÜLMÜŞ çıktısının üstüne render anında compose edilir
+(`core/theme_dark.derive_dark_theme`):
+
+```
+çözülmüş tema (yukarıdaki 4 katman)
+  → themes/_dark-overlay.json  (nötr zeminler + durum renkleri + koyu chart_series + elevation;
+    overlay bir tema değildir: name/extends YASAK — audience disipliniyle aynı)
+  → en-yakın-uyumlu oturtma    (preset kimlik mürekkepleri primary/primary_hover/focus_ring
+    korunur; koyu zeminlerde AA'yı tutturan ASGARİ beyaz karışımına deterministik çekilir —
+    zaten geçen renk DEĞİŞMEZ)
+```
+
+Emisyon: `light` → bugünkü çıktı BAYT-BAYT (sıfır davranış değişikliği, test kilidi);
+`dark` → `:root` koyu değişkenler + `color-scheme:dark`; `auto` → aydınlık `:root` +
+`@media (prefers-color-scheme: dark)` bloğu (saf CSS — JS/koşul yok, işletim sistemi seçer).
+AA kapısı mod ekseniyle büyür: her preset(×audience) hem `light` hem `dark` varyantıyla tüm
+çiftleri geçmek ZORUNDADIR; yeni preset eklendiğinde koyu türevi otomatik matrise girer.
+Bilinçli sınırlama: kurs yazarının kendi SVG asset'leri tek-şemadır — tema tersine dönünce
+uyum sağlamaz (ölçüm raporu §4.1'de kayıtlı).
+
 ### 1.2 Takip / Tamamlanma
 
 ```python
@@ -185,7 +229,7 @@ attribute'u sanitizasyondan geçmez).
 | `video` | `video_asset_id \| video_url`, `caption?`, `poster_asset_id?`, `require_complete: bool=False` |
 | `summary` | `body_html?`, `show_score: bool=True`, `show_completion: bool=True` |
 | `worked_example` | F1 (#112): `steps: list[WEStep]` (≥2; her adım `action_html` + `rationale_html` + ops. `artifact_asset_id`/`artifact_caption`), `fading: "full" \| "partial" \| "problem_only" = "full"`, `intro_html?`, `self_explanation_prompt_html?` (SKORSUZ serbest metin — LMS'e yazılmaz). PUAN ALANI YOK — skorlanamaz kanıt/öğretim ekranı (tam liste `docs/SCREEN_TYPES.md`) |
-| `exploration` | F2 (#113): `prompt_html`, `input_kind: "text" \| "choice" \| "prediction" = "text"`, `choices?: list[Choice]` (choice/prediction için ≥2 — model doğrular), `placeholder?`, `min_length?`, `store_key` (`[a-z0-9_-]+`, ≤64; kurs genelinde TEKİL — `validate_project` çakışmayı SERT hatayla keser). Öğrenen girdisi suspend v2 kuyruğundaki `xp` haritasında saklanır (değer 500 karakterde kırpılır — scorm.js `EXPLORATION_VALUE_MAX`); sonraki ekranlar zengin HTML içinde `<span data-exploration-ref="store_key"></span>` ile GERİ OYNATIR (runtime yalnız textContent yazar — innerHTML asla; boş değer i18n yer tutucusu). PUAN ALANI YOK — skorsuz/formatif (A4 skorsuz-erken-deneme istisnasının teknik karşılığı; Z3) |
+| `exploration` | F2 (#113): `prompt_html`, `input_kind: "text" \| "choice" \| "prediction" = "text"`, `choices?: list[Choice]` (choice/prediction için ≥2 — model doğrular), `placeholder?`, `min_length?`, `store_key` (`[a-z0-9_-]+`, ≤64; kurs genelinde TEKİL — `validate_project` çakışmayı SERT hatayla keser). Öğrenen girdisi suspend v2 kuyruğundaki `xp` haritasında saklanır (değer **500 UTF-8 BAYTTA** kırpılır — scorm.js `EXPLORATION_VALUE_MAX`; Faz 4-ek: ölçüm karakterce değil baytça, Türkçe 2 bayt/harf); sonraki ekranlar zengin HTML içinde `<span data-exploration-ref="store_key"></span>` ile GERİ OYNATIR (runtime yalnız textContent yazar — innerHTML asla; boş değer i18n yer tutucusu). PUAN ALANI YOK — skorsuz/formatif (A4 skorsuz-erken-deneme istisnasının teknik karşılığı; Z3) |
 
 Alt tipler:
 
@@ -235,6 +279,17 @@ labeled_diagram, game, adaptive_practice) opsiyonel `objective_ids: list[str] = 
 kurs düzeyindeki `objectives` listesine referans. Bilinmeyen id `validate_project`'te SERT
 hatadır; runtime hedef başına doğru/toplam → `cmi.objectives.n.*` yazar (bkz. §9).
 
+#126 (Faz 6b, Kol D) — **`labeled_diagram.mode: "quiz" | "display" = "quiz"`.** `quiz`
+(varsayılan) bugünkü etkileşimli/skorlu davranış, **bayt-bayt** korunur (3.3). `display` =
+**salt-gösterim callout** modu: her işaretçinin `text`'i görsel ÜSTÜNDE statik callout
+(koordinat @num dot + leader line + metin kutusu) olarak render edilir — split-attention
+"exhibit" deseninin çözümü (ölçüm raporu §5.3). select/skor/feedback YOK; metin gerçek DOM
+metni (tooltip değil → klavye/dokunma/SR erişilebilir); renkler AA-gated token'dan (matris
+deltası 0). `display` ekranı **skorlanmaz** (`total_points` dışı, `is_quiz=false`,
+`_has_scored_content` tek-başına saymaz) ama **kanıt-taşıyabilir** hedeftir (E1, yukarı).
+Tek doğruluk kaynağı `core/project.py::is_display_diagram` — tüm skor/etkileşim kapıları
+(`_is_scored`, `_is_evidentiary_target`, `_course_config`, manifest) bu helper'ı çağırır.
+
 E1 (#110) — aynı puanlı ekran tipleri opsiyonel **`evidence_screen_ids: list[str] = []`** taşır
 (ÇOĞUL — bir soru birden çok artefakta yaslanabilir): cevabın türetildiği kurs-içi
 kanıt-kaynağı ekran id'leri (skill kuralı K1/T1, `references/core/evidence-binding.md`). Kanıt
@@ -250,7 +305,9 @@ yazar, denetimi geçirmez. Semantik (hepsi `core/antislop.py` E1 bölümü):
   skorsuzluk yapısal — puan alanı yok, koşulsuz kanıt-taşıyabilir);
   content_slide YALNIZ artefaktlıysa (`blocks` ya da `media_asset_id` — düz iddia metni sayılmaz);
   video/lottie YALNIZ içeriği spec'ten doğrulanabiliyorsa (caption / narration_text / prompt_html);
-  quiz/oyun tipleri YALNIZ formatifken (points=0 ve puana yazmıyor — Z3). Taşıyamaz: title_slide,
+  quiz/oyun tipleri YALNIZ formatifken (points=0 ve puana yazmıyor — Z3);
+  **display-modlu `labeled_diagram`** (#126 — annotasyon yorumu taşıyan salt-gösterim exhibit;
+  KOŞULSUZ kanıt-taşıyabilir, skorlanmaz). Taşıyamaz: title_slide,
   summary, results_breakdown, poll, branching ve SKORLU her ekran.
 - **Alan boş (skorlu ekranda)** → `unbound_scored_question` WARN (strict'te blok).
 - SIRA/faz denetimi YOKTUR (Katman-1 yöntem bağımsızlığı): kanıt ekranının akışta nerede
@@ -297,6 +354,7 @@ class Project(BaseModel):
     scorm_version: Literal["1.2", "2004"] = "1.2"
     language: str = "tr"
     theme: ThemeTokens = ThemeTokens()
+    theme_mode: Literal["light", "dark", "auto"] = "light"  # Faz 6b — kozmetik mod ekseni (§1.1)
     tracking: Tracking = Tracking()
     screens: list[Screen] = []            # sıralı; sunum sırası = liste sırası
     assets: list[AssetRef] = []
@@ -319,6 +377,103 @@ class AssetRef(BaseModel):
 
 ---
 
+### 1.6 Kompozisyon + vurgu kademeleri (K1)
+
+**Yalnız `Project.composition == "auto"`
+iken render edilir**; `classic` projelerin çıktısı bayt-aynıdır.
+
+```python
+Project.composition: Literal["classic", "auto"] = "classic"   # model varsayılanı: eski projeler classic
+CourseSpec.composition: Literal["classic", "auto"] = "auto"   # yeni kurslar auto
+# ScreenBase (31 tipin hepsi alır; K1'de yalnız title_slide + content_slide render eder):
+kicker: str | None            # ≤40 karakter — E3 üst etiket
+lead: str | None              # E1 — ekranın tek ana mesajı (≤20 kelime önerilir)
+composition: str | CompositionSpec | None   # desen adı veya nesne
+class CompositionSpec(BaseModel):            # extra="forbid"
+    preset: str | None; mirror: bool | None
+    grid: str | None                         # "thirds" | "halves" | "a:b" (1-9)
+    areas: dict[str, str] | None             # yuva (support|focal|aux|steps) → "c1r1-c2r3"
+    focal: str | None                        # yuva adı veya hücre "r1c3"
+    flow: "z"|"f"|"center"|None; whitespace: "low"|"normal"|"high"|None
+    intensity: "calm"|"normal"|"high"|None
+ThemeTokens.emphasis: Emphasis | None        # e1..e5 {color,size,weight} + e3_bg; yoksa paletten türetilir
+```
+
+- **Desen kataloğu:** `compositions/*.json` (7: centered, split-thirds, split-halves, hero-focal, statement,
+  z-flow, f-flow). Yeni desen = yeni JSON dosyası; `applies_to` hangi ekran tiplerine uygulanabileceğini söyler.
+- **Otomatik seçim:** yazar `composition` vermezse içerik sinyallerinden (medya, blok, kelime, liste, `lead`)
+  deterministik desen + kurs ritmi (ilk/son/ünite açılışı `high`, içerik `calm`, soru `normal`; ≥3 `high`
+  art arda yok; aynı desen art arda >3 yok). Açık parametre her zaman kazanır.
+- **Render:** `<section data-comp data-focal data-flow data-ws data-intensity data-sym style="--comp-cols;--comp-rows">`
+  + `.comp-grid > .slot.slot-<yuva>` (DOM sırası odak-önce → mobil okuma sırası). CSS `--em1…--em5`, `--em3-bg`
+  (`--e1…--e4` elevation'dır). `<mark>` yalnız auto'da beyaz listede (E3).
+- **Tema:** "default" adı yalnız auto projede `mint`'e yönlenir (`themes/default.json` değişmez). Yeni
+  paletler: `mint` (varsayılan), `ink`, `slate`. Koyu modda kademeler koyu paletten türetilir.
+- **Fontlar (#160):** auto projede temanın kullandığı Inter/Outfit/JetBrains Mono (OFL) `runtime/fonts/`
+  altından pakete (preview'da data-URI) gömülür.
+- **K2 (görsel etkileşimli tipler):** `hotspot`, `labeled_diagram`, `image_compare`, `data_chart`,
+  `video`, `lottie`, `simulation` da yuvalarla render edilir. Görsel öğe `focal`, metin + soru denetimleri
+  `support`. Yeni desen `visual-stack` (metin üstte bant, görsel 2/3). Varsayılan: `lead` var veya metin
+  ağırlığı (`lead` + istem + video anlatımı) > 30 kelime → `split-thirds`, aksi → `visual-stack`.
+  Soru kipinde (`hotspot` quiz, `labeled_diagram` quiz, `simulation`) `dom_order="support-first"` (mobilde
+  soru görselden önce). JS'in beklediği kaplar korunur: `.labeled-diagram` içindeki `.ld-select`'ler,
+  `.simulation` içindeki adım yönergeleri.
+- **K3 (soru ailesi):** `mcq`, `true_false`, `fill_blank`, `drag_drop`, `matching`, `sorting`,
+  `adaptive_practice` yuvalarla render edilir. Opsiyonel **`stimulus`** (`Stimulus{asset_id?, alt?,
+  text_html?, caption?}`, `extra="forbid"`, `asset_id` veya `text_html` zorunlu) — altı tipte ekran
+  düzeyinde, `adaptive_practice`'te **öğe başına** (`AdaptiveItem.stimulus`). Uyaran varsa `focal` =
+  uyaran, `support` = başlık + istem + cevap alanı + kontrol; yoksa `support` = başlık + istem, `focal` =
+  cevap alanı. Yeni desen `question-column` (tek okunaklı sütun ≈ 64ch; uyaransız soruların varsayılanı).
+  Uyaranlı: metin > 40 kelime ya da görsel + metin → `split-thirds`, aksi → `visual-stack`. `dom_order`:
+  uyaranlı focal-first, uyaransız support-first. Uzun listeler iki sütun (`mcq` > 6 şık, `matching` > 5
+  çift; `data-many` — `sorting` tek sütun kalır, kurulan sıra belirsizleşmesin). Classic'te uyaran istemin üstünde blok olarak basılır (uyaransız
+  classic çıktı bayt-aynı). Uyaran **uygulama kanıtıdır**: soru yine `evidence_screen_ids` ile kavramı
+  öğreten ekranlara bağlanır. Uyaransız soru dizisi monotonluk kırıcıdan muaftır (tutarlılık).
+- **K4 (içerik etkileşimleri):** `accordion`, `tabs`, `flashcards`, `timeline`, `summary`,
+  `results_breakdown`, `poll`, `worked_example`, `exploration` yuvalarla render edilir. Etkileşimli gövde
+  (classic ile aynı yardımcıdan) `focal`'da `<div class="c-body" data-k4="<tip>">` içinde; başlık + `kicker`
+  + `lead` + tipin giriş metni (`prompt_html`/`intro_html`/`body_html`) `support`. Varsayılanlar:
+  accordion/timeline/worked_example/poll/exploration `question-column`, tabs/flashcards `visual-stack`
+  (`lead` veya giriş > 30 kelime → `split-thirds`), summary `centered`, results_breakdown `split-thirds`.
+  **Tabs ana–detay:** auto'da `.tab-list` `aria-orientation="vertical"` alır; odak yuvası ≥ 600px ise liste
+  solda dikey, panel sağda (container query), daha darda yatay. ↑/↓ koşullu `TABS_V_JS` ile (yalnız auto +
+  tabs; `ENGINE_JS` değişmez, ←/→ çalışmaya devam eder). Accordion yerinde açılan liste kalır.
+  `poll` ve `exploration` K3 `stimulus` alır (uyaranlı: vaka odak, focal-first; K3 seçim kuralı).
+  İçerik gövdeli ekranlarda ızgara içerik boyundadır, sahnede ortalanır; uzun içerikte sahne kaydırılır,
+  yan sütun başlığı yapışık kalır.
+- **K5 (oyun / senaryo / gömülü) — 31 tipin tamamı:** `game`, `decision_scenario`, `escape_room`,
+  `term_match_race`, `branching`, `embed_html`. Gövde `.c-body` içinde odakta (embed_html hariç: iframe
+  yuvanın yüksekliğini doldurur). Varsayılanlar: game/decision_scenario/embed_html `visual-stack`,
+  escape_room/term_match_race/branching `question-column`; `lead` veya giriş > 30 kelime → `split-thirds`
+  (embed_html her zaman `visual-stack`). **Yan yana sahne:** odak yuvası ≥ 640px ve düğümde görsel varsa
+  `game-node`/`scen-node` ızgara olur (görsel solda, anlatı + seçenekler sağda); dar ekranda DOM sırası
+  (anlatı → görsel → seçenekler). HUD kabın üstünde tam genişlikte. `branching` K3 `stimulus` alır.
+- **Uzun içerik (K6):** yuvalar `justify-content:safe center` (visual-stack destek bandı `safe
+  flex-end`) — sığmayan içerik üstten başlar, sahne kaydırılır; başlık kaybolmaz.
+- **Vakalı `visual-stack` (masaüstü):** vaka üst satırda, soru altta; satırlar içerikten, uzunsa sahne
+  kaydırılır (K3 soru + K4 poll/exploration + K5 branching).
+- **Kurs düzeyi tercih:** `Project/CourseSpec.composition_defaults: {visual?, question?} | None`, her alan
+  `"auto"|"stack"|"split"|None` (None = sorulmadı). `visual` K2 tiplerinin, `question` uyaranlı K3/K4
+  ekranlarının (soru tipleri + poll/exploration) otomatik seçimini ezer; ekranın açık `composition`'ı kazanır.
+- **Üretim-anı soruları:** `lint_course` ve `preview` `composition_questions` döndürür (yalnız auto):
+  kurs soruları (`id:"visual_layout"`: ≥3 K2 ekranı ve `visual` None; `id:"question_layout"`: ≥3 uyaranlı
+  soru ekranı ve `question` None — apply `{"mode":"auto","question":"$value"}`) + ekran soruları
+  (`id:"screen:<id>"`; K2 metin ağırlığı 23–37 kelime, K3 uyaran metni 30–50 kelime; **toplam** en fazla 3).
+  Metinler kursun diline (`project.language`) çevrilir. Her soru `{id, scope, screen_id?,
+  question, options[{value,label,description?}], default, apply}`; `apply` cevabın nasıl uygulanacağını
+  söyler: kurs sorusu `{"tool":"set_composition","args":{"mode":"auto","visual":"$value"}}`, ekran sorusu
+  `{"tool":"set_screen_composition","args":{"screen_id":…,"composition":"$value"}}`. Kullanıcı tercihi
+  (`visual`/`question` ≠ auto/None) monotonluk kırıcıdan muaftır ve o seriler `composition_monotony`
+  uyarısı üretmez. `centered` K2 tiplerine uygulanmaz (görsel her zaman odak). Şema MRTR `inputRequests`'e
+  eşlenebilir (klasik elicitation kullanılmaz — `json_response=True`).
+- **Lint (yalnız auto):** `composition_unknown`/`focal_area_empty` (error); `multiple_focal_points`,
+  `emphasis_inflation`, `mark_overuse`, `lead_too_long`, `composition_monotony`, `intensity_run` (warn →
+  strict'te error); `composition_ignored_classic` (info, classic projede alan doluysa).
+- **Lint (K3, her modda):** `stimulus_without_alt` (error — görsel uyaran `alt`sız);
+  `stimulus_answer_leak` (warn → strict'te error — doğru şık / kabul edilen cevap / doğru `true_false`
+  önermesi uyaran metninde birebir geçiyor; HTML, noktalama, büyük/küçük harf ve boşluk normalize, kelime
+  sınırlı). Validator: `stimulus.asset_id` (ekran + adaptive öğe) proje asset'lerinde olmalı.
+
 ## 2. CourseSpec — `build_from_spec` Girdi Şeması (ÖNERİLEN yol)
 
 Tek JSON ile tüm kurs. Token-verimli; Claude bunu tek atışta üretir.
@@ -331,6 +486,8 @@ class CourseSpec(BaseModel):
     scorm_version: Literal["1.2", "2004"] = "1.2"
     language: str = "tr"
     theme: str | ThemeTokens = "default"  # ad veya tam token seti
+    theme_mode: Literal["light", "dark", "auto"] = "light"  # Faz 6b — Project aynası (§1.1);
+                                          # light = bayt-parite (mevcut kurslar değişmez)
     tracking: Tracking = Tracking()
     metadata: CourseMetadata | None = None  # S7 (2.3) — opsiyonel LOM (imsmd) meta verisi
     objectives: list[Objective] = []      # S2 (2.4) — kurs hedefleri (cmi.objectives.* kaynağı)
@@ -385,6 +542,11 @@ class Objective(BaseModel):
 `build_from_spec(spec)` → projeyi oluşturur, asset'leri çeker, **build job** kuyruğa alır,
 `{project_id, download_url}` döner (download_url job bitince hazır olur; durum `validate_package`/poll ile).
 
+Senaryo hattı Faz 3 (additive): `media_provenance: list[dict] = []` — `scenario_compile`'ın
+ürettiği dolu-slot provenance kayıtları (`Project.media_provenance`'a taşınır). Boş DEĞİLSE
+paketleyici zip'e `assets/PROVENANCE.json` yazar + manifest'e ekler; boş = bugünkü davranış
+birebir (düz kurslar dosya KAZANMAZ — geriye-uyum/bayt-parite, testli).
+
 ### 2.1 Outline — hiyerarşik kurs iskeleti (Senaryo hattı Faz 1)
 
 ```python
@@ -399,17 +561,89 @@ class OutlineNode(BaseModel):
                                           # hata). En-yakın-atadan miras + ORPHAN_PAGE = Faz 2.
     pedagogy_pack: str | None = None      # düğümün beyan ettiği pedagoji paketi (method_pack
                                           # paraleli); Faz 1'de yalnız taşınır, davranış yok
+    unlock_rule: Literal["free", "sequential"] = "free"
+                                          # Faz 4 (§6.1): "sequential" = önceki KARDEŞİN alt-ağacındaki
+                                          # tüm bağlı ekranlar ziyaret edilmeden düğüm kilitli.
+                                          # "Tamamlandı" = ziyaret; skor eşiği GEZİNMEYİ kilitleyemez
+                                          # (erişilebilirlik zemini — sonuç kapıları results tarafında).
+                                          # Runtime konfige yalnız "sequential" iken serileşir.
 ```
 
 - **Yapısal SERT doğrulamalar** (`validate_project`, veri bütünlüğü 3.8): sarkan `parent_id`,
   döngü (self-parent dahil), derinlik > 3 (kök=1), yinelenen düğüm id'si, sarkan
   `screen.node_id`, hedef-ad-alanı çakışması. Outline boş + hiçbir ekranda `node_id` yok →
-  doğrulama çıktısında SIFIR yeni kalem.
+  doğrulama çıktısında SIFIR yeni kalem. **Faz 4:** `UNREACHABLE_NODE` SERT hata —
+  `sequential` düğümün önceki kardeşinin alt-ağacında bağlı ekran yoksa düğüm asla açılamaz
+  (içerik tuzağı; runtime aynı durumda savunmacı olarak AÇIK bırakır).
 - **Player**: outline'lı kursta slayt menüsü APG `role="tree"` hiyerarşisi olarak SUNUCUDA
   render edilir (katlanır düğümler, tam klavye, `aria-current="page"`, roving tabindex;
   `node_id`'siz ekranlar sonda i18n başlıklı düz grupta). Outline boşken üretilen HTML
   bugünkü düz menüyle **bayt-bayt aynıdır** (fixture testli — `tests/test_outline_menu.py`).
-  Kilit/konum/ilerleme/resume = Faz 4.
+- **Player Faz 4 — konum/ilerleme/kilit/devam** (saf mantık `components/engine/progress.js`
+  → `window.SCORMP`, YALNIZ outline'lı pakete inline; DOM katmanı OUTLINE_JS):
+  - **Konum şeridi**: başlıkta `#posStrip` — "Ünite 1 · Bölüm 1.1 · 2/4" (düğüm zinciri +
+    düğüm-içi n/m); `aria-live="polite"` yalnız metin değişince duyurur; n/m parçası
+    `dir="ltr"` (RTL-güvenli); düğümsüz ekranların başlığı sunucudan i18n ile gelir.
+  - **Düğüm ilerlemesi**: menüde düğüm başına alt-ağaç kümülatif `n/m` (`.mtree-progress`);
+    results_breakdown bölüm tamamlanması AYNI `data-screens` mekanizmasından `.rb-comp`
+    olarak basılır (**ikinci bir hedef-ilerleme makinesi YOK**).
+  - **Kilit** (`unlock_rule="sequential"`): düğüm GÖRÜNÜR + `aria-disabled="true"` +
+    sunucu-render sebep metni görünür (engelleyen düğümü ADIYLA anar, butonun erişilebilir
+    adının parçası → SR odakta okur) + dal katlanır; odaklanılır ama etkinleştirilemez,
+    klavye tuzağı yok. Kilit alt-ağaca yayılır (sebep kökteki engelleyici).
+  - **Düğüme devam**: resume'da kaldığı ekran + düğüm zinciri `aria-expanded` ile açılır +
+    `aria-current` oturur (kullanıcının el katlaması ezilmez — yalnız aktif zincir açılır).
+  - **Hiyerarşik suspend (3.11 — Faz 4-ek REVİZYONU)**: v2 zarfı artık `z` POZİSYON KAYDI
+    taşır (aşağıdaki Faz 4-ek sözleşmesi — 3.11'in "alan girmedi" kararı republish
+    dayanıklılığı için bilinçli güncellendi). Serbest metin (düğüm başlığı, kilit sebebi) ve
+    menünün el katla/aç durumu suspend'e YİNE ASLA girmez; outline'ın tek zarf maliyeti `z.n`
+    düğüm id'sidir (testli). 3 kademe × 30 sayfa gerçekçi durum **3500 bayt bütçenin altında**
+    (vitest kabul #12 — ölçüm UTF-8 bayt). Taşmada grep'lenebilir `SUSPEND_OVERFLOW` uyarısı +
+    xAPI `suspend.trouble` izi (sessiz kırpma yok).
+- **Faz 4-ek — suspend taşma merdiveni + republish-resume dayanıklılığı**:
+  - **Bütçe = 3500 BAYT (1.2)**: `SUSPEND_BUDGET_12` çalışma bütçesidir; 4096 sınırının kalanı
+    LMS kaçışlama ek yüküne REZERV. 2004'te aynı oran (`suspendBudget`). **TÜM ölçüm UTF-8
+    BAYT** (`byteLen`/`byteSlice`; Türkçe ç ğ ı ö ş ü = 2 bayt — `.length` ölçümü yasak).
+    Zarfın kendi alanları ASCII'dir (kısa anahtar, id, base36/int — testli); Türkçe yalnız tail
+    serbest metnine (vars/xp) girebilir. Sunucu projeksiyonu `estimate_suspend_size` aynı
+    birimde; bütçe aşımı yazar `SUSPEND_OVERFLOW` WARN'ı (projeksiyon sayısıyla; derleme
+    engellenmez — runtime merdiveni SON ÇAREDİR).
+  - **Kırpma merdiveni** (`encodeSuspendFit`; üst korunur, alt önce düşer; her basamak sonrası
+    yeniden ölçüm): korunan tepe = pozisyon kaydı `z` + cursor + `reachedEnd` + `inext`
+    (ASLA düşmez) › rung 1 `history` › rung 2 `xp` (öğrenen serbest metni) › rung 3 sayfa
+    cevapları (`results`/`ix`/`vars`) — düşmeden önce hedef toplamları + toplam puan **`g`/`e`
+    tabanı** olarak tail'e alınır › rung 4 `g`/`e` + `visited` (yalnız pozisyon). Basamak zarfa
+    **`t`** kısa anahtarıyla yazılır; oynatıcı basamağa göre davranır: t≥1 geri tuşu lineere
+    düşer, t≥2 keşif yer tutucuya döner, t≥3 skor/hedef `g`/`e` tabanından yazılır (canlı cevap
+    gelen hedefte canlı kazanır — `mergeObjectiveSnapshot`, skor geriye gitmez), t=4 decode
+    `visited`'ı LİNEER YAKLAŞIMLA kurar (cursor'a kadarki ekranlar gezilmiş sayılır — kilit
+    tuzağı/tamamlanma sıfırlanması olmasın; belgeli yaklaşıklık). Kayıp SESSİZ DEĞİL:
+    `console.warn` HER ZAMAN (bayt+bütçe+rung; xAPI/LRS'e bağımsız), xAPI `suspend.trouble`
+    yalnız LRS varsa EK; SCORM'da öğrenciye görünmeyen ucuz LMS hata kanalı YOKTUR (belgeli
+    karar — konsol+xAPI ile sınırlı). Öğrenciye teknik hata asla gösterilmez.
+  - **Pozisyon kaydı `z` = `{s: ekranId, n: düğümId, v: content_version}`** — KİMLİK-tabanlı
+    (pozisyonel değil), tail JSON'da; merdivenin tepesi. `COURSE.content_version` = sıralı
+    (outline düğüm id'leri + ekran id'leri) djb2 özeti, 20-bit küçük int (KARAR: monoton sayaç
+    değil — kaynaktan bağımsız/deterministik/mutasyonsuz; semantiği yalnız EŞİTLİK).
+  - **orderFp × v etkileşimi (yeniden tasarım)**: orderFp uyuşmazlığı artık TOPTAN SIFIRLAMA
+    değildir. `resumeSuspend` okuma merdiveni: fp eşleşir → TAM resume SESSİZ (fp eşleşmesi
+    ekran kümesi+sırası aynı demektir; v farkı — yalnız düğüm kümesi değişimi — tam resume'u
+    etkilemez). fp uyuşmaz → POZİSYONEL alanlar atılır (cursor idx, visited bitfield, history,
+    indeksli results/ix — eski order bilinmediği için id'ye çevrilemez; yanlış-atıf koruması
+    KORUNUR), KİMLİK-tabanlı alanlar yaşar (tail: vars/xp/id'li results + `z`/`g`/`e` + `inext`)
+    ve `z` üzerinden: düğüm yaşıyor → düğüme devam SESSİZ (tam ekran varsa o, yoksa düğümün
+    yeni ilk ekranı); düğüm gitmiş + ekran yaşıyor → ekranın YENİ düğümünde devam + BİLDİRİM;
+    ikisi de gitmiş (ya da `z`'siz eski payload) → kurs başı + BİLDİRİM (sessiz sıfırlama YOK).
+    Bildirim dostane/teknik-olmayan, i18n tr+en (`resume_updated`/`resume_restart`),
+    `role=status` + `aria-live=polite`, kapatılabilir. Fallback devamda hedefe kadarki ekranlar
+    lineer yaklaşımla visited işaretlenir.
+  - **ID kararlılığı (ön koşul)**: `compile_scenario` id'leri ASLA pozisyonel yeniden
+    numaralandırmaz (passthrough — outline ortasına ekleme/reorder mevcut id'leri değiştirmez;
+    testli). Silinen sayfa/düğüm id'leri `ScenarioDocument.retired_ids`'e yazılır ve YENİDEN
+    KULLANILAMAZ (`scenario_upsert_page`/`scenario_upsert_node` yeni kaydın emekli id'sini
+    `validation_error` ile reddeder; mevcut kaydı güncellemek serbest). Konvansiyon: id'ler
+    yazar-verilidir ve içerik anlamı değişmeden yaşar — geri dönen id eski öğrencinin devam
+    noktasını/skorunu yanlış içeriğe bağlar.
 - **`Objective.outcome_type`** (additive, ops.): kazanım türü beyanı (`[a-z0-9_-]{1,64}`,
   ör. "knowledge"/"skill"); Faz 1'de davranışsız.
 - **`audience_pack` REZERVE**: kitle paketi kimliği (ör. "k12-lise"). Faz 1'de yalnız kabul
@@ -523,14 +757,35 @@ lint_course(project_id: str, strict: bool | None = None) -> dict
 
 `OkOut = { ok: true }`.
 
-Toplam tool sayısı **38** (senaryo hattı Faz 2: 30 → 38, aşağıdaki 8 senaryo aracı eklendi).
+Toplam tool sayısı **40** (senaryo hattı Faz 2: 30 → 38, 8 senaryo aracı; Faz 3: 38 → 40,
+`fill_media_slot` + `match_media_manifest` — §3.0.1).
+
+### 3.0.0 Kompozisyon araçları (K1)
+
+```python
+list_compositions() -> {"count": int, "compositions": [{"name", "description", "symmetry", "applies_to"}]}
+set_composition(project_id: str, mode: "classic" | "auto",
+                visual: "auto" | "stack" | "split" | None = None,             # TEK yükseltme yolu; K2 tercih
+                question: "auto" | "stack" | "split" | None = None) -> OkOut  # K3 — vakalı soru tercihi
+create_project(..., composition: "classic" | "auto" = "auto")         # yeni parametre
+set_screen_composition(project_id: str, screen_id: str,
+                       composition: str | dict | None) -> OkOut   # K2 — yalnız ekranın kompozisyonu;
+                                                                 # diğer alanlara dokunmaz (soru cevapları)
+```
+`lint_course` ve `preview` yanıtları `compositions: [{screen_id, preset, focal, intensity, auto}]` ve
+(K2) `composition_questions: [...]` taşır.
 
 ### 3.0 Senaryo araçları (senaryo hattı Faz 2 — `core/scenario.py` mantık)
 
 Senaryo dokümanı = hiyerarşik outline + sayfalar; sahiplik projelerle aynı (auth context'i
-`owner_key_id`); doküman store'da tek JSON blob (`schema_version: 1`), boyutu kotaya dahil.
-Sayfa şeması, kanıt beyanı ENUM'u (`EvidenceDecl` oneOf) ve medya yuvası sözleşmesi (`MediaSlot`,
-Faz-3 için donduruldu) `core/scenario.py`dadır. `fill_media_slot` Faz 3'tür; ŞEKİL burada sabittir.
+`owner_key_id`); doküman store'da tek JSON blob (`schema_version: 1`), boyutu kotaya dahil
+(Faz 3: senaryo varlık baytları da kotaya sayılır). Sayfa şeması, kanıt beyanı ENUM'u
+(`EvidenceDecl` oneOf) ve medya yuvası sözleşmesi (`MediaSlot`, Faz-2'de donduruldu)
+`core/scenario.py`dadır. Faz 3'te donmuş sözleşmeye TEK additive ek yapıldı:
+`MediaSlot.fallback_image_asset_id: str | None` — render yolu olmayan kind'lar (bugün
+`model_3d`) için 2D yedek görsel. Ayrıca `ScenarioDocument.assets: list[AssetRef]` —
+senaryonun VARLIK EVİ (projelerle aynı `AssetRef` şekli + `Store.put_asset` mekaniği,
+ad-alanı = `scenario_id`; `fill_media_slot` buraya yazar).
 
 ```python
 create_scenario(title: str, outline: list[dict] = [], audience_pack: str | None = None,
@@ -562,8 +817,10 @@ scenario_gaps(scenario_id: str) -> dict
     #   EVIDENCE_KIND_MISSING, PREDICTION_SCORED, AUTO_GRADE_OPEN_TEXT.
     # Warn (⚠) kodları: EMPTY_MEDIA_SLOTS, PHASE_NOT_IN_PACK (runtime/pedagogy-packs.json'a
     #   karşı — E2 _load_packs yeniden kullanımı), DURATION_DRIFT (±%20), NARRATION_ECHO
-    #   (token containment ≥0.8, min 5 token). Suggestion: SCREEN_TYPE_SUGGESTION (yalnız öneri —
-    #   ASLA otomatik seçilmez; yazar upsert ile kabul eder).
+    #   (token containment ≥0.8, min 5 token), SLOT_KIND_UNSUPPORTED (Faz 3: model_3d yuvası
+    #   fallback_image_asset_id beyan etmiyor — render yolu yok, derlemede atlanır).
+    #   Suggestion: SCREEN_TYPE_SUGGESTION (yalnız öneri — ASLA otomatik seçilmez; yazar
+    #   upsert ile kabul eder).
 
 scenario_compile(scenario_id: str, compile_and_build: bool = False,
                  strict: bool | None = None) -> dict
@@ -573,7 +830,17 @@ scenario_compile(scenario_id: str, compile_and_build: bool = False,
     #   çakışması olmasın), sayfalar → ekranlar (screen_type derlemede ZORUNLU — eksik/bilinmeyen
     #   = blocker), copy.body_md → sanitize HTML (deterministik md→html; raw svg/canvas/script
     #   imkânsız 3.10), evidence_from → evidence_screen_ids, inherited+extra → objective_ids,
-    #   boş slot → asset omit (model_3d → SLOT_KIND_UNSUPPORTED warn), FAZ ADI ASLA basılmaz (3.2).
+    #   boş slot → asset omit, FAZ ADI ASLA basılmaz (3.2).
+    # Faz 3 slot→alan eşlemesi: image VE data_chart → görsel alanları (media_asset_id/
+    #   image_asset_id + alt; data_chart yuvası RENDER EDİLMİŞ GRAFİK GÖRSELİ taşır —
+    #   data_chart EKRANI inline veri taşır, orada bağlanacak alan yok → SLOT_NOT_ATTACHED
+    #   warn); audio → narration_asset_id; video → video_asset_id; lottie → lottie_asset_id;
+    #   model_3d → fallback_image_asset_id görsel olarak bağlanır, yoksa SLOT_KIND_UNSUPPORTED
+    #   warn + yuva atlanır. role="kanit" yuvalı content_slide media taşıdığı için kanıt-hedefi
+    #   kalır (E1 koşullu kanıt kuralıyla hizalı).
+    # Faz 3 varlık enjeksiyonu: REFERANSLI senaryo varlıkları (slot asset_id / fallback /
+    #   captions) spec.assets[]'e data: URI olarak, id KORUNARAK eklenir; dolu slot başına
+    #   provenance kaydı spec.media_provenance[]'a yazılır (boşsa anahtar hiç basılmaz).
     # dict = { scenario_id, spec, compile_warnings[], lint_course{error_count, warn_count,
     #   evidence_binding_coverage, issues[]} }. compile_and_build=True → build_from_spec zinciri
     #   (out["build"]).
@@ -587,6 +854,49 @@ scenario_delete_page(scenario_id: str, page_id: str) -> OkOut
     # Sayfayı siler + ona işaret eden evidence_from referanslarını TEMİZLER (sarkma bırakmaz);
     #   boşalan bağ scenario_gaps'te blocker olur (dangle değil).
 ```
+
+### 3.0.1 Medya federasyonu araçları (senaryo hattı Faz 3 — `core/media_federation.py` mantık)
+
+```python
+fill_media_slot(scenario_id: str, page_id: str, slot_id: str, source: str,
+                provenance: dict | None = None, alt_text: str | None = None,
+                transcript_html: str | None = None) -> dict
+    # source: "data:<mime>;base64,..." | https URL — ingest add_asset ile AYNI iç yol
+    #   (decode_data_uri / safe_fetch_asset §6.1 SSRF + kota). Varlık SENARYO evine yazılır
+    #   (ScenarioDocument.assets + Store.put_asset, ad-alanı = scenario_id).
+    # SERT kapılar (3.8 veri bütünlüğü):
+    #   - kind_mime_mismatch: SNIFF edilen MIME (magic bytes — bildirilene GÜVENİLMEZ) yuva
+    #     kind'ıyla uyuşmuyor. kind kuralları: image|data_chart→image/*, audio→audio/*,
+    #     video→video/*, lottie→application/json, model_3d→model/gltf-binary; tanınmayan
+    #     bayt (octet-stream) = uyuşmazlık.
+    #   - A11Y_NO_TEXT_ALT: role="kanit" yuvada alt_text yok (audio/video için ek olarak
+    #     transcript_html) — bayt çekilmeden reddedilir. Parametre > yuvadaki mevcut a11y değeri.
+    # sha256 İÇERİK-DEDUP (kabul #9): aynı bayt daha önce eklendiyse AYNI asset_id döner
+    #   (deduped=true), yeni depolama yapılmaz (içerik-hash indeksi senaryo-varlık düzeyinde).
+    # provenance (plan §5.4 şeması: source, tool, ref, generated_at, license_note) VERİLDİĞİ
+    #   GİBİ saklanır (bilinmeyen anahtar dahil); generated_at yoksa sunucu damgalar (ISO-8601).
+    # → { asset_id, deduped, sha256, mime, size_bytes, rel_path }
+    # Dolu yuvayı yeniden doldurmak asset_id'yi değiştirir (bilinçli işlem; eski varlık evde kalır,
+    #   derleme yalnız REFERANSLI varlıkları pakete alır).
+
+match_media_manifest(scenario_id: str, files: list[dict]) -> dict
+    # files: [{ name, size, sha256, mime }] — YALNIZ METADATA (kabul #10): şemada yol alanı
+    #   YOKTUR; sunucu hiçbir dosya yoluna dokunmaz, hiçbir dizin-tarama çağrısı içermez
+    #   (negatif testler: şema + kaynak grep). Yerel klasörü İSTEMCİ tarar:
+    #   scripts/import_media_folder.py (bağımsız, stdlib; --dry-run destekli).
+    # Eşleştirme sinyalleri: dosya adı ↔ slot_id/spec/source_hint token örtüşmesi (Türkçe
+    #   karakter ASCII katlamalı), MIME ↔ kind, boyut makullüğü (0/kota-üstü → size_suspect),
+    #   sha256 zaten içeride → "already_ingested_dedup" (fill aynı id'yi döndürür).
+    # ÖNERİR-ATAMAZ: proposed yalnız NET tek kazanan varsa dolar (skor ≥0.5 ve 2. adaydan
+    #   ≥0.2 farklı); belirsizlik = proposed null + skorlu aday listesi. Sıra deterministik
+    #   (sayfa order → slot sırası; adaylar -skor, ad).
+    # → { scenario_id, proposals: [{ page_id, slot_id, role, kind, spec, proposed,
+    #     candidates: [{name, score, reasons[]}] }], unmatched_files[] }
+```
+
+Paket gömme (kabul #11): derlenen kursta dolu slot varsa zip `assets/PROVENANCE.json` içerir —
+dolu slot başına TEK kayıt `{ page_id, slot_id, asset_id, role, kind, sha256, provenance }`,
+deterministik sıra, manifest'te listeli. Düz (senaryosuz) kurslar bu dosyayı KAZANMAZ.
 
 ### 3.1 Build Fast-Path — `build_package` / `build_from_spec` (Ajan A ↔ Ajan C ORTAK)
 
@@ -624,6 +934,14 @@ WARN'lar danışsaldır. `strict=True` ile **küratörlü WARN kümesi** de blok
 | `decorative_score` | Skor mekaniği hiçbir karara bağlı değil (süs) |
 | `unbound_scored_question` | E1 (#110) K1/T1 tabanı: skorlu soru açık `evidence_screen_ids` beyanı taşımıyor — strict'te YALNIZ açık beyan geçer (heuristik aday geçirmez) |
 | `evidence_target_not_evidentiary` | E1 (#110) K1/K2: beyan edilen kanıt hedefi kanıt taşıyamaz (düz iddia metni / kapak / özet / skorlu ekran) — törensel bağ |
+| `MEDIA_NO_CAPTION` | Faz 6b (düzen ölçüm raporu §5.2): content_slide `blocks` içinde caption'sız görsel bloğu + ekranın >80 kelimelik düzyazısı — figürün yorumu gövdede kalırsa göz gidiş-gelişi (uzamsal bitişiklik). Bugün 0 isabet — geleceğe korkuluk |
+
+Faz 6b notu: raporun geçici önerisi `CHART_VALUES_UNREADABLE` lint OLARAK YAZILMADI — render
+düzeltmesi (çizgi grafik y-ekseni + uç değer etiketleri, aşağıda §12.5) etiketleri koşulsuz
+ürettiği için spec-düzeyi lint ölü kod olurdu; nihai biçimi test-düzeyi render değişmezidir
+(`tests/test_charts.py::test_chart_values_unreadable_invariant`). Genel `SPLIT_ATTENTION`
+lint'i ölçümle gerekçelendirilemedi ve YAZILMADI (rapor §5; test kilidi
+`tests/test_layout_lint.py`).
 
 Kurallar:
 - `strict` parametresi `lint_course` / `build_package` / `build_from_spec`'te; `None` (varsayılan)
@@ -738,7 +1056,7 @@ threadpool. Transaction'lar **kısa**. **Uzun build işi transaction içinde DE�
 
 ## 5. HTTP Route'ları (`server.py`)
 
-`ROOT_PATH` (örn `/scorm`) altında mount edilebilir. Tam URL'ler `PUBLIC_BASE_URL`'den üretilir.
+`ROOT_PATH` altında mount edilebilir (prod'da boş: `scorm.edumints.com` kökü). Tam URL'ler `PUBLIC_BASE_URL`'den üretilir.
 
 | Route | Amaç | Auth |
 |---|---|---|
@@ -760,7 +1078,7 @@ threadpool. Transaction'lar **kısa**. **Uzun build işi transaction içinde DE�
 - **Asset:** `filename` sanitize (path traversal yok); izinli mime: `image/*`, `video/mp4`,
   `audio/mpeg`, `application/pdf`, `font/*`. Tek asset ≤ `MAX_ASSET_MB` (vars. 25).
 - **Kota:** proje sayısı > `MAX_PROJECTS_PER_KEY` veya toplam boyut > `MAX_PROJECT_MB`(/key) → `quota_exceeded`.
-- **suspend_data:** SCORM 1.2 limiti 4096 char; branching state bunu aşarsa `validate_package` uyarır.
+- **suspend_data:** SCORM 1.2 limiti 4096; Faz 4-ek ÇALIŞMA BÜTÇESİ **3500 UTF-8 BAYT** (kalan pay LMS kaçışlama rezervi). Kötü-durum projeksiyonu bütçeyi aşarsa yazar `SUSPEND_OVERFLOW` WARN'ı görür; runtime kırpma merdiveni (§2.1 Faz 4-ek) son çaredir.
 ### 6.1 SSRF Guard — `add_asset` / `AssetInput.source` URL Çekimi (ZORUNLU)
 
 `add_asset` ve `build_from_spec` dış URL çektiği için aşağıdaki kurallar **bağlayıcıdır**:
@@ -806,6 +1124,9 @@ threadpool. Transaction'lar **kısa**. **Uzun build işi transaction içinde DE�
 | `asset_error` | indirme/mime/boyut hatası |
 | `build_error` | paketleme başarısız |
 | `rate_limited` | (opsiyonel) çok fazla eşzamanlı build |
+| `kind_mime_mismatch` | Faz 3 `fill_media_slot`: sniff edilen MIME yuva `kind`'ıyla uyuşmuyor |
+| `A11Y_NO_TEXT_ALT` | Faz 3 `fill_media_slot`: kanıt-rolü yuvada alt_text/transcript eksik (3.5) |
+| `compile_refused` | `scenario_compile`: ⛔ blocker varken derleme reddedildi |
 
 ---
 
@@ -813,8 +1134,8 @@ threadpool. Transaction'lar **kısa**. **Uzun build işi transaction içinde DE�
 
 | Değişken | Varsayılan | Açıklama |
 |---|---|---|
-| `PUBLIC_BASE_URL` | `https://mcp.edumints.com/scorm` | Tam dış URL kökü (download/preview üretimi) |
-| `ROOT_PATH` | `/scorm` | Uygulama path-prefix'i (Traefik strip) |
+| `PUBLIC_BASE_URL` | `http://localhost:8000` (prod: `https://scorm.edumints.com`) | Tam dış URL kökü (download/preview üretimi) |
+| `ROOT_PATH` | `""` (prod: boş) | Opsiyonel path-prefix. Prod subdomain-per-MCP kullanır — OAuth protected-resource metadata (RFC 9728) host kökünde olmalı, path-prefix + Traefik strip bunu kırar |
 | `DATA_DIR` | `/data` | SQLite + assets + packages kök dizini |
 | `PORT` | `8000` | HTTP port |
 | `PACKAGE_TTL_DAYS` | `7` | Build zip otomatik silme süresi |
@@ -862,6 +1183,278 @@ threadpool. Transaction'lar **kısa**. **Uzun build işi transaction içinde DE�
   antislop `unbound_objective` WARN'ı). Sıra HER ZAMAN kurs hedef sırası; indeksler LMS'te önceden
   var olan kayıtlara (2004 manifest pre-populate) id üzerinden çakışmasız çözülür, mevcut `.id`
   yeniden yazılmaz. Hedef başına geçme eşiği = kursun `passing_score`'u (S6 ile tutarlı).
+- **`embed_html` artifact köprüsü (task-4, postMessage → SCORM):** `embed_html` ekranı sandbox'lı
+  `<iframe class="embed-frame" data-asset data-completion data-min-seconds>` içinde keyfi HTML
+  artifact'i barındırır (`components/renderer.py:_r_embed_html`). Artifact yazarı iframe içinden
+  `window.parent.postMessage({scorm: "complete" | "setScore" | "passed" | "failed" | "setStatus",
+  value?}, "*")` gönderir. Saf eşleme mantığı `components/engine/embed.js:bridgeToScorm(msg, is2004)`
+  (vitest'li, `tests/js/embed.test.js`) — `[{key, value}, ...]` cmi yazımı listesi döner (geçersiz/
+  bilinmeyen mesaj → `[]`).
+  ⚠️ **`bridgeToScorm` CANLI YOL DEĞİLDİR (task-5 / FIX 7 — çağrı yeri ARAMAYIN).** Paketlenmiş
+  bir kursta onu çağıran hiçbir kod yoktur; canlı yol iki adımdır: `embedStateFromMsg(msg)` →
+  KOMPAKT `state.eb` yaması, sonra `embedWrites(eb, is2004)` → cmi yazımları. `bridgeToScorm`
+  tam olarak bu ikisinin kompozisyonudur (`embedWrites(embedStateFromMsg(msg, is2004), is2004)`)
+  ve BİLEREK korunur: bu sözleşme belgesinin ve testlerin çoğunun eşlemeyi anlattığı TEK-ADIMLI
+  imzadır (fix round 3 / FINDING F). Bakım yükü yok, paket maliyeti ~3 satır. `setScore.value` **yalnız `number` tip** kabul eder (`null`/`""`/`[]`/
+  `true`/`Infinity` reddedilir — fix round 1 / MINOR 4), 0–100'e kırpılır; 2004'te ayrıca `.scaled`
+  (4 ondalık) yazılır. `setStatus.value` yalnız `completed|incomplete|passed|failed|browsed|
+  not attempted` kabul eder; **2004'te sözlük ayrılır** (fix round 1 / IMPORTANT 1):
+  `completed|incomplete|not attempted` → `cmi.completion_status`, `passed|failed` →
+  `cmi.success_status` (2004'te `cmi.completion_status`'a `passed`/`failed`/`browsed` yazmak
+  geçersiz vokabüler → LMS 406, yazım sessizce düşer), `browsed` 2004'te REDDEDİLİR (yalnız 1.2
+  vokabülerinde geçerli, orada davranış değişmedi). DOM tarafı `components/templates.py:EMBED_JS` —
+  `message` olayında `ev.source`'u kendi iframe pencereleriyle DOĞRULAR (origin değil, çünkü
+  artifact'in kendi origin'i yoktur/`sandbox`lıdır); mesajı `embed.js:embedStateFromMsg` ile
+  KOMPAKT kayda çevirip `state.eb`'ye işler, cmi yazımlarını `embed.js:embedWrites(eb, is2004)`
+  ile TÜRETİP `sSet` + `sCommit` yapar.
+  **Kalıcı kayıt `state.eb` (fix round 2 / FINDING 2):** `{s: skor 0–100, c: tamamlanma/lesson
+  durumu, k: success durumu (yalnız 2004), d: {ekranId: 1} eşiği aşılmış time_threshold ekranları,
+  m: {ekranId: 1} artifact'i "tamamlandı" bildirmiş on_message ekranları (fix round 3)}`.
+  **`time_threshold` SAYAÇ SEMANTİĞİ (task-5 / FIX 7 — yazarlar için, iki yönlü sınır):** sayaç
+  ekrana GİRİŞTE kurulan DURAKSIZ bir duvar-saati `setTimeout`'udur (`EMBED_JS:enterScreen`).
+  (a) **Fazla sayar:** öğrenci başka bir ekrana geçse de, sekmeyi arka plana atsa da, iframe'e hiç
+  bakmasa da eşik dolduğunda kapı AÇILIR — "ekranda geçirilen süre" DEĞİL, "ekrana ilk girişten
+  sonra geçen süre" ölçülür. (Dikkat: `ENGINE_JS` oturum süresini `visibilitychange`'de
+  DURAKLATIR; yani bu iki saat birbirini tutmaz — `cmi.*session_time` duraklar, kapı saati
+  duraklamaz.) (b) **Eksik sayar:** defter `eb.d[ekranId]` YALNIZ sayaç ATEŞLENDİĞİNDE yazılır,
+  ara ilerleme kaydedilmez — 5:00'lık bir eşikte 4:59'da yeniden yüklenen bir oturum sayacı
+  SIFIRDAN başlatır. Her iki yön de bilinçlidir (ara ilerlemeyi kaydetmek suspend bütçesine
+  ekran başına bir sayaç yazmak demektir); kapı bir "asgari maruz kalma" sinyalidir, denetim
+  düzeyinde bir süre ölçümü DEĞİLDİR.
+  cmi ANAHTARI state'te SAKLANMAZ — her zaman `embedWrites` ile türetilir. Böylece (a) 1.2'nin dar
+  suspend bütçesi boşa harcanmaz, (b) `suspend_data`'dan geri okunan kayıt YENİDEN doğrulanır
+  (yalnız beyaz listedeki cmi anahtarları oluşabilir), (c) 1.2'de tek kanal olan `lesson_status`
+  için "son yazan kazanır" sırası korunur. Kayıt `scorm.js:encodeSuspend`'in BİLİNMEYEN state
+  alanlarını kuyruğun `o` sözlüğüne taşıyan mevcut ileri-uyum yolu sayesinde suspend/resume'da
+  hayatta kalır — **suspend ŞEMASI DEĞİŞMEZ** (`decodeSuspend`/`_salvageV2` geri kurar; kırpma
+  merdiveni `o`'yu düşürmez, bu yüzden kayıt küçük kalmalıdır). Oturum başında `EMBED_JS` bir kez
+  sarmalanmış `evaluate()` çağırır: init'in yazdığı `score.raw=0` düzeltilir ve commit edilir.
+  `completion` modları: `on_view` (ekrana GİRİLDİĞİNDE — ilk sayfa yüklemesinde değil, fix round 1 /
+  IMPORTANT 2), `time_threshold` (ekrana giriş + `min_seconds` sonra; `min_seconds` `ge=0`
+  doğrulanır — core/project.py, fix round 1 / MINOR 5), `on_message` (yalnız artifact'in
+  `{scorm:'complete'}` — ya da `setStatus:'completed'` — bildirimiyle; fix round 3'e kadar
+  UYGULANMIYORDU).
+  **Yazımlar motorun evaluate() döngüsünden SAĞ ÇIKAR (fix round 1 / CRITICAL):** motorun kendi
+  `evaluate()`'i (`components/templates.py` ENGINE_JS) her `showAt` + exit'te skoru/tamamlanmayı
+  `COURSE.total_points`'ten yeniden hesaplayıp cmi'yi ezer; embed_html'li kurs skorsuzdur
+  (`total_points<=0`) → köprünün yazımı bir SONRAKİ `evaluate()`'te sıfırlanırdı (1.2'de HİÇ kalıcı
+  olmuyordu — bkz. fix round 1 raporu). Çözüm ENGINE_JS gövdesine DOKUNMADAN (bayt-parite):
+  `EMBED_JS`, motorun `evaluate` bağlamasını `embed.js:wrapEvaluate(origEvaluate, sSet, getWrites,
+  commit)` (saf, vitest'li) ile DEĞİŞTİRİR — orijinal `evaluate()` → `getWrites()` yazımları
+  yeniden uygulanır (son yazan kazanır, LMS `SetValue` idempotent) → yazım varsa AYRICA `sCommit()`
+  (fix round 2 / FINDING 3: yeniden yazım `persist()` içindeki commit'ten SONRA olur, katı bir
+  LMS'te aksi hâlde kaybolabilirdi).
+  **KURAL (fix round 2 / FINDING 1): `evaluate()`'i YALNIZ artifact'in kendi postMessage komutları
+  YUKARI yönde ezebilir.** Launcher'ın KENDİ otomatik tamamlanması cmi'ye "completed" YAZMAZ:
+  `on_view` için ek iş yoktur (motor `showAt`'te `state.visited[id]=true` yapar, tamamlanmayı
+  `evaluate()` türetir).
+  **TAMAMLANMA KİLİDİ (fix round 3 — `time_threshold` + `on_message`):** kapılı bir ekranın koşulu
+  sağlanmadıkça kurs tamamlanmış RAPORLANMAZ. `getWrites()` sırası: önce
+  `embed.js:holdBackWrites(pending, is2004)` (kapı bekliyorsa `completion_status`/`lesson_status`
+  → `"incomplete"` ve `exit` → `"suspend"`), SONRA `state.eb`'den türetilen artifact yazımları →
+  artifact'in kendi komutu kilidin ÜSTÜNDE kalır — **ama tamamlanma İMA EDENLER hariç, bkz. fix
+  round 4 / FIX 2 aşağıda** (`failed`/`browsed`, skor ve 2004 `success_status` pinleri üstte kalır).
+  Kilit YALNIZ GERİ ÇEKER: hiçbir girdi için
+  `completed`/`passed` üretemez, skora ve `success_status`'a HİÇ dokunmaz (yanlış sonuç yalnız
+  "henüz tamamlanmadı" yönünde olabilir). `exit`'in de geri çekilmesinin nedeni: motor
+  `exit = complete ? "normal" : "suspend"` yazar; kilit tam da "motor complete diyor" durumunda
+  devreye girdiği için aksi hâlde `status=incomplete` + `exit=normal` çifti oluşur ve katı bir 1.2
+  LMS'i `suspend_data`'yı atmakta serbest kalır. Kapı durumu `embed.js:gatesPending(gates, eb)`
+  ile sorulur: `time_threshold` → `eb.d[ekran]`, `on_message` → `eb.m[ekran]` (EKRAN BAŞINA defter;
+  `eb.c` global bir değerdir, ekran atfı yapamaz). `visible_if` ile o an GÖRÜNMEYEN ekranın kapısı
+  sayılmaz (erişilemeyen ekran kursu sonsuza dek kilitlemesin).
+  Round 2 bunu motorun GİRDİSİNİ (`state.visited`) geri çekerek yapıyordu (`gateVisited`); motorun
+  `viewedAll()`'ı `state.reachedEnd`'i de kabul ettiğinden bu TEK ekranlı (ve embed'i son ekranda
+  olan) kursta hiçbir şey yapmıyor, ayrıca ilerleme çubuğunu şişiriyordu — **kaldırıldı**.
+  `time_threshold` sayacı o ekranın DOM'a GİRİŞİNDE (`data-screen-id`) kurulur, init'te DEĞİL;
+  kanca `showAt` değil **`updateChrome`**'dur: `prev()`'in history hızlı yolu `showAt`'i hiç
+  çağırmaz (ve `prev` sarmalanamaz — `btnPrev` dinleyicisi referansı sentinel'den ÖNCE bağlar),
+  ama `updateChrome` her gezinme yolunda adıyla çağrılır (OUTLINE_JS aynı tekniği kullanır).
+  **KİLİT ARTIK YAZIMDAN ÖNCE DEVREDE (fix round 4 / FIX 1 — `sSet` sarmalanır):** round 3'te kilit
+  `origEvaluate()`'ten SONRA çalışıyordu, ama `origEvaluate` → `persist()` → `sCommit()` motorun
+  `completed`'ini kilit devreye girmeden ÖNCE **COMMIT** ediyordu; yani geçici `completed` yalnız
+  açılışta değil, kapı beklerken **HER `evaluate()`'te** LMS'e gidiyordu. Tamamlanmayı ilk
+  commit'te MANDALLAYAN bir LMS'te (1.2 raporlaması, 2004 rollup) kapı özelliği sessizce hiç
+  çalışmıyordu. `EMBED_JS` bu yüzden motorun `sSet` bağlamasını `embed.js:wrapSet(sSet, pending,
+  is2004)` ile DEĞİŞTİRİR (wrapEvaluate satırından ÖNCE — o `sSet`'i değer olarak saklar): kapı
+  beklerken TAMAMLANMA İDDİASI içeren yazım cmi'ye HİÇ gönderilmez. Yüklem tek yerdedir —
+  `embed.js:isCompletionAssertion(key, value, is2004)` ve kapsamı BİLEREK dardır: 1.2
+  `cmi.core.lesson_status` = `completed`|`passed` (bu anahtar 1.2'nin TEK başarı kanalıdır ve
+  `passed` tamamlanmayı ima eder), 2004 `cmi.completion_status` = `completed`. Anahtar eşleşmesi
+  TAM eşitliktir (alt-dize/regex DEĞİL): `cmi.objectives.N.completion_status`, `cmi.success_status`,
+  skor/`exit`/`session_time` anahtarları ve `cmi.suspend_data` (o `sSetChecked` ile yazılır,
+  sarmalayıcıdan hiç geçmez) ASLA bastırılmaz. `holdBackWrites` geri çekmesi KALIR (iki katman:
+  yazılmaz + yine de tutarlı `incomplete`/`suspend` yazılır).
+  **AÇILIŞ PENCERESİ DE KAPANDI (fix round 5 — LMS-adaptör vekili):** yukarıdaki sarmalayıcı
+  sentinel'de (`_REVIEW_JS_SLOT`) kurulur, ama ENGINE_JS'in bootstrap `showAt(startIdx,false)`'u
+  sentinel'den ÖNCE koşar: kapılı TEK ekranlı (ya da embed'i son ekranda olan) kursta tam olarak
+  bir `completed` + `Commit` LMS'e gidiyordu — mandallayan LMS'te kapı açılıştan itibaren
+  yeniliyordu. ENGINE_JS'in iç sırası bayt-parite yüzünden değiştirilemediği için kapı motorun
+  ALTINA, SCORM API katmanına kurulur: `components/templates.py:EMBED_SHIM_JS` (KOŞULLU satır-içi
+  script, `extras` üzerinden — `{extra_runtime}` SHELL'de `{engine_js}`'ten ÖNCE basılır ve DOM
+  o an ayrıştırılmıştır). Kapı yapılandırması DOM'dan okunur (`iframe.embed-frame[data-completion]`
+  — EMBED_JS ile aynı kaynak; `data-min-seconds` gerekmez, çünkü 0 saniyelik bir eşik bile senkron
+  init'ten SONRA dolar → açılışta her kapı tanım gereği bekliyordur). Vekil, `EMBED_JS` gerçek
+  kilidi kurar kurmaz `window.__SCORM_EMBED_SHIM__.release()` ile ÇEKİLİR (çift bastırma yok; ayrıca
+  vekil `eb.d`/`eb.m` defterini bilemediği için devam eden bir oturumda ZATEN AŞILMIŞ kapıyı da
+  tutardı — devirden sonraki `evaluate()` doğru durumu yazar) ve `DOMContentLoaded` failsafe'i
+  kilit hiç kurulmazsa kursun sonsuza dek kilitli kalmasını engeller (fix round 6: `setTimeout(0)`
+  DEĞİL — o görev, vekil ile `{engine_js}` arasına düşen bir parser yield'inde motorun
+  bootstrap'inden ÖNCE koşup bastırmayı erken emekli edebilirdi). Güven sınırı etkisi §9'un
+  sonundaki GÜVEN SINIRI bloğunda.
+  **GEÇİCİ `exit=normal` DE BASTIRILIR (fix round 5):** motor `exit = complete ? "normal" :
+  "suspend"` yazar ve bunu `persist()`→`sCommit()`'ten ÖNCE yapar; kapı beklerken "complete"
+  hesaplandığı için her `evaluate()` önce geçici bir `exit=normal` COMMIT ediyor, kilidin
+  `exit=suspend`'i ancak ondan sonra geliyordu (FIX 1'in kusurunun `exit` biçimi; ilk commit edilen
+  `exit`e göre davranan bir LMS `suspend_data`'yı atmakta serbest kalır). Yüklem AYRI durur —
+  `embed.js:isTransientExit` — ve `isCompletionAssertion` ile birlikte
+  `embed.js:isGatedCompletionWrite` altında toplanır; `wrapSet` ve `EMBED_SHIM_JS` ikisini de
+  ONDAN okur. (fix round 5'te ayrıca bir artifact pin süzgeci vardı ve o YALNIZ
+  `isCompletionAssertion` kullanıyordu; task-5 / FIX 3'te süzgeç silindi — aşağıya bakın.)
+  Yalnız `"normal"` bastırılır; `suspend`/`logout`/`time-out`/`""`
+  aynen geçer. AYRI BİLET (burada DEĞİL): `"normal"` 1.2 `cmi.core.exit` vokabülerinde HİÇ yoktur
+  (1.2: `time-out | suspend | logout | ""`); düzeltmesi `components/engine/scorm.js`'tedir ve o
+  modül koşulsuz inline edildiği için bayt-parite kapsamı dışındadır.
+  **KAPI, ARTIFACT PİNİNDEN ÜSTÜNDÜR (fix round 4 / FIX 2):** round 3'te `getWrites()` pini EN SONA
+  koyduğu için, A ekranının artifact'i `{scorm:'complete'}` gönderince B ekranının kapısı hâlâ
+  beklerken kurs `completed` raporluyordu (2004'te üstelik `exit=suspend` ile tutarsız çiftle) —
+  yani "her embed ekranının artifact'i, BAŞKA bir ekranın yazarlık-zamanı kapısını atlatabilir".
+  Kural şudur: kapı beklerken TAMAMLANMA İDDİASI içeren pin LMS'e GİTMEZ. **KABUL EDİLEN
+  BEDEL:** 1.2'de `lesson_status` tek başarı kanalı olduğundan artifact'in bildirdiği `passed` de
+  kapı beklerken TUTULUR. Kayıp değildir: değer `state.eb.c`'de durur, `suspend_data`'ya persist
+  edilir ve kapı açılınca ilk `evaluate()`'te geri konur. 2004'te `passed` ayrı kanaldadır
+  (`cmi.success_status`) ve HİÇ tutulmaz.
+  **task-5 / FIX 3 — bunu UYGULAYAN KATMAN DEĞİŞTİ (davranış AYNI).** round 4 bunu `EMBED_JS:
+  ebWrites()`'ta ayrı bir süzgeçle (`embed.js:suppressCompletionWrites`) yapıyordu. round 4'ün
+  KENDİ FIX 1'i (`sSet = EMB.wrapSet(sSet, pending, !!S2004)`) o süzgeci tamamen KAPSADI: ikisi de
+  aynı `pending()`'e bakar, `wrapSet`'in yüklemi (`isGatedCompletionWrite` = `isCompletionAssertion`
+  ∪ `isTransientExit`) süzgecinkinin KATI ÜST KÜMESİDİR ve pin listesinin uygulandığı HER İKİ yol
+  da (`wrapEvaluate` ve `message` dinleyicisindeki `applyWrites`) `sSet` üzerinden geçer. Süzgeç
+  bu yüzden SİLİNDİ (mutasyonla kanıtlandı: çağrıyı `return w;` ile değiştirmek 90/90 vitest +
+  24/24 pytest'i yeşil bırakıyordu; aynı mutasyon `holdBackWrites`'ta 9 vitest kırıyor → koşum
+  takımı ayırt edebiliyor, ayıran bir test yoktu). TEK gözlemlenebilir yan etki: `wrapEvaluate`'in
+  `if (writes.length && commit) commit()` koşulu artık süzülmemiş listeyi görür — ama `pending()`
+  doğruyken `holdBackWrites` zaten 2 yazım koyduğu için liste hiçbir zaman boşalmıyordu, yani
+  Commit sayısı da değişmez.
+  **YAZARLAR İÇİN — kapıların üç sınırı (fix round 4 / FIX 3):**
+  1. **`visible_if` muafiyeti bir BYPASS'tır:** o an görünmeyen ekranın kapısı sayılmaz (yoksa
+     erişilemeyen ekran kursu sonsuza dek kilitlerdi). Sonuç: kapılı bir ekran GİZLİYKEN kurs
+     `completed` raporlayabilir; ekran sonradan görünür olursa kapı yeniden devreye girer ve kurs
+     `incomplete`'e döner. Tamamlanmayı ilk `completed`'te mandallayan bir LMS'te bu geri dönüş
+     GÖRÜLMEZ — kurs tamamlanmış kalır. Muafiyet yine de doğru karardır (kalıcı kilit daha kötü);
+     kapılı ekranı `visible_if` ile koşullu yapmak, tamamlanma garantisini zayıflatır.
+  2. **2004 + `on_message`: yalnız `{scorm:'passed'}` göndermek kursu TAMAMLAMAZ.** Kapı defteri
+     (`eb.m`) yalnız `patch.c === "completed"` ile açılır; 2004'te `passed` `{k:'passed'}` üretir
+     (`embed.js:embedStateFromMsg`) ve `c`'ye HİÇ dokunmaz. 2004 `on_message` artifact'i AYRICA
+     `{scorm:'complete'}` (ya da `{scorm:'setStatus', value:'completed'}`) göndermelidir. (1.2'de
+     `passed` `c`'ye yazılır ama `"completed"` olmadığı için kapıyı yine AÇMAZ — kural her iki
+     sürümde aynıdır: kapıyı yalnız açık bir "tamamlandı" bildirimi açar.)
+  3. **Kapılar outline kilidini/ilerlemesini ETKİLEMEZ.** `components/engine/progress.js`
+     `lockedNodes`/`nodeProgress` yalnız `state.visited`'a bakar (kilit round 3'te motorun
+     GİRDİSİNİ değiştirmeyi bıraktı) → `unlock_rule: "sequential"` bir outline'da `time_threshold`
+     ekranı GÖRÜLDÜĞÜ anda bir sonraki düğümün kilidini açar, eşik beklenmez. Kapı YALNIZ kursun
+     cmi tamamlanma raporunu tutar. Outline kilidinin de kapıyı beklemesi gerekiyorsa bu ayrı bir
+     iştir (henüz yapılmadı).
+  **SINIR — her `evaluate()`'te GEÇİCİ `score.raw=0` (task-5 / FIX 7, analitik hattı olanlar için):**
+  `ENGINE_JS:writeScore()` skoru KURSTAN (`state.results`) hesaplar; skorsuz bir embed kursunda bu
+  `0`'dır ve `evaluate()` içinde `persist()`→`sCommit()` ile COMMIT edilir. Köprünün pini
+  (`eb.s`, ör. 85) ancak ondan SONRA, `wrapEvaluate` sarmalayıcısında yeniden yazılıp yeniden
+  commit edilir. Sonuç: HER gezinmede LMS `score.raw` için `0` → `85` çifti görür. "Son yazan
+  kazanır" davranan bir LMS'te ZARARSIZDIR (kalıcı değer doğru), ama HER Commit'i kaydeden bir
+  analitik hattında skor her ekran geçişinde `0`'a düşüp geri çıkıyormuş gibi görünür. Yüklemi
+  skor anahtarlarını da bastıracak şekilde genişletmek AYRI bir karardır (burada YAPILMADI:
+  `wrapSet`'in kapsamı bilerek dar tutulmuştur — bkz. `embed.js:isCompletionAssertion`).
+  **SINIR — `passing_score` artifact skorunu GÖRMEZ (fix round 3 / FINDING E, yazarlar için):**
+  motorun `isComplete()`/`quizPassed()`'ı skoru `state.results`'tan (quiz ekranlarının cevapları)
+  hesaplar; köprünün `setScore`'u `cmi`ye YAZILIR ama `state.results`'a girmez. Dolayısıyla
+  `completion_rule: "passed_quiz"` (veya `viewed_all_and_passed`) + yalnızca artifact skoru olan
+  bir kurs **hiçbir zaman tamamlanmaz** (`cmi.core.score.raw=95` + `lesson_status=incomplete`
+  kalıcıdır) — `passing_score` bu kurslarda ETKİSİZDİR. Artifact'in skoru geçme kararını da
+  belirleyecekse artifact'in AYRICA `{scorm:'passed'}`/`{scorm:'complete'}` göndermesi gerekir;
+  yoksa kursun `completion_rule`'u `viewed_all` bırakılmalıdır (bu sınır bilinçlidir: aksi hâlde
+  köprü bir kursu tamamlanmış YAPABİLİRDİ — F1 değişmezi).
+  **YERLEŞİM — `EMBED_CSS` + `aspect` (task-5 / FIX 1):** `_r_embed_html` `<div class="embed-wrap"
+  data-aspect>` + `<iframe class="embed-frame">` üretir; bu seçicileri TANIMLAYAN kurallar
+  `components/templates.py:EMBED_CSS`'tedir. `aspect` (`EmbedHtmlScreen.aspect`, varsayılan
+  `"fill"`) TEK tüketicisi budur: `fill` sahnenin kalan yüksekliğini tamamen kaplar
+  (`.video-wrap{flex:1;min-height:0}` presedanı), `16:9`/`4:3` iframe'i oranında ortalar
+  (mektup-kutusu). Dar/kısa ekranda stage modu `data-fit="flow"`a düştüğünde kırpma açılır ve
+  `fill` sarmalayıcısına taban yükseklik verilir. Kurallar BASE_CSS'e KONULMAZ (aşağıdaki
+  koşullu-inline gerekçesi).
+  **KOŞULLU inline (bayt-parite):** `load_embed_bundle()` (`core/engine_bundle.py` →
+  `window.SCORMEMBED`), `EMBED_JS` (mevcut `_REVIEW_JS_SLOT` sentineliyle enjekte) ve `EMBED_CSS`
+  (`base_css` birleşimine eklenir) YALNIZ projede ≥1 `embed_html` ekranı varsa
+  (`_uses_embed(project)`) basılır — `progress.js`/`OUTLINE_CSS` presedanının aynısı. Köprü `components/engine/scorm.js`'e KONULMAZ: o modül HER pakete koşulsuz
+  inline edilir, oraya eklemek embed'siz kursların çıktısını da değiştirirdi (ölçüldü: +87 bayt).
+  `tests/test_embed_html.py:test_bridge_inlined_only_for_embed_courses` + kritik kapı
+  `tests/test_golden.py`/`tests/test_outline_menu.py` bunu kilitler.
+  **GÜVEN SINIRI (fix round 1 / IMPORTANT 3 — açıkça belgelenir):** `sandbox="allow-scripts
+  allow-same-origin allow-forms allow-popups"` + aynı-origin `src` demek, artifact
+  `window.parent`'a VE (findAPI zinciriyle) doğrudan gerçek LMS API'sine erişebilir demektir —
+  köprünün `{scorm: "complete"|"setScore"|...}` komut listesi bir GÜVENLİK SINIRI DEĞİLDİR, yalnız
+  bir KOLAYLIK API'sidir. Gömülü artifact, kursla AYNI ayrıcalıkla çalışır (yazarın kendi içeriği,
+  yazarın kendi LMS'i — v1 kapsamında sandbox öznitelikleri BİLEREK değiştirilmedi). Bu sınır
+  burada belgelenir; artifact yazarı köprüyü atlayıp `window.API`/`window.API_1484_11`'i doğrudan
+  çağırabilir, bu BEKLENEN bir davranıştır, açık DEĞİLDİR.
+
+  ⚠️ **AMA BU YALNIZ `package` MODUNDA GEÇERLİDİR (task-5 / FIX 7).** Yukarıdaki "aynı-origin"
+  varsayımı iframe'in `src`'sinin ne olduğuna bağlıdır ve renderer bunu MODA GÖRE çözer
+  (`components/renderer.py`, `assetSrc`):
+  - **`mode="package"`** (`build_package` → LMS): `src` GÖRELİ bir yoldur (`assets/app.html`), yani
+    artifact kursun kendi origin'inden servis edilir. `allow-same-origin` gerçekten aynı-origin
+    demektir → `window.parent.API` ERİŞİLEBİLİR. Yukarıdaki paragraf AYNEN geçerlidir.
+  - **`mode="preview"`** (`preview` VE `publish_demo` — ikisi de `_render_preview_html` üzerinden
+    tek-dosya render eder): asset'ler `data:<mime>;base64,…` URI olarak GÖMÜLÜR. Bir `data:`
+    iframe'in origin'i OPAK'tır; `allow-same-origin` opak origin'i "ana sayfayla aynı" YAPMAZ →
+    `window.parent.API` okumak SecurityError ATAR ve `findAPI` zinciri hiçbir şey bulamaz.
+    Yani önizleme/demo'da artifact'in tek kanalı köprüdür.
+  - **postMessage köprüsü HER İKİ MODDA da çalışır:** `EMBED_JS` `ev.origin`'e DEĞİL `ev.source`
+    KİMLİĞİNE bakar (kendi iframe pencerelerinin listesiyle karşılaştırır) ve artifact `"*"` hedefi
+    ile gönderir — ikisi de origin'den bağımsızdır, opak origin'de de doğru çalışır.
+
+  YAZAR İÇİN SONUÇ: köprüyü atlayıp doğrudan `window.API`'ye yazan bir artifact ÖNİZLEMEDE
+  SESSİZCE HİÇBİR ŞEY yapmaz ama paketlendiğinde çalışır — yani "önizlemede raporlamıyor" bir hata
+  DEĞİL, bu sınırın beklenen görünümü olabilir. Taşınabilir yol: her zaman `postMessage` köprüsü.
+
+  **GÜVEN SINIRI — fix round 5 ile DEĞİŞEN kısım (LMS-adaptör vekili).** Kapılı bir embed kursta
+  (`completion: time_threshold | on_message`) artık `components/templates.py:EMBED_SHIM_JS` adlı
+  KOŞULLU bir satır-içi script basılır; bu script kursun KENDİ `window`'una bir **vekil SCORM
+  adaptörü** koyar (`window.API` ve/veya `window.API_1484_11`) ve tüm çağrıları yukarıda bulduğu
+  GERÇEK adaptöre devreder. Sonuç: `findAPI` zincirini yürüyen bir çocuk iframe (yani artifact'in
+  kendisi) o pencerede gerçek adaptör yerine **bizim vekilimizi** bulabilir.
+
+  Kapsam ve süre — vekil bir güvenlik önlemi DEĞİLDİR, tek amacı kapı bütünlüğüdür:
+  - **YALNIZ SENKRON AÇILIŞ PENCERESİNDE zincirin başındadır.** `EMBED_JS` gerçek kilidi kurar
+    kurmaz `__SCORM_EMBED_SHIM__.release()` çağrılır; vekil şeffaflaşır ve `window`'a koyduğu ad
+    SİLİNİR (zincir şekli aynen eski hâline döner). Kilit hiç kurulmazsa `DOMContentLoaded`
+    aynısını yapar. Pratikte artifact'in `src`'si `loading="lazy"` ile ve ayrı bir görevde yüklenir,
+    yani artifact kodu vekili çoğu zaman zaten göremez.
+  - **NEYİ SÜZER:** yalnız kapı beklerken ve yalnız `SetValue`/`LMSSetValue` üzerinde, yalnız
+    `components/engine/embed.js:isGatedCompletionWrite` yüklemi — 1.2 `cmi.core.lesson_status`
+    `completed`/`passed`, 2004 `cmi.completion_status` `completed`, ve her iki sürümde geçici
+    `exit=normal`. Bastırılan çağrı üst akışa HİÇ gitmez ve `"true"` döner.
+  - **NEYİ SÜZMEZ:** `GetValue`, `Commit`, `Initialize`/`Terminate`, hata metotları ve DİĞER TÜM
+    `SetValue` anahtarları — skor, `cmi.success_status`, `cmi.suspend_data`, `cmi.objectives.*`,
+    `cmi.interactions.*`, `session_time` — aynen geçer. `failed`/`incomplete`/`browsed`/
+    `not attempted` de geçer. Yani vekil, artifact'in LMS'e erişimini **kısıtlamaz**; kapı
+    beklerken TAMAMLANMA İDDİASINI geciktirir, o kadar. Devirden sonra hiçbir şeyi süzmez.
+  - **LMS'in kendi adaptörü ASLA yamalanmaz:** metotları değiştirilmez, nesnesine dokunulmaz;
+    çağrılar `f.apply(real, arguments)` ile `this` korunarak devredilir. Üst akışta adaptör
+    YOKSA vekil HİÇ kurulmaz (aksi hâlde ENGINE_JS'in LMS'siz yerel `Scorm12API` fallback'i
+    bozulurdu). **fix round 6:** vekil 8 SCORM metodunu KOŞULSUZ tanımlar ve `typeof real[m]`
+    kontrolünü KURULUM'da değil ÇAĞRI anında yapar — eski başlatıcılar `window.API`'yi yer tutucu
+    bir nesne/applet olarak yayınlayıp metotları sonradan ekler; ad kümesini dondurmak sıfır-metotlu
+    bir vekili motorun `api` değişkenine kalıcı olarak sokup TÜM raporlamayı yok ederdi. Metot
+    çağrı anında hâlâ yoksa vekil `TypeError` ATAR (uydurma dönüş değeri YOK) — vekilsiz hâldeki
+    davranışın aynısı; motorun `sSet`/`sGet`/`sInit`/`sCommit`'i bunu zaten yutar. Bunun bedeli:
+    vekil, gerçek adaptörün o an sahip OLMADIĞI metotları da "var" gösterir; boot penceresinde
+    özellik-yoklaması (feature detection) yapan üçüncü taraf kod için bu bir sınırdır. Adaptörün
+    metot-dışı özellikleri (ör. scorm-again'in `cmi` nesnesi) vekilde YOKTUR — ENGINE_JS yalnız
+    bu 8 metodu çağırır, ama vekili gören üçüncü taraf kod için bu da bir sınırdır.
+  - Kapısız (`on_view`) embed kurslarda ve embed'siz kurslarda vekil **hiç basılmaz** —
+    fix round 6'dan itibaren bu karar `components/renderer.py:_uses_gated_embed()` ile
+    PYTHON'da verilir (önce yalnız şablon içinde no-op'tu, script yine de basılıyordu).
+    Karar KURS başınadır: karışık bir kursta (bir `on_view` + bir `time_threshold`) basılır.
 
 ---
 
@@ -959,6 +1552,17 @@ def render_html(project: Project, *, mode: Literal["preview", "package"],
 # canonical_url (1.4): og:url için; yalnız publish_demo geçer (KALICI /demo/{slug} linki)
 def load_runtime_js() -> str: ...        # runtime/scorm-again.min.js içeriğini döndürür
 ```
+
+**data_chart render sözleşmesi (Faz 6b — düzen ölçüm raporu §5.1):** `_build_chart_svg`
+deterministik inline-SVG üretir (dış lib/ağ yok) ve OKUNABİLİRLİK garantileri verir:
+- `line`: y-ekseni + 'güzel' adımlı (1/2/5×10^k) sayısal tick etiketleri + hafif grid +
+  İLK/SON nokta değer etiketi (bar'ın çubuk-üstü değeriyle simetri; veri modeli tek seri).
+- `bar`: çubuk-üstü değer etiketleri (regresyon-kilitli). `pie`: legend ham değer + yüzde.
+- Sayısal metinler `direction="ltr"` taşır (RTL belgede text-anchor uçları ters çözülür).
+- Seri renkleri `var(--chart-N, <fallback>)` ile ColorPalette.chart_series token'ından akar;
+  `--chart-N` YALNIZ data_chart içeren kursta basılır (3.3 bayt-parite).
+Bu garantiler `tests/test_charts.py` ile kilitlidir (CHART_VALUES_UNREADABLE'ın nihai biçimi
+= test-düzeyi değişmez; §3.2 notu).
 
 ### 12.6 Asset çekim sorumluluğu (`build_from_spec` / `add_asset`)
 - **Server** (Ajan C) çeker: `https://` → `auth.ssrf.safe_fetch_asset(url) -> (bytes, mime)`;

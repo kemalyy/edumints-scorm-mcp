@@ -4,9 +4,10 @@ from core.composition import CompositionError, load_catalog, resolve_spec
 from core.project import CompositionSpec
 
 
-def test_catalog_has_seven_presets():
+def test_catalog_presets():
     assert set(load_catalog()) == {"centered", "split-thirds", "split-halves", "hero-focal",
-                                   "statement", "z-flow", "f-flow"}
+                                   "statement", "z-flow", "f-flow", "visual-stack",
+                                   "question-column"}
 
 
 def test_preset_by_name():

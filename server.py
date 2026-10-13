@@ -39,6 +39,7 @@ from auth import (
 from auth.oauth import make_jwt_verifier
 from core.packager import Packager
 from core.project import (
+    CompositionDefaults,
     AddScreenOut,
     AssetRef,
     BuildFromSpecOut,
@@ -360,6 +361,11 @@ def _load_theme(theme: str | ThemeTokens, _seen: frozenset[str] = frozenset(),
     return _apply_audience(_deep_merge_theme(parent, child), audience)
 
 
+def _comp_questions(p) -> list[dict]:
+    from core.composition_questions import build_questions
+    return build_questions(p)
+
+
 def _comp_summary(p) -> list[dict]:
     from core.composition_auto import summary
     return summary(p)
@@ -641,6 +647,8 @@ async def lint_course(project_id: str, strict: bool | None = None) -> dict:
             "evidence_binding_coverage": round(evidence_binding_coverage(p), 3),
             "issues": items,
             "compositions": _comp_summary(p),  # K1 — Claude neyin seçildiğini görüp ezebilir
+            # K2 — kullanıcıya sorulacak kompozisyon tercihleri: sor, `apply`'ı uygula, önizle
+            "composition_questions": _comp_questions(p),
         }
     except ToolError as e:
         raise _wrap(e)
@@ -1128,6 +1136,7 @@ async def preview(project_id: str) -> PreviewOut:
             inline_html=html,
             hosted_url=f"{SETTINGS.public_base_url}/preview/{token}",
             compositions=_comp_summary(p),
+            composition_questions=_comp_questions(p),
         )
     except ToolError as e:
         raise _wrap(e)
@@ -1335,6 +1344,7 @@ async def build_from_spec(spec: dict, strict: bool | None = None) -> BuildFromSp
             theme=_load_theme(_theme_for(spec.theme, spec.composition),
                               audience=spec.audience_pack),
             composition=spec.composition,  # K1 — yeni kurslar varsayılan auto
+            composition_defaults=spec.composition_defaults,  # K2 — kurs düzeyi tercih
             theme_mode=spec.theme_mode,  # Faz 6b — kozmetik mod ekseni (render anında çözülür)
             tracking=spec.tracking,
             variables=list(spec.variables),
@@ -1557,16 +1567,57 @@ async def list_compositions() -> dict:
 
 
 @mcp.tool
-async def set_composition(project_id: str, mode: Literal["classic", "auto"]) -> OkOut:
+async def set_composition(project_id: str, mode: Literal["classic", "auto"],
+                          visual: Literal["auto", "stack", "split"] | None = None,
+                          question: Literal["auto", "stack", "split"] | None = None) -> OkOut:
     """Projenin kompozisyon modunu ayarlar. "auto": odak/vurgu kademeleri/otomatik desen;
-    "classic": eski görünüm (bayt-aynı). Mevcut bir projeyi yükseltmenin TEK yolu."""
+    "classic": eski görünüm (bayt-aynı). Mevcut bir projeyi yükseltmenin TEK yolu.
+    visual (K2, ops.): görsel ekranlarda metin yeri tercihi — "stack" (üstte bant), "split"
+    (solda sütun), "auto" (içeriğe göre). Verilmezse mevcut tercih korunur.
+    question (K3, ops.): vakalı (uyaranlı) soru ekranlarında vakanın yeri — aynı değerler."""
     await SVC.ensure()
     try:
         owner = await _owner()
         p = await _load(project_id, owner)
         p.composition = mode
+        if visual is not None or question is not None:
+            cur = p.composition_defaults or CompositionDefaults()
+            p.composition_defaults = cur.model_copy(update={
+                k: v for k, v in (("visual", visual), ("question", question)) if v is not None})
         await SVC.store.update_project(p)
         return OkOut()
+    except ToolError as e:
+        raise _wrap(e)
+
+
+@mcp.tool
+async def set_screen_composition(project_id: str, screen_id: str,
+                                 composition: str | dict | None) -> OkOut:
+    """Tek bir ekranın kompozisyonunu ayarlar (desen adı, {"preset": …, ince ayar} nesnesi ya da
+    None = otomatik seçime bırak). Ekranın diğer alanlarına DOKUNMAZ — update_screen'in aksine tüm
+    ekranı yeniden göndermek gerekmez. `composition_questions` cevaplarını uygulamak için."""
+    await SVC.ensure()
+    try:
+        from core.composition import CompositionError, resolve_spec
+        from core.project import CompositionSpec
+
+        owner = await _owner()
+        p = await _load(project_id, owner)
+        idx = next((i for i, s in enumerate(p.screens) if s.id == screen_id), None)
+        if idx is None:
+            raise ToolError("not_found", f"Ekran bulunamadı: {screen_id}")
+        spec = CompositionSpec.model_validate(composition) if isinstance(composition, dict) \
+            else composition
+        if spec is not None:
+            try:
+                resolve_spec(spec, p.screens[idx].type.value)
+            except CompositionError as e:
+                raise ToolError(e.code, str(e)) from e
+        p.screens[idx] = p.screens[idx].model_copy(update={"composition": spec})
+        await SVC.store.update_project(p)
+        return OkOut()
+    except ValidationError as e:
+        raise _wrap(ToolError("invalid_composition", str(e)))
     except ToolError as e:
         raise _wrap(e)
 
@@ -1851,7 +1902,7 @@ def _spec_to_project_for_lint(spec: dict, owner_id: str):
         scorm_version=cs.scorm_version, language=cs.language,
         objectives=list(cs.objectives), outline=list(cs.outline),
         audience_pack=cs.audience_pack, screens=list(cs.screens), owner_key_id=owner_id,
-        composition=cs.composition,
+        composition=cs.composition, composition_defaults=cs.composition_defaults,
     )
     for s in p.screens:
         if not s.id:

@@ -88,6 +88,7 @@ hata verir.
 | geri sayım / tarih | `page.clock.install()` ile sanal saat, sabit ana dondurulur |
 | `Math.random()` karıştırması | harness'ta tohumlanmış `Math.random` (mulberry32) |
 | `<video>` decode karesi | `screenshot({ mask: [video] })` — kutu korunur, kare içeriği hariç |
+| oynatıcı ilerleme noktası / süre | K6: `#seekbar` + `#plTime` TÜM fixture'larda maskeli (anlatım zaman çizelgeli ekranlarda nokta koşudan koşuya kayıyordu) |
 | retina ölçekleme | `deviceScaleFactor: 1` |
 | alt-piksel anti-aliasing | `--disable-lcd-text`, `--font-render-hinting=none`, sRGB profili |
 

@@ -175,6 +175,23 @@ _EN: dict[str, str] = {
     # --- yazar içeriği için varsayılanlar (yazar doldurmazsa) ---
     "feedback_correct": "Correct!",
     "feedback_incorrect": "Try again.",
+    # K2/K3 — üretim-anı kompozisyon soruları (Claude kullanıcıya sorar; sayfaya gömülmez)
+    "cq_visual_q": "Where should the text sit on visual-heavy screens?",
+    "cq_question_q": "On case-based questions, where should the case sit?",
+    "cq_screen_visual_q": "'{title}': text above the visual or beside it?",
+    "cq_screen_question_q": "'{title}': case above the question or beside it?",
+    "cq_opt_stack": "Narrow band on top",
+    "cq_opt_stack_d": "Visual stays wide; for charts, video, before/after",
+    "cq_opt_split": "Column on the left",
+    "cq_opt_split_d": "Explanation and question alongside; for long text",
+    "cq_opt_auto": "Depends on content",
+    "cq_opt_auto_d": "Choose per screen by text length",
+    "cq_q_opt_stack": "Case on top",
+    "cq_q_opt_stack_d": "Short case reads first, question below",
+    "cq_q_opt_split": "Case beside the question",
+    "cq_q_opt_split_d": "Long case or image + text stays visible while answering",
+    "cq_opt_above": "Above",
+    "cq_opt_beside": "Beside",
 }
 
 _TR: dict[str, str] = {
@@ -271,6 +288,23 @@ _TR: dict[str, str] = {
     "notice_close": "Kapat",
     "feedback_correct": "Doğru!",
     "feedback_incorrect": "Tekrar deneyin.",
+    # K2/K3 — üretim-anı kompozisyon soruları (Claude kullanıcıya sorar; sayfaya gömülmez)
+    "cq_visual_q": "Görsel ağırlıklı ekranlarda metin nerede dursun?",
+    "cq_question_q": "Vakalı sorularda vaka nerede dursun?",
+    "cq_screen_visual_q": "'{title}' ekranında metin görselin üstünde mi, yanında mı olsun?",
+    "cq_screen_question_q": "'{title}' ekranında vaka sorunun üstünde mi, yanında mı olsun?",
+    "cq_opt_stack": "Üstte dar bant",
+    "cq_opt_stack_d": "Görsel geniş; grafik, video, önce/sonra için",
+    "cq_opt_split": "Solda sütun",
+    "cq_opt_split_d": "Açıklama ve soru yanında; uzun metin için",
+    "cq_opt_auto": "İçeriğe göre",
+    "cq_opt_auto_d": "Her ekranda metin uzunluğuna göre seç",
+    "cq_q_opt_stack": "Vaka üstte",
+    "cq_q_opt_stack_d": "Kısa vaka önce okunur, soru altında",
+    "cq_q_opt_split": "Vaka sorunun yanında",
+    "cq_q_opt_split_d": "Uzun vaka ya da görsel + metin cevaplarken görünür kalır",
+    "cq_opt_above": "Üstte",
+    "cq_opt_beside": "Yanında",
 }
 
 STRINGS: dict[str, dict[str, str]] = {

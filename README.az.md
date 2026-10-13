@@ -44,7 +44,10 @@ runtime körpüsü və paketləmə. Nəticə standartlara uyğun SCORM paketidir
 
 ## İmkanlar
 
-- **28 ekran növü** — başlıq, məzmun, çoxseçimli, doğru/yanlış, boşluq doldurma, sürüklə-burax,
+- **Kompozisiya sistemi** — hər yeni kurs (`composition: "auto"`) bütün 31 ekran növündə şüurlu fokus nöqtəsi,
+  vurğu iyerarxiyası (E1–E5) və üçdə bir qaydasına, Z/F göz axınına uyğun simmetrik/asimmetrik düzən alır;
+  server kurs yaradılarkən vacib qərarları soruşur. Mövcud kurslar dəyişmir.
+- **31 ekran növü** — başlıq, məzmun, çoxseçimli, doğru/yanlış, boşluq doldurma, sürüklə-burax,
   hotspot, budaqlanan ssenari, akkordeon, tablar, kartlar, uyğunlaşdırma, sıralama, zaman xətti,
   lottie, **bələdçili proqram simulyasiyası**, video, xülasə, **qərar ssenarisi**, **term yarışı**,
   **qaçış otağı**, **etiketli diaqram**, **məlumat qrafiki**, **şəkil müqayisəsi**,

@@ -391,6 +391,30 @@ class CompositionSpec(BaseModel):
     intensity: Literal["calm", "normal", "high"] | None = None
 
 
+class Stimulus(BaseModel):
+    """K3 — soru uyaranı: görsel ve/veya vaka metni. Soru bu vakaya UYGULANIR; kanıt bağı
+    (evidence_screen_ids) yine kavramı öğreten ekranlara verilir (uyaran onun yerine geçmez)."""
+    model_config = ConfigDict(extra="forbid")
+    asset_id: str | None = None
+    alt: str | None = None
+    text_html: str | None = None
+    caption: str | None = None
+
+    @model_validator(mode="after")
+    def _need_content(self):
+        if not self.asset_id and not (self.text_html or "").strip():
+            raise ValueError("stimulus: asset_id veya text_html gerekli")
+        return self
+
+
+class CompositionDefaults(BaseModel):
+    """K2 — kurs düzeyi kompozisyon tercihi (üretim sırasında kullanıcıya sorulur).
+    visual: görsel ekranlarda metin yeri — stack (üstte bant) | split (solda sütun) | auto."""
+    model_config = ConfigDict(extra="forbid")
+    visual: Literal["auto", "stack", "split"] | None = None  # None = sorulmadı (K3)
+    question: Literal["auto", "stack", "split"] | None = None  # K3 — None = sorulmadı
+
+
 class ScreenType(str, Enum):
     title_slide = "title_slide"
     content_slide = "content_slide"
@@ -487,6 +511,7 @@ class ContentSlide(ScreenBase):
 
 class MCQScreen(ScreenBase):
     type: Literal[ScreenType.mcq] = ScreenType.mcq
+    stimulus: Stimulus | None = None  # K3 — soru uyaranı (görsel ve/veya vaka)
     prompt_html: str
     options: list[Choice] = Field(min_length=2)
     multi_select: bool = False
@@ -500,6 +525,7 @@ class MCQScreen(ScreenBase):
 
 class TrueFalseScreen(ScreenBase):
     type: Literal[ScreenType.true_false] = ScreenType.true_false
+    stimulus: Stimulus | None = None  # K3 — soru uyaranı (görsel ve/veya vaka)
     prompt_html: str
     correct: bool
     feedback: Feedback = Field(default_factory=Feedback)
@@ -512,6 +538,7 @@ class TrueFalseScreen(ScreenBase):
 
 class FillBlankScreen(ScreenBase):
     type: Literal[ScreenType.fill_blank] = ScreenType.fill_blank
+    stimulus: Stimulus | None = None  # K3 — soru uyaranı (görsel ve/veya vaka)
     prompt_html: str
     blanks: list[Blank] = Field(min_length=1)
     case_sensitive: bool = False
@@ -525,6 +552,7 @@ class FillBlankScreen(ScreenBase):
 
 class DragDropScreen(ScreenBase):
     type: Literal[ScreenType.drag_drop] = ScreenType.drag_drop
+    stimulus: Stimulus | None = None  # K3 — soru uyaranı (görsel ve/veya vaka)
     prompt_html: str
     items: list[DragItem] = Field(min_length=1)
     targets: list[DropTarget] = Field(min_length=1)
@@ -560,6 +588,7 @@ class HotspotScreen(ScreenBase):
 
 class BranchingScreen(ScreenBase):
     type: Literal[ScreenType.branching] = ScreenType.branching
+    stimulus: Stimulus | None = None  # K5 — karar vakası
     prompt_html: str
     choices: list[BranchChoice] = Field(min_length=1)
     default_goto: str | None = None
@@ -637,6 +666,7 @@ class MatchPair(BaseModel):
 
 class MatchingScreen(ScreenBase):
     type: Literal[ScreenType.matching] = ScreenType.matching
+    stimulus: Stimulus | None = None  # K3 — soru uyaranı (görsel ve/veya vaka)
     prompt_html: str
     pairs: list[MatchPair] = Field(min_length=2)
     feedback: Feedback = Field(default_factory=Feedback)
@@ -654,6 +684,7 @@ class SortItem(BaseModel):
 
 class SortingScreen(ScreenBase):
     type: Literal[ScreenType.sorting] = ScreenType.sorting
+    stimulus: Stimulus | None = None  # K3 — soru uyaranı (görsel ve/veya vaka)
     prompt_html: str
     items: list[SortItem] = Field(min_length=2)  # DOĞRU sıra (yazarın verdiği); runtime karıştırır
     feedback: Feedback = Field(default_factory=Feedback)
@@ -880,6 +911,7 @@ class PollScreen(ScreenBase):
     """Faz 14 — puanlanmayan anket/yansıma. Öğrenci seçer (tek/çok) ya da açık metin yazar;
     gönderince yansıma mesajı belirir. Katılım/öz-değerlendirme — skorlanmaz, ileri engellemez."""
     type: Literal[ScreenType.poll] = ScreenType.poll
+    stimulus: Stimulus | None = None  # K4 — yansıma/tahmin vakası
     prompt_html: str
     options: list[PollOption] = Field(default_factory=list)  # boş + allow_text → açık yansıma
     multi: bool = False
@@ -935,6 +967,7 @@ class AdaptiveItem(BaseModel):
     difficulty: float = 0.0
     skill: str | None = None
     explain_html: str | None = None  # cevaptan sonra gösterilen açıklama (NEEDS gerekçe — anti-slop)
+    stimulus: Stimulus | None = None  # K3 — öğe başına uyaran (öğe gösterilince görünür)
     scaffold_html: str | None = None  # yanlışta gösterilen İPUCU (cevap DEĞİL); explain_html ise cevap-gösteren bottom-out'tur
 
 
@@ -1015,6 +1048,7 @@ class ExplorationScreen(ScreenBase):
     PUAN ALANI YOK: skorsuz/formatif (A4 skorsuz-erken-deneme istisnası; Z3 — denemeyi
     puanlamak keşfi tahmin-yarışına çevirir). QUIZ_TYPES dışı, skor state'ine yazmaz."""
     type: Literal[ScreenType.exploration] = ScreenType.exploration
+    stimulus: Stimulus | None = None  # K4 — yansıma/tahmin vakası
     prompt_html: str
     input_kind: Literal["text", "choice", "prediction", "slider"] = "text"
     choices: list[Choice] | None = None      # choice/prediction için zorunlu (≥2)
@@ -1243,6 +1277,7 @@ class Project(BaseModel):
     # K1 — kompozisyon modu. Model varsayılanı "classic": diskte bu alanı taşımayan ESKİ projeler
     # bayt-aynı kalır. Yeni projeleri sunucu oluşturma noktaları açıkça "auto" yaratır.
     composition: Literal["classic", "auto"] = "classic"
+    composition_defaults: CompositionDefaults | None = None  # K2 — None = hiç ayarlanmadı
     # Senaryo hattı Faz 1 — REZERVE alan (CourseSpec.audience_pack aynası); davranış Faz 5.
     audience_pack: str | None = Field(default=None, pattern=r"^[a-z0-9_-]{1,64}$")
     # E1 (#110) — beyan-temelli: kursun türetildiği kaynak dokümanın madde/başlık sayısı.
@@ -1286,6 +1321,7 @@ class CourseSpec(BaseModel):
     # Faz 6b — Project.theme_mode aynası: light (vars., bayt-parite) | dark | auto
     theme_mode: Literal["light", "dark", "auto"] = "light"
     composition: Literal["classic", "auto"] = "auto"  # K1 — yeni kurslar varsayılan auto
+    composition_defaults: CompositionDefaults | None = None  # K2 — kurs düzeyi tercih
     tracking: Tracking = Field(default_factory=Tracking)
     variables: list[Variable] = Field(default_factory=list)  # Faz 5
     points_var: str | None = None  # Faz 6
@@ -1347,6 +1383,7 @@ class PreviewOut(BaseModel):
     inline_html: str
     hosted_url: str
     compositions: list[dict] = Field(default_factory=list)  # K1 — çözülmüş kompozisyon özeti
+    composition_questions: list[dict] = Field(default_factory=list)  # K2 — kullanıcıya sor
 
 
 class BuildOut(BaseModel):

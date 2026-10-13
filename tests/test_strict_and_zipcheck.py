@@ -63,6 +63,8 @@ def test_strict_promoted_codes_is_curated_set():
         # K1 — kompozisyon/vurgu kalite uyarıları (spec §6.1: strict'te uyarılar hataya döner)
         "emphasis_inflation", "mark_overuse", "lead_too_long", "multiple_focal_points",
         "composition_monotony", "intensity_run",
+        # K3 — uyaran cevap sızıntısı (spec §4)
+        "stimulus_answer_leak",
     })
 
 

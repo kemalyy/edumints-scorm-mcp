@@ -286,7 +286,8 @@ body[data-bg="grid"]{background-image:linear-gradient(color-mix(in srgb,var(--c-
 .content-blocks figure.block-media{margin:0}
 .content-blocks figcaption{font-size:13px;color:var(--c-muted);text-align:center;margin-top:var(--space-2)}
 .acc-body .item-media,.tl-content .item-media,.tab-panel .item-media{max-height:240px}
-.fc-face .item-media{max-height:130px;margin:0 auto var(--space-2)}
+.fc-face .item-media{max-height:130px;max-width:100%;width:auto;margin:0}
+.fc-text{display:block;max-width:100%}
 
 /* title slide */
 .title-slide{text-align:center;padding:var(--space-5) 0;flex:1;display:flex;flex-direction:column;
@@ -657,11 +658,12 @@ body[data-bg="grid"]{background-image:linear-gradient(color-mix(in srgb,var(--c-
 .tab:focus-visible{outline:3px solid var(--c-focus);outline-offset:-2px;border-radius:var(--r-sm)}
 
 /* flashcards */
-.flashcard{background:transparent;border:none;padding:0;cursor:pointer;perspective:1000px;min-height:160px;font:inherit}
-.fc-inner{position:relative;display:block;width:100%;min-height:160px;transform-style:preserve-3d;
+.flashcard{display:grid;background:transparent;border:none;padding:0;cursor:pointer;perspective:1000px;min-height:160px;font:inherit}
+.fc-inner{position:relative;display:grid;width:100%;min-height:160px;transform-style:preserve-3d;
   transition:transform .5s cubic-bezier(.4,0,.2,1)}
 .flashcard.flipped .fc-inner{transform:rotateY(180deg)}
-.fc-face{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;
+.fc-face{grid-area:1 / 1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;
   padding:var(--space-4);border:1px solid var(--c-border);border-radius:var(--r-md);box-shadow:var(--e1);
   background:var(--c-bg);backface-visibility:hidden;-webkit-backface-visibility:hidden}
 .fc-back{transform:rotateY(180deg);background:color-mix(in srgb,var(--c-primary) 7%,var(--c-bg))}
@@ -741,7 +743,7 @@ body[data-layout="flow"] .stage-scaler,body[data-layout="flow"] .stage-frame{
 /* Faz 17 — JS-tetikli reflow: sabit-tuval ölçeği okunabilirlik eşiğinin (k<0.85) altına
    düşünce fitStage data-fit="flow" set eder → dar/kısa ekran ve LMS iframe'lerde içerik
    küçülmek yerine doğal akışla (≤640px reflow ile aynı) yerleşir, dikey kaydırılır. */
-body[data-layout="stage"][data-fit="flow"] .stage{align-items:center;justify-content:flex-start;overflow-y:auto}
+body[data-layout="stage"][data-fit="flow"] .stage{align-items:safe center;justify-content:flex-start;overflow-y:auto}
 body[data-layout="stage"][data-fit="flow"] .stage-scaler{width:100%!important;height:auto!important;margin:0}
 body[data-layout="stage"][data-fit="flow"] .stage-frame{width:100%!important;height:auto!important;transform:none!important}
 body[data-layout="stage"][data-fit="flow"] .stage-frame .screen[aria-hidden="false"]{position:relative;inset:auto;min-height:100%;overflow:visible}
@@ -875,7 +877,7 @@ body[data-layout="flow"] .stage{position:relative}
   .options.tf{flex-direction:column}
   /* Faz 16 — mobil/dar ekran: sabit-tuval ölçeklemesini BIRAK, içerik doğal akışla reflow
      + dikey kaydırma (metin okunabilir kalır, tuval küçülmez) */
-  body[data-layout="stage"] .stage{align-items:center;justify-content:flex-start;overflow-y:auto}
+  body[data-layout="stage"] .stage{align-items:safe center;justify-content:flex-start;overflow-y:auto}
   body[data-layout="stage"] .stage-scaler{width:100%!important;height:auto!important;margin:0}
   body[data-layout="stage"] .stage-frame{width:100%!important;height:auto!important;transform:none!important}
   body[data-layout="stage"] .stage-frame .screen[aria-hidden="false"]{position:relative;inset:auto;min-height:100%;overflow:visible}
@@ -3097,9 +3099,12 @@ COMPOSITION_CSS = """
 .screen[data-comp] .screen-inner>.tl-block{flex:1;min-height:0;display:flex;flex-direction:column}
 .comp-grid{display:grid;flex:1;min-height:0;grid-template-columns:var(--comp-cols);
   grid-template-rows:var(--comp-rows);gap:var(--space-5)}
-.slot{min-width:0;min-height:0;display:flex;flex-direction:column;justify-content:center}
+.slot{min-width:0;min-height:0;display:flex;flex-direction:column;justify-content:safe center}
 .slot .media,.slot .item-media{max-width:100%;max-height:100%;object-fit:contain}
-.slot-focal .block-media{height:100%;margin:0;display:flex;flex-direction:column;justify-content:center}
+/* focal VE aux (split-halves ikinci görsel) aynı kural: görsel bloğu yuvanın yüksekliğine uyar —
+   aux'ta yoksa blok yuvadan taşar ve iki yarım hizasını kaybeder (K6 safe hizalamasıyla görünür oldu) */
+.slot-focal .block-media,.slot-aux .block-media{height:100%;margin:0;display:flex;flex-direction:column;
+  justify-content:center}
 .screen[data-ws="high"] .comp-grid{padding:var(--space-6) var(--space-7)}
 .screen[data-ws="low"] .comp-grid{gap:var(--space-3)}
 .screen[data-flow="center"] .slot-support{align-items:center;text-align:center}
@@ -3118,12 +3123,129 @@ COMPOSITION_CSS = """
 .title-slide.comp[data-bg-asset] .slot-support{
   background:color-mix(in srgb,var(--c-surface) 92%,transparent);
   padding:var(--space-4);border-radius:var(--r-md)}
+/* K2 — görsel etkileşimli tipler: görsel öğe odak yuvasını doldurur, taşmaz */
+.slot-focal .hotspot,.slot-focal .labeled-diagram,.slot-focal .simulation,
+.slot-focal .img-compare-wrap,.slot-focal .data-chart,.slot-focal .video-wrap,
+.slot-focal .lottie-wrap{width:100%;max-height:100%;min-height:0;margin:0}
+.slot-focal .hotspot-stage,.slot-focal .ld-stage{max-height:100%}
+/* Görsel, odak yuvasının KALAN yüksekliğine sığar (container query). Sahneler inline-block
+   olduğu için görseli sıkıca sarar; bölgeler img.clientWidth/Height'tan konumlandığından
+   küçültülmüş görselde de doğru yerde kalır. */
+/* Boyut kabı YALNIZ gerçek sahne modunda: akış düzeninde (layout_mode=flow ya da sahne sığmayınca
+   data-fit=flow) ekran yüksekliği içerikten gelir; boyut kabı odak yuvasını sıfırlayıp görseli
+   küçültürdü (K1 dahil). Kap yokken cqh/cqw birimleri görünüm alanına düşer. */
+body[data-layout="stage"]:not([data-fit="flow"]) .slot-focal{container-type:size}
+.slot-focal .hotspot,.slot-focal .labeled-diagram,.slot-focal .simulation,
+.slot-focal .img-compare-wrap{display:flex;flex-direction:column;align-items:center;
+  height:100%;min-height:0}
+.slot-focal .hotspot-img{max-height:100cqh;width:auto}
+.slot-focal .ic-img-before{max-height:100cqh;width:auto;max-width:100%}
+.slot-focal .labeled-diagram:not(.ld-display){flex-direction:row;align-items:flex-start;
+  gap:var(--space-4)}
+.slot-focal .labeled-diagram:not(.ld-display) .hotspot-img{max-width:60cqw}
+.slot-focal .ld-rows{margin-top:0;max-height:100cqh;overflow:auto;flex:1;min-width:0}
+.slot-focal .simulation .hotspot-img{max-height:calc(100cqh - 7.5rem)}
+.slot-focal .chart-svg{max-height:calc(100cqh - 2.5rem);width:auto;max-width:100%}
+.slot-support .quiz-actions{margin-top:var(--space-3)}
+.screen[data-comp="visual-stack"] .slot-support{justify-content:safe flex-end}
 .screen[data-intensity="calm"] .lead{font-size:var(--fs-h4)}
 .screen[data-intensity="high"] .lead{font-size:var(--fs-h2)}
+/* K3 — soru ekranları */
+.screen[data-comp="question-column"] .comp-grid{max-width:64ch;margin-inline:auto;width:100%}
+.slot .q-answer{width:100%}
+/* cevap alanı odaktayken boyut kabı kapalı: soru içerikten büyür (kesilmez) */
+/* özgüllük sahne kuralından (body[data-layout="stage"]:not(...) .slot-focal) YÜKSEK olmalı */
+body[data-layout] .screen .slot-focal:has(>.q-answer),
+body[data-layout] .screen .slot-focal:has(>.adaptive){container-type:normal;
+  justify-content:safe center}
+.slot-focal>.adaptive .stimulus.stimulus-media .item-media{max-height:min(22vh,200px)}
+.q-answer[data-many] .options,.q-answer[data-many] .matching{
+  display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2) var(--space-4)}
+/* uyaran odakta: görsel KALAN yüksekliğe küçülür, vaka metni her zaman görünür (en fazla yarı) */
+.slot-focal:has(>.stimulus){gap:var(--space-3)}
+.slot-focal>.stimulus{margin:0}
+.slot-focal>.stimulus-media{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;
+  align-items:center}
+.slot-focal>.stimulus.stimulus-media .item-media{flex:1 1 auto;min-height:0;max-height:100%;width:auto;
+  max-width:100%;object-fit:contain}
+.slot-focal>.stimulus-text{flex:0 0 auto;max-height:50%;overflow:auto;width:100%}
+/* K5 — yan yana sahne: odak ≥640px ve düğümde görsel varsa görsel sol, anlatı + seçenekler sağ.
+   DOM sırası değişmez (dar ekranda anlatı → görsel → seçenekler; WCAG 1.3.2). Gizli düğüm gizli
+   kalır (:not([hidden])). HUD düğümün dışında, kabın üstünde tam genişlikte. */
+@container (min-width:640px){
+  .c-body .game-node:not([hidden]):has(>.game-img),
+  .c-body .scen-node:not([hidden]):has(>.scen-img){display:grid;
+    grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);column-gap:var(--space-5);
+    align-items:start}
+  .c-body .game-node>.game-img,.c-body .scen-node>.scen-img{grid-column:1;grid-row:1 / span 4;
+    width:100%;max-height:min(40vh,300px);margin:0}
+  .c-body .game-node:has(>.game-img)>:not(.game-img),
+  .c-body .scen-node:has(>.scen-img)>:not(.scen-img){grid-column:2}
+}
+/* embed odakta: iframe yuvanın yüksekliğini doldurur (yuva flex sütunu). Başlık bandı içerik
+   boyunda ve üste hizalı — sabit üçte bir satırdan yukarı taşıp (EMBED_CSS overflow:hidden) kırpılmaz */
+.slot-focal>.embed-wrap[data-aspect="fill"]{flex:1 1 auto;min-height:12rem}
+.screen[data-comp]:has(.slot-focal>.embed-wrap) .slot-support{justify-content:flex-start}
+.screen[data-comp]:has(.slot-focal>.embed-wrap) .comp-grid{
+  grid-template-rows:auto minmax(0,1fr) minmax(0,1fr)}
+/* vakalı visual-stack (K3 soru + K4 poll/exploration + K5 branching), masaüstü: vaka ÜSTTE (önce
+   okunur — DOM sırasıyla da tutarlı), soru altta; satırlar içerikten, blok sahnede ortalı, uzunsa
+   sahne kaydırılır (başlık yukarı taşıp kaybolmaz). Yuva konumu inline grid-area'da → !important. */
+@media(min-width:641px){
+  .screen[data-comp="visual-stack"]:has(.slot-focal>.stimulus) .screen-inner{
+    justify-content:safe center}
+  .screen[data-comp="visual-stack"]:has(.slot-focal>.stimulus) .comp-grid{flex:0 0 auto;
+    min-height:auto;grid-template-rows:auto auto auto}
+  .screen[data-comp="visual-stack"]:has(.slot-focal>.stimulus) .slot-focal{
+    grid-row:1 !important;container-type:normal}
+  .screen[data-comp="visual-stack"]:has(.slot-focal>.stimulus) .slot-support{
+    grid-row:2 / span 2 !important;justify-content:flex-start}
+  .screen[data-comp="visual-stack"]:has(.slot-focal>.stimulus) .slot-focal>.stimulus.stimulus-media .item-media{
+    max-height:min(36vh,340px);flex:none}
+  .screen[data-comp="visual-stack"]:has(.slot-focal>.stimulus) .slot-focal>.stimulus-text{
+    max-height:none}
+}
+/* soru sütunu: satırlar içerikten (sabit üçte bir boşluk yok), blok dikeyde ortalı */
+/* K4 — içerik etkileşimleri: odak içerikten büyür (kesilmez; sahne kaydırılır), sekmeler
+   ana–detay. inline-size kabı: container query genişliğe bakar, yükseklik içerikten gelir. */
+body[data-layout] .screen .slot-focal:has(>.c-body){container-type:inline-size;
+  justify-content:safe center}
+.slot .c-body{width:100%}
+/* (yalnız gövde ODAKTAyken: uyaranlı poll/exploration'da gövde destekte, vaka odakta — o durum K3
+   uyaran yerleşimini kullanır; aksi halde boyut kaplı odak yuvası auto satırda 0'a çöker)
+   ızgara İÇERİK boyunda, sahnede dikey ortalı (safe: uzunsa üstten başlar, sahne kaydırılır);
+   satırlar içerikten — sabit kesirli satır başlıkla koleksiyon arasında boşluk bırakırdı */
+.screen[data-comp]:has(.slot-focal>.c-body) .screen-inner{justify-content:safe center}
+.screen[data-comp]:has(.slot-focal>.c-body) .comp-grid{flex:0 0 auto;min-height:auto;
+  grid-template-rows:auto auto auto}
+/* yan sütundaki başlık üste hizalı ve kaydırırken görünür kalır (uzun listede aşağı itilmez) */
+.screen[data-comp]:has(.slot-focal>.c-body) .slot-support{justify-content:flex-start;align-self:start}
+.screen[data-comp^="split"]:has(.slot-focal>.c-body) .slot-support{position:sticky;top:0}
+.slot-focal>.c-body .flashcards{grid-template-columns:repeat(auto-fill,minmax(14rem,1fr))}
+@container (min-width:600px){
+  .c-body .tabs[data-tabs]{display:grid;grid-template-columns:minmax(10rem,1fr) 2.2fr;
+    column-gap:var(--space-5);align-items:start}
+  .c-body .tab-list[aria-orientation="vertical"]{flex-direction:column;flex-wrap:nowrap;
+    grid-row:1 / span 99;border-bottom:0;border-inline-end:2px solid var(--c-border);margin:0}
+  .c-body .tab-list[aria-orientation="vertical"] .tab{text-align:start;border-bottom:0;
+    margin:0 -2px 0 0;border-inline-end:2px solid transparent}
+  .c-body .tab-list[aria-orientation="vertical"] .tab[aria-selected="true"]{
+    border-inline-end-color:var(--c-primary)}
+  .c-body .tabs[data-tabs]>.tab-panel{grid-column:2;min-width:0}
+}
+.screen[data-comp="question-column"] .comp-grid{grid-template-rows:auto auto auto;
+  align-content:center}
 @media(max-width:640px){
+  .q-answer[data-many] .options,.q-answer[data-many] .matching{
+    grid-template-columns:1fr}
   .comp-grid{grid-template-columns:1fr;grid-template-rows:none}
   .comp-grid>.slot{grid-area:auto !important}
   .slot-steps{grid-template-columns:1fr;grid-auto-rows:auto;height:auto}
+  /* tek sütunda yuva yüksekliği içerikten gelir: boyut kabı kapatılır (yoksa 0'a çöker) */
+  .slot-focal{container-type:normal}
+  .slot-focal .labeled-diagram:not(.ld-display){flex-direction:column}
+  .slot-focal .hotspot-img,.slot-focal .ic-img-before{max-height:none}
+  .slot-focal .labeled-diagram:not(.ld-display) .hotspot-img{max-width:100%}
 }
 """
 
@@ -3136,4 +3258,31 @@ EMPHASIS_CSS = """
 .screen[data-comp] .rich{color:var(--em4)}
 .screen[data-comp] figcaption{color:var(--em5)}
 mark{background:var(--em3-bg);color:var(--em3);padding:0 .15em;border-radius:3px}
+"""
+
+
+# K3 — soru uyaranı (görsel/vaka) — YALNIZ projede uyaran varsa basılır (uyaransız kurs bayt-aynı)
+STIMULUS_CSS = """
+.stimulus{margin:0 0 var(--space-4)}
+.stimulus.stimulus-media .item-media{max-width:100%;max-height:min(32vh,320px);width:auto;
+  border-radius:var(--r-md)}
+.stimulus-media figcaption{font-size:13px;color:var(--c-muted);margin-top:var(--space-2)}
+.stimulus-text{padding:var(--space-3) var(--space-4);border-left:3px solid var(--c-primary);
+  background:var(--c-surface-alt);border-radius:var(--r-sm)}
+"""
+
+
+# K4 — dikey (ana–detay) sekme listesinde ↑/↓; ENGINE_JS'teki ←/→ dokunulmadan çalışmaya devam
+# eder. Yalnız auto projede ve tabs ekranı varken basılır (classic sayfa bayt-aynı).
+TABS_V_JS = r"""
+(function(){ window.__tabsV=1;
+  document.querySelectorAll('[role="tablist"][aria-orientation="vertical"]').forEach(function(tl){
+    var tabs=Array.prototype.slice.call(tl.querySelectorAll(".tab"));
+    tabs.forEach(function(tb,i){ tb.addEventListener("keydown",function(e){
+      var n=null; if(e.key==="ArrowDown") n=(i+1)%tabs.length;
+      else if(e.key==="ArrowUp") n=(i-1+tabs.length)%tabs.length;
+      if(n!==null){ e.preventDefault(); tabs[n].click(); tabs[n].focus(); }
+    }); });
+  });
+})();
 """

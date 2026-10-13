@@ -121,7 +121,9 @@ def test_mobile_flow_stage_centers_short_content():
                 screens=[ContentSlide(id="s1", title="T", body_html="<p>x</p>")])
     html = render_html(p, mode="preview", runtime_js="/*rt*/")
 
-    assert 'align-items:center;justify-content:flex-start;overflow-y:auto' in html
+    # K6 — `safe center`: kısa içerik YİNE ortalanır; sahneden uzun ekran üstten başlar (üstü
+    # kaydırılamayan alana taşmaz — başlık/vaka kaybolmaz)
+    assert 'align-items:safe center;justify-content:flex-start;overflow-y:auto' in html
     assert 'align-items:stretch;justify-content:flex-start;overflow-y:auto' not in html
 
 

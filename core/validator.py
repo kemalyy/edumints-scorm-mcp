@@ -120,6 +120,14 @@ def validate_project(project: Project, *, strict: bool = False) -> list[Validati
                               message=f"Bilinmeyen asset referansı: {ref}", path=f"{path}.{sub}"))
         for b in getattr(s, "blocks", None) or []:
             _aref(getattr(b, "asset_id", None), "blocks.asset_id")
+        # K3 — soru uyaranı (ekran + adaptive öğe) asset referansları
+        _st = getattr(s, "stimulus", None)
+        if _st is not None:
+            _aref(_st.asset_id, "stimulus.asset_id")
+        for _k, _it in enumerate(getattr(s, "items", None) or []):
+            _ist = getattr(_it, "stimulus", None)
+            if _ist is not None:
+                _aref(_ist.asset_id, f"items[{_k}].stimulus.asset_id")
         for it in getattr(s, "items", None) or []:
             _aref(getattr(it, "image_asset_id", None), "items.image_asset_id")
         for t in getattr(s, "tabs", None) or []:

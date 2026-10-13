@@ -51,6 +51,7 @@ from . import i18n
 from .templates import (
     BASE_CSS,
     COMPOSITION_CSS,
+    STIMULUS_CSS,
     EMPHASIS_CSS,
     EMBED_CSS,
     EMBED_JS,
@@ -61,6 +62,7 @@ from .templates import (
     HOTSPOT2_JS,
     XPSLIDER_CSS,
     XPSLIDER_JS,
+    TABS_V_JS,
     OUTLINE_CSS,
     OUTLINE_JS,
     REVIEW_JS,
@@ -181,6 +183,23 @@ def _uses_embed(project: Project) -> bool:
 #: Tamamlanmayı KAPIYA bağlayan embed modları — bunlarda bootstrap `showAt()` LMS'e erken bir
 #: `completed` sızdırabilir (on_view'da sızdıracak bir şey yok: ekran görüldüğü an tamamlanır).
 _GATED_EMBED_COMPLETIONS = frozenset({"on_message", "time_threshold"})
+
+
+def _uses_vertical_tabs(project: Project) -> bool:
+    """K4 — auto projede tabs ekranı ana–detay (dikey liste) olarak basılır."""
+    return project.composition == "auto" and any(
+        s.type is ScreenType.tabs for s in project.screens)
+
+
+def _uses_stimulus(project: Project) -> bool:
+    """K3 — herhangi bir soru ekranında ya da adaptive öğesinde uyaran var mı."""
+    for s in project.screens:
+        if getattr(s, "stimulus", None) is not None:
+            return True
+        if s.type is ScreenType.adaptive_practice and any(
+                getattr(it, "stimulus", None) is not None for it in s.items):
+            return True
+    return False
 
 
 def _uses_gated_embed(project: Project) -> bool:
@@ -469,6 +488,7 @@ def _render_html_inner(
     hotspot2_js = HOTSPOT2_JS if _uses_hotspot2(project) else ""
     # #141 — exploration slider bağlayıcısı AYNI sentineli paylaşır (embed/hotspot2 presedanı).
     xpslider_js = XPSLIDER_JS if _uses_xp_slider(project) else ""
+    xpslider_js += TABS_V_JS if _uses_vertical_tabs(project) else ""  # K4 — ana–detay ↑/↓
     engine_js = ENGINE_JS.replace(
         _REVIEW_JS_SLOT,
         outline_js + embed_js + hotspot2_js + xpslider_js + (REVIEW_JS if review else ""),
@@ -491,6 +511,8 @@ def _render_html_inner(
                   + (EMBED_CSS if _uses_embed(project) else "")
                   + (HOTSPOT2_CSS if _uses_hotspot2(project) else "")
                   + (XPSLIDER_CSS if _uses_xp_slider(project) else "")
+                  # K3 — uyaran CSS'i yalnız projede uyaran varsa (uyaransız kurs bayt-aynı)
+                  + (STIMULUS_CSS if _uses_stimulus(project) else "")
                   # K1 — kompozisyon + vurgu CSS'i yalnız auto projede (classic bayt-aynı)
                   + (COMPOSITION_CSS + EMPHASIS_CSS if auto_comp else "") + dark_css),
         custom_css=theme.custom_css or "",
@@ -1044,9 +1066,17 @@ def _slot(name: str, html: str, comp) -> str:
 
 
 def _place(comp, parts: dict[str, str]) -> str:
-    """Yuvaları DOM'a odak-önce sırayla basar (mobil tek sütunda okuma sırası = odak → akış).
-    Masaüstü yerleşimini grid-area belirler; DOM sırası yalnız akışı etkiler."""
-    order = [comp.focal] + [n for n in ("support", "focal", "aux", "steps") if n != comp.focal]
+    """Yuvaları DOM'a okuma sırasıyla basar: varsayılan odak-önce; soru kipinde (dom_order=
+    support-first) destek önce — ne arayacağını okumadan görsele bakmak anlamsız. Masaüstü
+    yerleşimini grid-area belirler; DOM sırası yalnız mobil akışı etkiler.
+    Güvenlik ağı: içerik HİÇBİR koşulda düşmez — kompozisyonda karşılığı olmayan yuvanın
+    içeriği destek yuvasına (yoksa ilk tanımlı yuvaya) eklenir."""
+    home = "support" if "support" in comp.areas else next(iter(comp.areas))
+    for k in [k for k in parts if k not in comp.areas and parts[k]]:
+        parts[home] = parts.get(home, "") + parts.pop(k)
+    first = "support" if getattr(comp, "dom_order", "focal-first") == "support-first" \
+        else comp.focal
+    order = [first] + [n for n in ("support", "focal", "aux", "steps") if n != first]
     return '<div class="comp-grid">' + "".join(_slot(n, parts.get(n, ""), comp)
                                                for n in order) + "</div>"
 
@@ -1116,15 +1146,256 @@ def _slots_content(s, comp) -> str:
         parts = {"focal": lead or head, "support": (head if lead else "") + ordered}
     else:
         parts = {"support": head + lead + ordered}
-    # Güvenlik ağı: içerik HİÇBİR koşulda düşmez — kompozisyonda karşılığı olmayan yuvanın
-    # içeriği destek yuvasına (yoksa ilk tanımlı yuvaya) eklenir.
-    home = "support" if "support" in comp.areas else next(iter(comp.areas))
-    for k in [k for k in parts if k not in comp.areas and parts[k]]:
-        parts[home] = parts.get(home, "") + parts.pop(k)
-    return _place(comp, parts)
+    return _place(comp, parts)  # güvenlik ağı _place içinde
 
 
-_SLOT_RENDERERS = {"title_slide": _slots_title, "content_slide": _slots_content}
+# --- K2: görsel etkileşimli tipler. Classic _r_* renderer'lara DOKUNULMAZ (bayt-parite);
+# işaretleme parçaları birebir kopyalanır. JS'in beklediği kaplar korunur: .labeled-diagram
+# içindeki .ld-select, .simulation[data-sim] içindeki adım yönergeleri, .hotspot/.hs-explore.
+def _quiz_controls() -> str:
+    """_quiz_shell kuyruğunun aynısı (sınıf/role/aria değişmez — JS bunları bekler)."""
+    return (f'<div class="quiz-actions"><button class="btn btn-check" type="button">'
+            f'{_text(_T("quiz_check"))}</button></div>'
+            f'<div class="feedback" role="status" aria-live="polite"></div>')
+
+
+def _k2_head(s) -> str:
+    head = f'{_kicker(s)}<h2 class="screen-title">{_text(s.title)}</h2>{_lead(s)}'
+    if getattr(s, "prompt_html", None):
+        head += f'<div class="rich prompt">{sanitize(s.prompt_html)}</div>'
+    return head
+
+
+def _slots_hotspot(s, comp) -> str:
+    explore = is_explore_hotspot(s)
+    regions = "".join(_hotspot_region_btn(s, rg, i, explore) for i, rg in enumerate(s.regions))
+    img = (f'<img class="hotspot-img" data-asset="{_attr(s.image_asset_id)}"'
+           f' alt="{_attr(s.image_alt or "")}">')
+    notes = _hotspot_notes(s, explore)
+    if not explore:
+        # Kontrol + geri bildirim girdilerden SONRA (WCAG 2.4.3 odak sırası; mobilde kaydırma yok)
+        focal = (f'<div class="hotspot"><div class="hotspot-stage">{img}{regions}</div>{notes}</div>'
+                 f'{_quiz_controls()}')
+        return _place(comp, {"support": _k2_head(s), "focal": focal})
+    progress = (f'<p class="hs-progress" role="status" aria-live="polite"'
+                f' data-total="{len(s.regions)}"><span class="hs-count">0</span>/{len(s.regions)}</p>'
+                if s.require_all else "")
+    req = ' data-require-all="1"' if s.require_all else ""
+    focal = (f'<div class="hotspot hs-explore"{req}><div class="hotspot-stage" role="group"'
+             f' aria-label="{_attr(s.image_alt or s.title)}">{img}{regions}</div>{progress}'
+             f'<p class="hs-hint">{_text(_T("hotspot_explore_hint"))}</p>{notes}</div>')
+    return _place(comp, {"support": _k2_head(s), "focal": focal})
+
+
+def _slots_labeled_diagram(s, comp) -> str:
+    img = (f'<img class="hotspot-img" data-asset="{_attr(s.image_asset_id)}"'
+           f' alt="{_attr(s.image_alt or "")}">')
+    if is_display_diagram(s):
+        callouts = "".join(
+            f'<div class="ld-callout" style="left:{lb.x / 10:.2f}%;top:{lb.y / 10:.2f}%">'
+            f'<span class="ld-callout-num" aria-hidden="true">{i + 1}</span>'
+            f'<span class="ld-leader" aria-hidden="true"></span>'
+            f'<span class="ld-callout-text">{_text(lb.text)}</span></div>'
+            for i, lb in enumerate(s.labels))
+        focal = (f'<div class="labeled-diagram ld-display">'
+                 f'<div class="ld-stage hotspot-stage" role="group"'
+                 f' aria-label="{_attr(s.image_alt or s.title)}">{img}{callouts}</div></div>')
+        return _place(comp, {"support": _k2_head(s), "focal": focal})
+    pins = "".join(
+        f'<button class="ld-pin" type="button" data-label="{_attr(lb.id)}"'
+        f' style="left:{lb.x / 10:.2f}%;top:{lb.y / 10:.2f}%"'
+        f' aria-label="{_attr(_T("diagram_pin", n=i + 1))}">{i + 1}</button>'
+        for i, lb in enumerate(s.labels))
+    opts = "".join(f'<option value="{_attr(lb.id)}">{_text(lb.text)}</option>' for lb in s.labels)
+    rows = "".join(
+        f'<div class="ld-row"><span class="ld-num">{i + 1}</span>'
+        f'<select class="ld-select" data-label="{_attr(lb.id)}"'
+        f' aria-label="{_attr(_T("diagram_pin_label", n=i + 1))}">'
+        f'<option value="">{_text(_T("diagram_select_placeholder"))}</option>{opts}</select></div>'
+        for i, lb in enumerate(s.labels))
+    focal = (f'<div class="labeled-diagram"><div class="ld-stage hotspot-stage">{img}{pins}</div>'
+             f'<div class="ld-rows ui-stack">{rows}</div></div>{_quiz_controls()}')
+    return _place(comp, {"support": _k2_head(s), "focal": focal})
+
+
+def _slots_image_compare(s, comp) -> str:
+    bl = f'<span class="ic-label ic-before">{_text(s.before_label)}</span>' if s.before_label else ""
+    al = f'<span class="ic-label ic-after">{_text(s.after_label)}</span>' if s.after_label else ""
+    cap = f'<figcaption class="chart-cap">{_text(s.caption)}</figcaption>' if s.caption else ""
+    focal = (
+        f'<figure class="img-compare-wrap"><div class="img-compare" data-compare>'
+        f'<img class="ic-img ic-img-before" data-asset="{_attr(s.before_asset_id)}"'
+        f' alt="{_attr(s.before_label or _T("compare_before"))}">{bl}'
+        f'<div class="ic-after-wrap"><img class="ic-img ic-img-after"'
+        f' data-asset="{_attr(s.after_asset_id)}"'
+        f' alt="{_attr(s.after_label or _T("compare_after"))}">{al}</div>'
+        f'<input class="ic-range" type="range" min="0" max="100" value="50"'
+        f' aria-label="{_attr(_T("compare_slider"))}">'
+        f'<div class="ic-divider"></div></div>{cap}</figure>')
+    return _place(comp, {"support": _k2_head(s), "focal": focal})
+
+
+def _slots_data_chart(s, comp) -> str:
+    cap = f'<figcaption class="chart-cap">{_text(s.caption)}</figcaption>' if s.caption else ""
+    focal = f'<figure class="data-chart">{_build_chart_svg(s)}{cap}</figure>'
+    return _place(comp, {"support": _k2_head(s), "focal": focal})
+
+
+def _slots_video(s, comp) -> str:
+    if s.video_asset_id:
+        src = f'<source data-asset="{_attr(s.video_asset_id)}">'
+    else:
+        src = f'<source src="{_attr(s.video_url or "")}">'
+    poster = f' data-poster-asset="{_attr(s.poster_asset_id)}"' if s.poster_asset_id else ""
+    cap = f'<figcaption>{_text(s.caption)}</figcaption>' if s.caption else ""
+    req = ' data-require-complete="1"' if s.require_complete else ""
+    loop = "" if s.require_complete else " loop"
+    track = ""
+    caps = getattr(s, "captions_asset_id", None)
+    if caps:
+        track = (f'<track kind="captions" data-asset="{_attr(caps)}"'
+                 f' srclang="{_attr(_LANG.get())}" label="{_attr(_T("player_captions"))}" default>')
+    focal = (f'<figure class="video-wrap"><video class="video" preload="auto" autoplay{loop} muted '
+             f'playsinline controls{poster}{req}>{src}{track}</video>{cap}</figure>')
+    support = _k2_head(s)
+    if getattr(s, "narration_text", None):
+        support += f'<div class="video-desc rich"><p>{_text(s.narration_text)}</p></div>'
+    return _place(comp, {"support": support, "focal": focal})
+
+
+def _slots_lottie(s, comp) -> str:
+    attrs = (f'data-lottie-asset="{_attr(s.lottie_asset_id)}" '
+             f'data-loop="{"1" if s.loop else "0"}" data-autoplay="{"1" if s.autoplay else "0"}"')
+    focal = (f'<div class="lottie-wrap"><div class="lottie" {attrs} role="img"'
+             f' aria-label="{_attr(s.title)}"></div></div>')
+    return _place(comp, {"support": _k2_head(s), "focal": focal})
+
+
+def _slots_simulation(s, comp) -> str:
+    steps = ""
+    for i, st in enumerate(s.steps):
+        img = (f'<img class="hotspot-img" data-asset="{_attr(st.image_asset_id)}"'
+               f' alt="{_attr(st.image_alt or "")}">')
+        if st.input_accepted is not None:
+            acc = _attr(json.dumps(st.input_accepted, ensure_ascii=False))
+            label = _attr(st.input_label or _T("sim_answer"))
+            stage = (f'<div class="hotspot-stage">{img}</div>'
+                     f'<div class="sim-input-row"><input class="sim-input" type="text"'
+                     f' data-accepted="{acc}" placeholder="{label}" aria-label="{label}"'
+                     f' autocomplete="off"><button class="btn btn-primary sim-submit"'
+                     f' type="button">{_text(_T("sim_submit"))}</button></div>')
+        else:
+            regions = "".join(
+                f'<button class="hotspot-region sim-region" type="button" data-shape="{rg.shape}"'
+                f' data-coords="{_attr(",".join(str(c) for c in rg.coords))}"'
+                f' data-correct="{"1" if rg.correct else "0"}"'
+                f' title="{_attr(rg.label_html or "")}"></button>'
+                for rg in st.regions)
+            stage = f'<div class="hotspot-stage">{img}{regions}</div>'
+        hint = f'<div class="sim-hint" hidden>{sanitize(st.hint_html or "")}</div>'
+        hidden = "" if i == 0 else " hidden"
+        steps += (f'<div class="sim-step" data-step="{i}"{hidden}>'
+                  f'<div class="sim-instruction rich">{sanitize(st.instruction_html)}</div>'
+                  f'{stage}{hint}</div>')
+    focal = (f'<div class="simulation" data-sim data-steps="{len(s.steps)}">'
+             f'<div class="sim-progress ui-chip">1 / {len(s.steps)}</div>{steps}</div>')
+    support = _k2_head(s) + '<div class="feedback" role="status" aria-live="polite"></div>'
+    return _place(comp, {"support": support, "focal": focal})
+
+
+_ANSWER = {"mcq": lambda s: _mcq_answer(s), "true_false": lambda s: _tf_answer(s),
+           "fill_blank": lambda s: _fill_answer(s), "drag_drop": lambda s: _drag_answer(s),
+           "matching": lambda s: _matching_answer(s), "sorting": lambda s: _sorting_answer(s)}
+
+
+def _many(s) -> bool:
+    """K3 — uzun cevap listeleri iki sütuna akar (mobilde tek). sorting HARİÇ: öğrencinin kurduğu sıra
+    iki sütunda (1|2 / 3|4) belirsiz okunur."""
+    t = s.type.value
+    return (t == "mcq" and len(s.options) > 6) or (t == "matching" and len(s.pairs) > 5)
+
+
+def _slots_question(s, comp) -> str:
+    """K3 — uyaran varsa odak uyaran, soru (istem+cevap+kontrol) destek; yoksa istem destek, cevap
+    alanı odak. Cevap alanı classic ile AYNI yardımcıdan gelir (JS seçicileri özdeş); kontrol + geri
+    bildirim her zaman girdilerden sonra."""
+    many = ' data-many="1"' if _many(s) else ""
+    answer = f'<div class="q-answer"{many}>{_ANSWER[s.type.value](s)}</div>' + _quiz_controls()
+    stim = _stimulus_html(getattr(s, "stimulus", None))
+    if stim:
+        return _place(comp, {"focal": stim, "support": _k2_head(s) + answer})
+    return _place(comp, {"support": _k2_head(s), "focal": answer})
+
+
+def _slots_adaptive(s, comp) -> str:
+    """K3 — .adaptive kabı (öğeler + öğe başına uyaran + HUD) bütünüyle odak; JS öğeleri bu kap içinde
+    gösterip gizler. Classic başlık+istem atılır, yerine kicker/lead'li _k2_head gelir."""
+    inner = _r_adaptive_practice(s)
+    return _place(comp, {"support": _k2_head(s),
+                         "focal": inner[inner.index('<div class="adaptive" data-adaptive>'):]})
+
+
+_K4_BODY = {"accordion": lambda s: _accordion_body(s),
+            "tabs": lambda s: _tabs_body(s, vertical=True),
+            "flashcards": lambda s: _flashcards_body(s), "timeline": lambda s: _timeline_body(s),
+            "results_breakdown": lambda s: _results_body(s), "poll": lambda s: _poll_body(s),
+            "worked_example": lambda s: _we_body(s), "exploration": lambda s: _xp_body(s),
+            # K5 — oyun/senaryo (sahne düzeni CSS'te), oyunlaştırılmış sorular, dallanma
+            "game": lambda s: _game_body(s), "decision_scenario": lambda s: _scenario_body(s),
+            "escape_room": lambda s: _escape_body(s), "term_match_race": lambda s: _tmr_body(s),
+            "branching": lambda s: _branching_body(s)}
+
+
+def _k4_head(s) -> str:
+    """K4 — kicker + başlık + lead + tipin kendi giriş metni (istem | giriş | gövde)."""
+    head = f'{_kicker(s)}<h2 class="screen-title">{_text(s.title)}</h2>{_lead(s)}'
+    for f in ("prompt_html", "intro_html", "body_html"):
+        v = getattr(s, f, None)
+        if v:
+            # exploration'ın radiogroup'u istemi kimliğiyle etiketler (aria-labelledby)
+            pid = (f' id="xp-{_attr(s.id or "xp")}-prompt"'
+                   if s.type.value == "exploration" and f == "prompt_html" else "")
+            head += f'<div class="rich prompt"{pid}>{sanitize(v)}</div>'
+            break
+    return head
+
+
+def _slots_k4(s, comp) -> str:
+    """K4 — etkileşimli gövde (classic ile AYNI yardımcı) odakta; uyaranlı poll/exploration'da
+    vaka odak, yanıt alanı destekte (K3 deseni). Gönder/yansıma gövdenin içinde, girdilerden sonra."""
+    body = f'<div class="c-body" data-k4="{s.type.value}">{_K4_BODY[s.type.value](s)}</div>'
+    stim = _stimulus_html(getattr(s, "stimulus", None))
+    if stim:
+        return _place(comp, {"focal": stim, "support": _k4_head(s) + body})
+    return _place(comp, {"support": _k4_head(s), "focal": body})
+
+
+def _slots_embed(s, comp) -> str:
+    """K5 — iframe odakta, .c-body YOK: K2 görsel kuralıyla yuvanın yüksekliğini doldurur."""
+    head = f'{_kicker(s)}<h2 class="screen-title">{_text(s.title)}</h2>{_lead(s)}' if s.title \
+        else f'{_kicker(s)}{_lead(s)}'
+    return _place(comp, {"support": head, "focal": _embed_body(s)})
+
+
+def _slots_summary(s, comp) -> str:
+    """K4 — özet tek blok (rozet + başlık + lead + gövde + skor) desenin odak alanında."""
+    return _place(comp, {comp.focal: _kicker(s) + _summary_html(s, lead=_lead(s))})
+
+
+_SLOT_RENDERERS = {
+    "title_slide": _slots_title, "content_slide": _slots_content,
+    "hotspot": _slots_hotspot, "labeled_diagram": _slots_labeled_diagram,
+    "image_compare": _slots_image_compare, "data_chart": _slots_data_chart,
+    "video": _slots_video, "lottie": _slots_lottie, "simulation": _slots_simulation,
+    "mcq": _slots_question, "true_false": _slots_question, "fill_blank": _slots_question,
+    "drag_drop": _slots_question, "matching": _slots_question, "sorting": _slots_question,
+    "adaptive_practice": _slots_adaptive,
+    "accordion": _slots_k4, "tabs": _slots_k4, "flashcards": _slots_k4, "timeline": _slots_k4,
+    "results_breakdown": _slots_k4, "poll": _slots_k4, "worked_example": _slots_k4,
+    "exploration": _slots_k4, "summary": _slots_summary,
+    "game": _slots_k4, "decision_scenario": _slots_k4, "escape_room": _slots_k4,
+    "term_match_race": _slots_k4, "branching": _slots_k4, "embed_html": _slots_embed,
+}
 
 
 def _render_screen(s, idx: int, comp=None) -> str:
@@ -1197,7 +1468,7 @@ def _r_content(s) -> str:
     return f"{head}{rich}"
 
 
-def _r_mcq(s) -> str:
+def _mcq_answer(s) -> str:
     def _opt(o) -> str:
         btn = (
             f'<button class="opt" data-opt="{_attr(o.id)}" type="button">'
@@ -1214,30 +1485,41 @@ def _r_mcq(s) -> str:
 
     opts = "".join(_opt(o) for o in s.options)
     multi = ' data-multi="1"' if s.multi_select else ""
-    return _quiz_shell(s, f'<div class="options"{multi}>{opts}</div>')
+    return f'<div class="options"{multi}>{opts}</div>'
 
 
-def _r_true_false(s) -> str:
-    opts = (
+def _r_mcq(s) -> str:
+    return _quiz_shell(s, _mcq_answer(s))
+
+
+def _tf_answer(s) -> str:
+    return (
         '<div class="options tf">'
         '<button class="opt" data-opt="true" type="button"><span class="opt-mark"></span>'
         f'<span class="opt-text">{_text(_T("tf_true"))}</span></button>'
         '<button class="opt" data-opt="false" type="button"><span class="opt-mark"></span>'
         f'<span class="opt-text">{_text(_T("tf_false"))}</span></button></div>'
     )
-    return _quiz_shell(s, opts)
 
 
-def _r_fill(s) -> str:
+def _r_true_false(s) -> str:
+    return _quiz_shell(s, _tf_answer(s))
+
+
+def _fill_answer(s) -> str:
     inputs = "".join(
         f'<label class="blank"><span>{_text(b.id)}</span>'
         f'<input type="text" data-blank="{_attr(b.id)}" autocomplete="off"></label>'
         for b in s.blanks
     )
-    return _quiz_shell(s, f'<div class="blanks">{inputs}</div>')
+    return f'<div class="blanks">{inputs}</div>'
 
 
-def _r_drag(s) -> str:
+def _r_fill(s) -> str:
+    return _quiz_shell(s, _fill_answer(s))
+
+
+def _drag_answer(s) -> str:
     items = "".join(
         f'<div class="drag-item" draggable="true" data-item="{_attr(it.id)}">{sanitize(it.text_html)}</div>'
         for it in s.items
@@ -1247,11 +1529,12 @@ def _r_drag(s) -> str:
         f'<div class="drop-label">{sanitize(t.label_html)}</div><div class="drop-zone"></div></div>'
         for t in s.targets
     )
-    return _quiz_shell(
-        s,
-        f'<div class="dragdrop"><div class="drag-pool">{items}</div>'
-        f'<div class="drop-list">{targets}</div></div>',
-    )
+    return (f'<div class="dragdrop"><div class="drag-pool">{items}</div>'
+            f'<div class="drop-list">{targets}</div></div>')
+
+
+def _r_drag(s) -> str:
+    return _quiz_shell(s, _drag_answer(s))
 
 
 def _hotspot_region_btn(s, rg, idx: int, explore: bool) -> str:
@@ -1336,16 +1619,21 @@ def _r_hotspot(s) -> str:
     )
 
 
-def _r_branching(s) -> str:
+def _branching_body(s) -> str:
     choices = "".join(
         f'<button class="branch-choice" type="button" data-choice="{_attr(c.id)}"'
         f' data-goto="{_attr(c.goto_screen_id)}">{sanitize(c.text_html)}</button>'
         for c in s.choices
     )
+    return f'<div class="branches">{choices}</div>'
+
+
+def _r_branching(s) -> str:
     return (
         f'<h2 class="screen-title">{_text(s.title)}</h2>'
+        f'{_stimulus_html(getattr(s, "stimulus", None))}'
         f'<div class="rich prompt">{sanitize(s.prompt_html)}</div>'
-        f'<div class="branches">{choices}</div>'
+        f'{_branching_body(s)}'
     )
 
 
@@ -1386,7 +1674,7 @@ def _r_video(s) -> str:
     )
 
 
-def _r_summary(s) -> str:
+def _summary_html(s, lead: str = "") -> str:
     body = f'<div class="rich">{sanitize(s.body_html)}</div>' if s.body_html else ""
     score = '<div class="summary-score" data-show-score="1"></div>' if s.show_score else ""
     comp = '<div class="summary-completion" data-show-completion="1"></div>' if s.show_completion else ""
@@ -1394,8 +1682,12 @@ def _r_summary(s) -> str:
         f'<div class="summary"><div class="summary-badge">'
         f'<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" '
         f'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>'
-        f'</div><h2 class="screen-title">{_text(s.title)}</h2>{body}{score}{comp}</div>'
+        f'</div><h2 class="screen-title">{_text(s.title)}</h2>{lead}{body}{score}{comp}</div>'
     )
+
+
+def _r_summary(s) -> str:
+    return _summary_html(s)
 
 
 def _content_head(s) -> str:
@@ -1405,17 +1697,21 @@ def _content_head(s) -> str:
     return head
 
 
-def _r_accordion(s) -> str:
+def _accordion_body(s) -> str:
     # native <details> → JS'siz, klavye-erişilebilir
     items = "".join(
         f'<details class="acc-item ui-card"><summary class="acc-head">{_text(it.title)}</summary>'
         f'<div class="acc-body rich">{_media(getattr(it, "image_asset_id", None), "item-media", getattr(it, "image_alt", None) or "")}{sanitize(it.body_html)}</div></details>'
         for it in s.items
     )
-    return f'{_content_head(s)}<div class="accordion ui-stack">{items}</div>'
+    return f'<div class="accordion ui-stack">{items}</div>'
 
 
-def _r_tabs(s) -> str:
+def _r_accordion(s) -> str:
+    return f'{_content_head(s)}{_accordion_body(s)}'
+
+
+def _tabs_body(s, vertical: bool = False) -> str:
     tabs = "".join(
         f'<button class="tab" type="button" role="tab" data-tab="{i}"'
         f' aria-selected="{"true" if i == 0 else "false"}">{_text(t.label)}</button>'
@@ -1426,27 +1722,38 @@ def _r_tabs(s) -> str:
         f'{_media(getattr(t, "image_asset_id", None), "item-media", getattr(t, "image_alt", None) or "")}{sanitize(t.body_html)}</div>'
         for i, t in enumerate(s.tabs)
     )
+    orient = ' aria-orientation="vertical"' if vertical else ""  # K4 — yalnız auto ana–detay
     return (
-        f'{_content_head(s)}<div class="tabs" data-tabs>'
-        f'<div class="tab-list" role="tablist">{tabs}</div>{panels}</div>'
+        f'<div class="tabs" data-tabs>'
+        f'<div class="tab-list" role="tablist"{orient}>{tabs}</div>{panels}</div>'
     )
+
+
+def _r_tabs(s) -> str:
+    return f'{_content_head(s)}{_tabs_body(s)}'
+
+
+def _flashcards_body(s) -> str:
+    cards = "".join(
+        f'<button class="flashcard" type="button" data-card aria-label="{_attr(_T("flashcard_flip"))}">'
+        # K6 — metin tek sarmalayıcıda: yüz sütun düzeninde iken satır içi biçim (<strong>, <mark>)
+        # ayrı satırlara bölünmez; yüzde en fazla iki parça (görsel + metin)
+        f'<span class="fc-inner"><span class="fc-face fc-front rich">{_media(getattr(c, "front_asset_id", None), "item-media", getattr(c, "front_alt", None) or "")}<span class="fc-text">{sanitize(c.front_html)}</span></span>'
+        f'<span class="fc-face fc-back rich">{_media(getattr(c, "back_asset_id", None), "item-media", getattr(c, "back_alt", None) or "")}<span class="fc-text">{sanitize(c.back_html)}</span></span></span></button>'
+        for c in s.cards
+    )
+    return f'<div class="flashcards ui-grid">{cards}</div>'
 
 
 def _r_flashcards(s) -> str:
-    cards = "".join(
-        f'<button class="flashcard" type="button" data-card aria-label="{_attr(_T("flashcard_flip"))}">'
-        f'<span class="fc-inner"><span class="fc-face fc-front rich">{_media(getattr(c, "front_asset_id", None), "item-media", getattr(c, "front_alt", None) or "")}{sanitize(c.front_html)}</span>'
-        f'<span class="fc-face fc-back rich">{_media(getattr(c, "back_asset_id", None), "item-media", getattr(c, "back_alt", None) or "")}{sanitize(c.back_html)}</span></span></button>'
-        for c in s.cards
-    )
-    return f'{_content_head(s)}<div class="flashcards ui-grid">{cards}</div>'
+    return f'{_content_head(s)}{_flashcards_body(s)}'
 
 
 def _strip_html(html: str | None) -> str:
     return nh3.clean(html or "", tags=set(), attributes={}).strip()
 
 
-def _r_matching(s) -> str:
+def _matching_answer(s) -> str:
     # her sol için <select> (klavye-erişilebilir); seçenekler = tüm sağ taraflar
     opts = "".join(
         f'<option value="{_attr(p.id)}">{_text(_strip_html(p.right_html))}</option>' for p in s.pairs
@@ -1458,10 +1765,14 @@ def _r_matching(s) -> str:
         f'<option value="">{_text(_T("select_placeholder"))}</option>{opts}</select></div>'
         for p in s.pairs
     )
-    return _quiz_shell(s, f'<div class="matching ui-stack">{rows}</div>')
+    return f'<div class="matching ui-stack">{rows}</div>'
 
 
-def _r_sorting(s) -> str:
+def _r_matching(s) -> str:
+    return _quiz_shell(s, _matching_answer(s))
+
+
+def _sorting_answer(s) -> str:
     items = "".join(
         f'<li class="sort-item ui-card" data-item="{_attr(it.id)}" draggable="true">'
         f'<span class="sort-text rich">{sanitize(it.text_html)}</span>'
@@ -1469,10 +1780,14 @@ def _r_sorting(s) -> str:
         f'<button type="button" class="sort-down" aria-label="{_attr(_T("sort_move_down"))}">▼</button></span></li>'
         for it in s.items
     )
-    return _quiz_shell(s, f'<ol class="sorting ui-stack" data-sorting>{items}</ol>')
+    return f'<ol class="sorting ui-stack" data-sorting>{items}</ol>'
 
 
-def _r_timeline(s) -> str:
+def _r_sorting(s) -> str:
+    return _quiz_shell(s, _sorting_answer(s))
+
+
+def _timeline_body(s) -> str:
     events = "".join(
         f'<li class="tl-event"><span class="tl-marker"></span>'
         f'<div class="tl-content ui-card"><span class="tl-date ui-chip">{_text(e.date)}</span>'
@@ -1482,7 +1797,11 @@ def _r_timeline(s) -> str:
         + "</div></li>"
         for e in s.events
     )
-    return f'{_content_head(s)}<ol class="timeline">{events}</ol>'
+    return f'<ol class="timeline">{events}</ol>'
+
+
+def _r_timeline(s) -> str:
+    return f'{_content_head(s)}{_timeline_body(s)}'
 
 
 def _r_lottie(s) -> str:
@@ -1525,7 +1844,7 @@ def _r_simulation(s) -> str:
             f'<div class="feedback" role="status" aria-live="polite"></div>')
 
 
-def _r_decision_scenario(s) -> str:
+def _scenario_body(s) -> str:
     start = s.start_node_id or s.nodes[0].id
     nodes_html = ""
     for node in s.nodes:
@@ -1548,12 +1867,9 @@ def _r_decision_scenario(s) -> str:
             f'<button class="btn btn-primary scen-next" type="button" hidden>{_T("scenario_continue")}</button>'
             f'</div>'
         )
-    head = f'<h2 class="screen-title">{_text(s.title)}</h2>'
-    if s.intro_html:
-        head += f'<div class="rich prompt">{sanitize(s.intro_html)}</div>'
     passattr = f' data-pass="{int(s.pass_score)}"' if s.pass_score is not None else ""
     return (
-        f'{head}<div class="scenario" data-scenario data-points="{int(s.points)}"{passattr}'
+        f'<div class="scenario" data-scenario data-points="{int(s.points)}"{passattr}'
         f' data-start="{_attr(start)}">'
         f'<div class="scen-hud ui-chip">{_text(_T("scenario_score"))} <span class="scen-score">0</span></div>'
         f'{nodes_html}</div>'
@@ -1561,7 +1877,18 @@ def _r_decision_scenario(s) -> str:
     )
 
 
-def _r_term_match_race(s) -> str:
+def _intro_head(s) -> str:
+    head = f'<h2 class="screen-title">{_text(s.title)}</h2>'
+    if s.intro_html:
+        head += f'<div class="rich prompt">{sanitize(s.intro_html)}</div>'
+    return head
+
+
+def _r_decision_scenario(s) -> str:
+    return f'{_intro_head(s)}{_scenario_body(s)}'
+
+
+def _tmr_body(s) -> str:
     # her terim için <select> (klavye-erişilebilir); seçenekler = tüm tanımlar (DOM'da karıştırılır)
     opts = "".join(
         f'<option value="{_attr(p.id)}">{_text(_strip_html(p.definition_html))}</option>' for p in s.pairs
@@ -1573,11 +1900,8 @@ def _r_term_match_race(s) -> str:
         f'<option value="">{_text(_T("select_placeholder"))}</option>{opts}</select></div>'
         for p in s.pairs
     )
-    head = f'<h2 class="screen-title">{_text(s.title)}</h2>'
-    if s.prompt_html:
-        head += f'<div class="rich prompt">{sanitize(s.prompt_html)}</div>'
     return (
-        f'{head}<div class="term-race" data-tmr data-time="{int(s.time_limit_sec)}">'
+        f'<div class="term-race" data-tmr data-time="{int(s.time_limit_sec)}">'
         f'<div class="tmr-bar"><span class="tmr-timer ui-chip">⏱ {int(s.time_limit_sec)}</span>'
         f'<span class="tmr-score ui-chip">0 / {len(s.pairs)}</span></div>'
         f'<div class="matching ui-stack">{rows}</div>'
@@ -1586,7 +1910,14 @@ def _r_term_match_race(s) -> str:
     )
 
 
-def _r_escape_room(s) -> str:
+def _r_term_match_race(s) -> str:
+    head = f'<h2 class="screen-title">{_text(s.title)}</h2>'
+    if s.prompt_html:
+        head += f'<div class="rich prompt">{sanitize(s.prompt_html)}</div>'
+    return f'{head}{_tmr_body(s)}'
+
+
+def _escape_body(s) -> str:
     puzzles = ""
     for i, p in enumerate(s.puzzles):
         hint = f'<div class="esc-hint rich" hidden>{sanitize(p.hint_html or "")}</div>' if p.hint_html else ""
@@ -1598,16 +1929,17 @@ def _r_escape_room(s) -> str:
             f' aria-label="{_attr(_T("escape_answer"))}" placeholder="{_attr(_T("escape_answer"))}">'
             f'<button class="btn btn-primary esc-submit" type="button">{_text(_T("escape_unlock"))}</button></div>{hint}</div>'
         )
-    head = f'<h2 class="screen-title">{_text(s.title)}</h2>'
-    if s.intro_html:
-        head += f'<div class="rich prompt">{sanitize(s.intro_html)}</div>'
     hearts = "".join('<span class="esc-life">&#9829;</span>' for _ in range(s.lives))
     return (
-        f'{head}<div class="escape" data-escape data-puzzles="{len(s.puzzles)}" data-lives="{int(s.lives)}">'
+        f'<div class="escape" data-escape data-puzzles="{len(s.puzzles)}" data-lives="{int(s.lives)}">'
         f'<div class="esc-bar"><span class="esc-progress ui-chip">1 / {len(s.puzzles)}</span>'
         f'<span class="esc-lives">{hearts}</span></div>{puzzles}</div>'
         f'<div class="feedback" role="status" aria-live="polite"></div>'
     )
+
+
+def _r_escape_room(s) -> str:
+    return f'{_intro_head(s)}{_escape_body(s)}'
 
 
 def _r_labeled_diagram_display(s) -> str:
@@ -1774,7 +2106,7 @@ def _num(v: float) -> str:
     return str(int(v)) if float(v).is_integer() else f"{v:g}"
 
 
-def _r_results_breakdown(s) -> str:
+def _results_body(s) -> str:
     rows = ""
     for sec in s.sections:
         ids = _attr(",".join(sec.screen_ids))
@@ -1786,18 +2118,19 @@ def _r_results_breakdown(s) -> str:
             f'<span class="rb-pct">—</span></div>'
             f'<div class="rb-track"><div class="rb-fill" style="width:0%"></div></div>{advice}</div>'
         )
+    total = ('<div class="rb-total" data-show-total="1" hidden></div>' if s.show_total else "")
+    return (f'<div class="results-breakdown" data-results data-weak="{int(s.weak_threshold)}">'
+            f'{total}{rows}</div>')
+
+
+def _r_results_breakdown(s) -> str:
     head = f'<h2 class="screen-title">{_text(s.title)}</h2>'
     if s.body_html:
         head += f'<div class="rich">{sanitize(s.body_html)}</div>'
-    total = ('<div class="rb-total" data-show-total="1" hidden></div>' if s.show_total else "")
-    return (
-        f'{head}<div class="results-breakdown" data-results data-weak="{int(s.weak_threshold)}">'
-        f'{total}{rows}</div>'
-    )
+    return f'{head}{_results_body(s)}'
 
 
-def _r_poll(s) -> str:
-    head = f'<h2 class="screen-title">{_text(s.title)}</h2><div class="rich prompt">{sanitize(s.prompt_html)}</div>'
+def _poll_body(s) -> str:
     inp_type = "checkbox" if s.multi else "radio"
     opts = "".join(
         f'<label class="poll-opt"><input type="{inp_type}" name="poll-{_attr(s.id or "p")}"'
@@ -1809,11 +2142,18 @@ def _r_poll(s) -> str:
     reflection = (f'<div class="poll-reflection rich" hidden>{sanitize(s.reflection_html)}</div>'
                   if s.reflection_html else f'<div class="poll-reflection rich" hidden>{_text(_T("poll_thanks"))}</div>')
     return (
-        f'{head}<div class="poll" data-poll>'
+        f'<div class="poll" data-poll>'
         f'<div class="poll-opts">{opts}</div>{text}'
         f'<div class="quiz-actions"><button class="btn btn-primary poll-submit" type="button">{_text(_T("poll_submit"))}</button></div>'
         f'{reflection}</div>'
     )
+
+
+def _r_poll(s) -> str:
+    head = (f'<h2 class="screen-title">{_text(s.title)}</h2>'
+            f'{_stimulus_html(getattr(s, "stimulus", None))}'
+            f'<div class="rich prompt">{sanitize(s.prompt_html)}</div>')
+    return f'{head}{_poll_body(s)}'
 
 
 def _r_image_compare(s) -> str:
@@ -1832,7 +2172,7 @@ def _r_image_compare(s) -> str:
     )
 
 
-def _r_game(s) -> str:
+def _game_body(s) -> str:
     """W3b — kompozisyonel oyun ekranı. İÇERİK statik HTML'de (data-asset çözümü + progresif
     geliştirme: start düğümü JS olmadan da görünür); MANTIK config.game'de (runtime kurar).
     HUD chip'leri/a11y kontrolleri gizli render edilir; bindGame mevcut mekaniğe göre açar."""
@@ -1859,9 +2199,6 @@ def _r_game(s) -> str:
             f'<button class="btn btn-primary game-next" type="button" hidden>{_T("game_continue")}</button>'
             f'</div>'
         )
-    head = f'<h2 class="screen-title">{_text(s.title)}</h2>'
-    if s.intro_html:
-        head += f'<div class="rich prompt">{sanitize(s.intro_html)}</div>'
     # HUD: chip'ler + a11y kontrolleri (WCAG 2.2.1 süre uzat/kapat) — hepsi gizli, bindGame açar
     hud = (
         '<div class="game-hud" role="status" aria-live="polite">'
@@ -1874,11 +2211,15 @@ def _r_game(s) -> str:
         '</div>'
     )
     return (
-        f'{head}<div class="game" data-game data-start="{_attr(start)}">'
+        f'<div class="game" data-game data-start="{_attr(start)}">'
         f'{hud}<div class="game-hints" aria-live="polite"></div>'
         f'<div class="game-nodes">{nodes_html}</div></div>'
         f'<div class="feedback" role="status" aria-live="polite"></div>'
     )
+
+
+def _r_game(s) -> str:
+    return f'{_intro_head(s)}{_game_body(s)}'
 
 
 def _r_adaptive_practice(s) -> str:
@@ -1897,6 +2238,7 @@ def _r_adaptive_practice(s) -> str:
                     if it.scaffold_html else "")
         items_html += (
             f'<div class="ap-item" data-item="{_attr(it.id)}" data-difficulty="{float(it.difficulty)}" hidden>'
+            f'{_stimulus_html(getattr(it, "stimulus", None))}'
             f'<div class="ap-prompt rich">{sanitize(it.prompt_html)}</div>'
             f'<div class="ap-options ui-stack">{opts}</div>{explain}{scaffold}'
             f'<div class="quiz-actions"><button class="btn btn-check ap-check" type="button">{_text(_T("quiz_check"))}</button></div>'
@@ -1916,15 +2258,12 @@ def _r_adaptive_practice(s) -> str:
     )
 
 
-def _r_worked_example(s) -> str:
+def _we_body(s) -> str:
     """F1 (#112) — çözümlü örnek. TÜM içerik statik HTML'de (deterministik); fading yalnız
     `hidden` + aria-expanded'lı reveal butonlarıyla kurulur, açma mantığı bindWorkedExample
     (templates.py — küçük, saf DOM toggle). Skor YOK: config'e puan/feedback yazılmaz.
     Öz-açıklama alanı poll deseni — serbest metin, hiçbir LMS alanına yazılmaz."""
     sid = _attr(s.id or "we")
-    head = f'<h2 class="screen-title">{_text(s.title)}</h2>'
-    if s.intro_html:
-        head += f'<div class="rich prompt">{sanitize(s.intro_html)}</div>'
     steps = ""
     for i, st in enumerate(s.steps):
         art = ""
@@ -1964,19 +2303,24 @@ def _r_worked_example(s) -> str:
             f' placeholder="{_attr(_T("we_selfexp_placeholder"))}"></textarea>'
             f'<span class="we-unscored ui-chip">{_text(_T("we_unscored"))}</span></div>'
         )
-    return (f'{head}<ol class="we-steps" data-worked-example data-fading="{s.fading}">'
+    return (f'<ol class="we-steps" data-worked-example data-fading="{s.fading}">'
             f'{steps}</ol>{selfexp}')
 
 
-def _r_exploration(s) -> str:
+def _r_worked_example(s) -> str:
+    head = f'<h2 class="screen-title">{_text(s.title)}</h2>'
+    if s.intro_html:
+        head += f'<div class="rich prompt">{sanitize(s.intro_html)}</div>'
+    return f'{head}{_we_body(s)}'
+
+
+def _xp_body(s) -> str:
     """F2 (#113) — keşif: öğrenen girdisi saklanır + geri oynatılır. İçerik statik HTML'de
     (deterministik); saklama/geri-oynatma mantığı bindExploration + resolveExplorationRefs
     (templates.py — state.xp üzerinden, scorm.js codec'iyle persist). Skor YOK: config'e
     puan/feedback yazılmaz (poll deseni — LMS skoruna asla dokunmaz)."""
     sid = _attr(s.id or "xp")
     pid = f"xp-{sid}-prompt"
-    head = (f'<h2 class="screen-title">{_text(s.title)}</h2>'
-            f'<div class="rich prompt" id="{pid}">{sanitize(s.prompt_html)}</div>')
     if s.input_kind == "text":
         iid = f"xp-{sid}-input"
         minattr = f' minlength="{int(s.min_length)}"' if s.min_length else ""
@@ -2023,9 +2367,17 @@ def _r_exploration(s) -> str:
     mind = f' data-min="{int(s.min_length)}"' if s.min_length else ""
     # #141 — birim YALNIZ slider kipinde basilir; diger kiplerde bos string -> bayt-parite.
     unitattr = f' data-unit="{_attr(s.unit)}"' if s.input_kind == "slider" and s.unit else ""
-    return (f'{head}<div class="exploration" data-exploration'
+    return (f'<div class="exploration" data-exploration'
             f' data-store-key="{_attr(s.store_key)}" data-kind="{s.input_kind}"{mind}{unitattr}>'
             f'{field}{meta}</div>')
+
+
+def _r_exploration(s) -> str:
+    pid = f"xp-{_attr(s.id or 'xp')}-prompt"
+    head = (f'<h2 class="screen-title">{_text(s.title)}</h2>'
+            f'{_stimulus_html(getattr(s, "stimulus", None))}'
+            f'<div class="rich prompt" id="{pid}">{sanitize(s.prompt_html)}</div>')
+    return f'{head}{_xp_body(s)}'
 
 
 def _r_embed_html(s) -> str:
@@ -2036,10 +2388,13 @@ def _r_embed_html(s) -> str:
     Yerleşim (task-5 / FIX 1): `.embed-wrap`/`.embed-frame`/`[data-aspect]` kuralları
     `templates.py:EMBED_CSS`'tedir ve YALNIZ `_uses_embed(project)` iken basılır — kurallar
     yokken iframe UA varsayılanı 300x150'ye düşüyordu ve `aspect` alanını hiçbir şey tüketmiyordu."""
-    aspect = getattr(s, "aspect", "fill") or "fill"
     title = f'<h2 class="screen-title">{_text(s.title)}</h2>' if getattr(s, "title", None) else ""
+    return f'{title}{_embed_body(s)}'
+
+
+def _embed_body(s) -> str:
+    aspect = getattr(s, "aspect", "fill") or "fill"
     return (
-        f'{title}'
         f'<div class="embed-wrap" data-embed-screen data-aspect="{_attr(aspect)}">'
         f'<iframe class="embed-frame" data-asset="{_attr(s.html_asset_id)}"'
         f' sandbox="allow-scripts allow-same-origin allow-forms allow-popups"'
@@ -2055,9 +2410,24 @@ def _render_unknown(s) -> str:
     return f'<h2 class="screen-title">{_text(getattr(s, "title", "?"))}</h2>'
 
 
+def _stimulus_html(st) -> str:
+    """K3 — soru uyaranı. None → "" (uyaransız ekran bayt-aynı)."""
+    if st is None:
+        return ""
+    fig = ""
+    if st.asset_id:
+        cap = f"<figcaption>{_text(st.caption)}</figcaption>" if st.caption else ""
+        fig = (f'<figure class="stimulus stimulus-media">'
+               f'{_media(st.asset_id, "item-media", st.alt or "")}{cap}</figure>')
+    txt = (f'<div class="stimulus stimulus-text rich">{sanitize(st.text_html)}</div>'
+           if st.text_html else "")
+    return fig + txt
+
+
 def _quiz_shell(s, inner: str) -> str:
     return (
         f'<h2 class="screen-title">{_text(s.title)}</h2>'
+        f'{_stimulus_html(getattr(s, "stimulus", None))}'
         f'<div class="rich prompt">{sanitize(s.prompt_html)}</div>'
         f'{inner}'
         f'<div class="quiz-actions"><button class="btn btn-check" type="button">{_text(_T("quiz_check"))}</button></div>'

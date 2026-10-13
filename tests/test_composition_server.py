@@ -49,7 +49,7 @@ async def test_build_from_spec_default_theme_becomes_mint_only_when_auto():
 async def test_list_compositions():
     async with Client(server.mcp) as c:
         out = (await c.call_tool("list_compositions", {})).data
-    assert out["count"] == 7
+    assert out["count"] == 9  # K1 7 + K2 visual-stack + K3 question-column
     assert {x["name"] for x in out["compositions"]} >= {"centered", "split-thirds"}
 
 

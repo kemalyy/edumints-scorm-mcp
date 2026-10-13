@@ -85,6 +85,9 @@ def test_monotony_breaker_after_three_repeats():
     assert all(presets[i:i + 4] != [presets[i]] * 4 for i in range(len(presets) - 3))
 
 
-def test_explicit_composition_wins_and_non_k1_is_none():
-    out = resolve_project(P(C(body_html="<p>x</p>", composition="centered"), Q()))
-    assert out[0].preset == "centered" and out[0].auto is False and out[1] is None
+def test_explicit_composition_wins_and_every_type_resolves():
+    from core.project import EmbedHtmlScreen
+    emb = EmbedHtmlScreen(title="a", html_asset_id="h")  # K5 — 31 tipin tamamı kompozisyonlu
+    out = resolve_project(P(C(body_html="<p>x</p>", composition="centered"), emb))
+    assert out[0].preset == "centered" and out[0].auto is False
+    assert out[1] is not None and out[1].auto is True
