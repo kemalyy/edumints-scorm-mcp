@@ -17,6 +17,9 @@ os.environ.setdefault("SCORM_NO_TTL_CLEANER", "1")
 # limiti pratikte devre dışı bırak (ölçüm: mevcut paket ~45 çağrı, %75 doluluk). Rate-limit
 # testleri kendi RateLimiter örneğini monkeypatch'lediğinden bundan etkilenmez.
 os.environ.setdefault("RATE_LIMIT_PER_MIN", "100000")
+# Tüm set tek test DB'sini ve tek yerel anahtarı paylaşır; varsayılan 100 proje kotası set büyüdükçe
+# sıraya bağlı "quota_exceeded" kırılmaları üretir. Kota testleri kendi anahtarını kendi limitiyle kurar.
+os.environ.setdefault("MAX_PROJECTS_PER_KEY", "100000")
 # Testler AĞSIZ olmalı: XSD şema fetch'i (imsglobal) CI'da yavaş/asılı kalabilir. SCORM_SCHEMA_DIR'i
 # şemasız bir dizine işaret ettir → _ensure_populated None → conformance testi graceful skip eder.
 # (XSD doğrulamasını gerçek koşmak için bu env'i unset edip ağa izin ver.)

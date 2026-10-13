@@ -127,11 +127,15 @@ Full working specs live in [`examples/`](examples/) (games, branching, themed an
 
 ## Features
 
-- **43 MCP tools** — `build_from_spec` (single-call path), granular editing
+- **45 MCP tools** — `build_from_spec` (single-call path), granular editing
   (`create_project` / `add_screen` / `update_screen` / …), `set_theme` / `set_tracking`,
   `add_asset` (SSRF-guarded imports), `synthesize_speech` (offline Piper TTS), video tools
   (ffmpeg / HyperFrames motion-graphics), `preview` / `validate_package` / `build_package`,
-  `lint_course` (quality gate), `export_qti` (QTI 2.1).
+  `lint_course` (quality gate), `export_qti` (QTI 2.1), `list_compositions` / `set_composition`.
+- **Composition system** — every new course gets a deliberate focal point, an emphasis hierarchy
+  (E1–E5: `kicker`, `lead`, `<mark>`) and a balanced symmetric/asymmetric layout chosen from a
+  JSON pattern catalogue (rule of thirds, Z/F eye flow, course rhythm) — or any free grid. New
+  default palette `mint` (+ `ink`, `slate`), embedded OFL fonts. Existing courses render unchanged.
 - **31 screen types** — title, content, MCQ, true/false, fill-in-the-blank, drag & drop, hotspot,
   branching scenario, video, accordion, tabs, flashcards, matching, sorting, timeline, lottie,
   guided software simulation, decision scenario, term-match race, escape room, labeled diagram,

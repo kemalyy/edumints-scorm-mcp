@@ -1,0 +1,46 @@
+{
+  "extends": "_tokens",
+  "name": "mint",
+  "color": {
+    "primary": "#037454",
+    "primary_hover": "#065f46",
+    "primary_contrast": "#ffffff",
+    "secondary": "#3f3f46",
+    "accent": "#037454",
+    "bg": "#fafaf9",
+    "surface": "#ffffff",
+    "surface_alt": "#f4f4f2",
+    "border": "#e4e4e1",
+    "text": "#18181b",
+    "text_muted": "#6b6b73",
+    "focus_ring": "#037454"
+  },
+  "emphasis": {
+    "e1": {
+      "color": "#037454",
+      "size": "h3",
+      "weight": 700
+    },
+    "e2": {
+      "color": "#18181b",
+      "size": "h2",
+      "weight": 700
+    },
+    "e3": {
+      "color": "#065f46",
+      "size": "sm",
+      "weight": 600
+    },
+    "e3_bg": "#d5f2e6",
+    "e4": {
+      "color": "#3f3f46",
+      "size": "base",
+      "weight": 400
+    },
+    "e5": {
+      "color": "#6b6b73",
+      "size": "sm",
+      "weight": 400
+    }
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "extends": "_tokens",
+  "name": "ink",
+  "color": {
+    "primary": "#a24a24",
+    "primary_hover": "#8f4122",
+    "primary_contrast": "#ffffff",
+    "secondary": "#44403c",
+    "accent": "#a24a24",
+    "bg": "#fbfaf8",
+    "surface": "#ffffff",
+    "surface_alt": "#f3efea",
+    "border": "#e6e0d9",
+    "text": "#1c1917",
+    "text_muted": "#706964",
+    "focus_ring": "#a24a24"
+  },
+  "emphasis": {
+    "e1": {
+      "color": "#a24a24",
+      "size": "h3",
+      "weight": 700
+    },
+    "e2": {
+      "color": "#1c1917",
+      "size": "h2",
+      "weight": 700
+    },
+    "e3": {
+      "color": "#8f4122",
+      "size": "sm",
+      "weight": 600
+    },
+    "e3_bg": "#f6e3d8",
+    "e4": {
+      "color": "#44403c",
+      "size": "base",
+      "weight": 400
+    },
+    "e5": {
+      "color": "#706964",
+      "size": "sm",
+      "weight": 400
+    }
+  }
+}

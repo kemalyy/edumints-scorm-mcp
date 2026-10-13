@@ -360,6 +360,19 @@ def _load_theme(theme: str | ThemeTokens, _seen: frozenset[str] = frozenset(),
     return _apply_audience(_deep_merge_theme(parent, child), audience)
 
 
+def _comp_summary(p) -> list[dict]:
+    from core.composition_auto import summary
+    return summary(p)
+
+
+def _theme_for(theme, composition: str):
+    """K1 — "default" adı yalnız auto projede yeni varsayılan palete (mint) yönlenir.
+    themes/default.json DEĞİŞMEZ → classic + default bayt-aynı."""
+    if composition == "auto" and theme == "default":
+        return "mint"
+    return theme
+
+
 _AUDIENCE_NAME = re.compile(r"^[a-z0-9_-]{1,64}$")  # CourseSpec.audience_pack ile aynı desen
 
 
@@ -519,6 +532,7 @@ async def create_project(
     scorm_version: str = "1.2",
     theme: str = "default",
     language: str = "tr",
+    composition: Literal["classic", "auto"] = "auto",
 ) -> CreateProjectOut:
     """Yeni bir SCORM projesi oluşturur."""
     await SVC.ensure()
@@ -533,7 +547,8 @@ async def create_project(
             description=description,
             scorm_version="2004" if scorm_version == "2004" else "1.2",
             language=language,
-            theme=_load_theme(theme),
+            theme=_load_theme(_theme_for(theme, composition)),
+            composition=composition,
             owner_key_id=owner.id,
         )
         await SVC.store.create_project(p)
@@ -619,11 +634,13 @@ async def lint_course(project_id: str, strict: bool | None = None) -> dict:
             "strict": strict_on,
             "error_count": sum(1 for i in items if i["severity"] == "error"),
             "warn_count": sum(1 for i in items if i["severity"] == "warn"),
-            "clean": len(items) == 0,
+            # K1 — "info" (ör. composition_ignored_classic) temizliği bozmaz
+            "clean": not [i for i in items if i["severity"] in ("error", "warn")],
             # E1 (#110) — açık `evidence_screen_ids` beyanı olan skorlu ekran oranı (0..1).
             # Heuristik/törensel bağ SAYILMAZ: oran lint yeşilken düşüyorsa denetim sürükleniyor.
             "evidence_binding_coverage": round(evidence_binding_coverage(p), 3),
             "issues": items,
+            "compositions": _comp_summary(p),  # K1 — Claude neyin seçildiğini görüp ezebilir
         }
     except ToolError as e:
         raise _wrap(e)
@@ -862,7 +879,8 @@ async def wrap_artifact(
         from core.project import new_project_id
 
         p = Project(id=new_project_id(), title=title, scorm_version=scorm_version,
-                    language=language, theme=_load_theme("default"), owner_key_id=owner.id)
+                    language=language, theme=_load_theme(_theme_for("default", "auto")),
+                    composition="auto", owner_key_id=owner.id)
         await SVC.store.create_project(p)
         try:
             # 2) HTML → asset (_add_processed_asset p'yi yerinde günceller VE persist eder →
@@ -1109,6 +1127,7 @@ async def preview(project_id: str) -> PreviewOut:
         return PreviewOut(
             inline_html=html,
             hosted_url=f"{SETTINGS.public_base_url}/preview/{token}",
+            compositions=_comp_summary(p),
         )
     except ToolError as e:
         raise _wrap(e)
@@ -1313,7 +1332,9 @@ async def build_from_spec(spec: dict, strict: bool | None = None) -> BuildFromSp
             scorm_version=spec.scorm_version,
             language=spec.language,
             # Faz 5 — kitle katmanı: preset ile kurs custom arasına audience override girer
-            theme=_load_theme(spec.theme, audience=spec.audience_pack),
+            theme=_load_theme(_theme_for(spec.theme, spec.composition),
+                              audience=spec.audience_pack),
+            composition=spec.composition,  # K1 — yeni kurslar varsayılan auto
             theme_mode=spec.theme_mode,  # Faz 6b — kozmetik mod ekseni (render anında çözülür)
             tracking=spec.tracking,
             variables=list(spec.variables),
@@ -1521,6 +1542,33 @@ async def list_themes() -> dict:
     names = sorted(p.stem for p in THEMES_DIR.glob("*.json") if not p.stem.startswith("_"))
     items = [{"name": n, "description": _THEME_DESC.get(n, "")} for n in names]
     return {"count": len(items), "themes": items}
+
+
+@mcp.tool
+async def list_compositions() -> dict:
+    """Kompozisyon desen kataloğu (K1): ekranın `composition` alanında ad olarak ya da
+    {"preset": ad, ...ince ayar} nesnesiyle kullanılır (veya preset'siz serbest parametreler).
+    Keşif — auth gerekmez."""
+    from core.composition import load_catalog
+    items = [{"name": n, "description": d.get("description", ""),
+              "symmetry": d.get("symmetry", ""), "applies_to": d.get("applies_to", [])}
+             for n, d in load_catalog().items()]
+    return {"count": len(items), "compositions": items}
+
+
+@mcp.tool
+async def set_composition(project_id: str, mode: Literal["classic", "auto"]) -> OkOut:
+    """Projenin kompozisyon modunu ayarlar. "auto": odak/vurgu kademeleri/otomatik desen;
+    "classic": eski görünüm (bayt-aynı). Mevcut bir projeyi yükseltmenin TEK yolu."""
+    await SVC.ensure()
+    try:
+        owner = await _owner()
+        p = await _load(project_id, owner)
+        p.composition = mode
+        await SVC.store.update_project(p)
+        return OkOut()
+    except ToolError as e:
+        raise _wrap(e)
 
 
 # --------------------------------------------------------------------------- #
@@ -1803,6 +1851,7 @@ def _spec_to_project_for_lint(spec: dict, owner_id: str):
         scorm_version=cs.scorm_version, language=cs.language,
         objectives=list(cs.objectives), outline=list(cs.outline),
         audience_pack=cs.audience_pack, screens=list(cs.screens), owner_key_id=owner_id,
+        composition=cs.composition,
     )
     for s in p.screens:
         if not s.id:

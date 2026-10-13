@@ -31,6 +31,9 @@ const UPDATE = process.argv.includes("--update");
 // Sabit goruntu alani — snapshot boyutu deterministik olsun. deviceScaleFactor 1: retina
 // olcekleme rasterizasyonu degistirir.
 const VIEWPORT = { width: 1024, height: 700 };
+// K1 — adinda "@mobile" gecen fixture'lar telefon genisliginde cekilir (kompozisyonun tek
+// sutuna dusmesi + odak-once okuma sirasi gorsel olarak kilitlensin).
+const MOBILE_VIEWPORT = { width: 390, height: 844 };
 // Sanal saatin sabitlendigi an: geri sayim basan ekranlar (term_match_race, game, timer_sec
 // HUD) gercek zamana bagli kalirsa iki kosu asla eslesmez.
 const FROZEN_TIME = new Date("2026-01-01T09:00:00Z");
@@ -50,7 +53,7 @@ const FREEZE_CSS = `*,*::before,*::after{
 
 async function shoot(browser, file) {
   const context = await browser.newContext({
-    viewport: VIEWPORT,
+    viewport: file.includes("@mobile") ? MOBILE_VIEWPORT : VIEWPORT,
     deviceScaleFactor: 1,
     reducedMotion: "reduce",
     // Tema kipi fixture'da ACIKCA veriliyor; prefers-color-scheme'i sabitlemek "auto"
@@ -105,7 +108,14 @@ async function shoot(browser, file) {
     // maskeyle GORUNMEZ olur — bilincli takas, tests/README.md'de yazili.
     return await page.screenshot({
       fullPage: false,
-      mask: [page.locator("video")],
+      // screen-video: oynatici zaman gostergesi (#seekbar, #plTime) medya zamanlamasina bagli
+      // olarak kosudan kosuya ~160 piksel oynuyor (olculdu, esik %0.02'nin hemen ustu) — ayni
+      // gerekceyle yalniz VIDEO fixture'inda maskelenir; diger ekranlarda deterministik.
+      // (@mobile: denetimler iki satira sarildigi icin ayni gurultu orada da esigi asiyor — olculdu
+      //  comp-split-thirds@mobile 103 px, oynatici bolgesinde; kompozisyon bolgesi MASKELENMEZ.)
+      mask: (file.startsWith("screen-video") || file.includes("@mobile"))
+        ? [page.locator("video"), page.locator("#seekbar"), page.locator("#plTime")]
+        : [page.locator("video")],
       maskColor: "#ff00ff",
     });
   } finally {
@@ -116,6 +126,11 @@ async function shoot(browser, file) {
 function compare(name, actualBuf) {
   const basePath = path.join(BASELINE, `${name}.png`);
   if (!existsSync(basePath)) {
+    // Yeni fixture: cekilen kareyi diff/'e birak — CI artifact'i (visual-diff) baseline adayini
+    // tasir. Baseline'lar YEREL makinede degil, CI'in pinned konteynerinde uretilmeli: yerel
+    // (or. Apple Silicon) rasterlestirme ayni kodla bile farkli pikseller verir.
+    mkdirSync(DIFF, { recursive: true });
+    writeFileSync(path.join(DIFF, `${name}.actual.png`), actualBuf);
     return {
       ok: false,
       reason: `baseline yok: ${path.relative(process.cwd(), basePath)} — kasitli yeni ` +

@@ -55,7 +55,8 @@ def deep_merge_theme(base: ThemeTokens, override: ThemeTokens) -> ThemeTokens:
         for name in o_model.model_fields_set:
             val = getattr(o_model, name)
             if hasattr(val, "model_fields_set"):
-                out[name] = merge(out.get(name, {}), val)
+                # K1 — tabanda opsiyonel alt-model None olabilir (ör. emphasis): {} ile başla
+                out[name] = merge(out.get(name) or {}, val)
             else:
                 out[name] = val if not hasattr(val, "model_dump") else val.model_dump()
         return out

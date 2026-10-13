@@ -3086,3 +3086,54 @@ OUTLINE_JS = r"""
   if(_cs&&_cs.type==="results_breakdown") renderResultsIfNeeded(secById[order[cursor]],_cs);
 })();
 """
+
+
+# K1 — kompozisyon katmanı + vurgu kademeleri (YALNIZ auto projede basılır; classic bayt-aynı).
+# Yuvalar (support/focal/aux/steps) çözücünün grid-area'sıyla yerleşir; mobilde tek sütun ve
+# DOM sırası (odak önce) okuma sırası olur.
+COMPOSITION_CSS = """
+.screen[data-comp] .screen-inner{display:flex;flex-direction:column}
+/* reveal sarmalayıcısı (.tl-block) yükseklik zincirini kırmasın: ızgara sahneye sığar */
+.screen[data-comp] .screen-inner>.tl-block{flex:1;min-height:0;display:flex;flex-direction:column}
+.comp-grid{display:grid;flex:1;min-height:0;grid-template-columns:var(--comp-cols);
+  grid-template-rows:var(--comp-rows);gap:var(--space-5)}
+.slot{min-width:0;min-height:0;display:flex;flex-direction:column;justify-content:center}
+.slot .media,.slot .item-media{max-width:100%;max-height:100%;object-fit:contain}
+.slot-focal .block-media{height:100%;margin:0;display:flex;flex-direction:column;justify-content:center}
+.screen[data-ws="high"] .comp-grid{padding:var(--space-6) var(--space-7)}
+.screen[data-ws="low"] .comp-grid{gap:var(--space-3)}
+.screen[data-flow="center"] .slot-support{align-items:center;text-align:center}
+.screen[data-flow="f"] .slot-support{align-items:flex-start;text-align:start;justify-content:flex-start}
+.screen[data-comp="statement"] .slot-focal .lead{font-size:calc(var(--fs-h1) * 1.25);line-height:1.05}
+.slot-steps{display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:minmax(0,1fr);
+  gap:var(--space-4);height:100%;min-height:0}
+.slot-steps .step{padding:var(--space-3);border-radius:var(--r-md);background:var(--c-surface-alt);
+  min-height:0;overflow:hidden;display:flex;flex-direction:column;gap:var(--space-2)}
+.slot-steps .step .block-media{flex:1;min-height:0;margin:0;display:flex;justify-content:center}
+.slot-steps .step .item-media{max-height:100%;max-width:100%;width:auto;object-fit:contain}
+.slot-steps .step-focal{outline:2px solid var(--em1);background:var(--c-surface)}
+.title-slide.comp{text-align:initial;padding:0}
+.title-slide.comp[data-bg-asset]{background-size:cover;background-position:center;
+  background-repeat:no-repeat;border-radius:var(--r-md)}
+.title-slide.comp[data-bg-asset] .slot-support{
+  background:color-mix(in srgb,var(--c-surface) 92%,transparent);
+  padding:var(--space-4);border-radius:var(--r-md)}
+.screen[data-intensity="calm"] .lead{font-size:var(--fs-h4)}
+.screen[data-intensity="high"] .lead{font-size:var(--fs-h2)}
+@media(max-width:640px){
+  .comp-grid{grid-template-columns:1fr;grid-template-rows:none}
+  .comp-grid>.slot{grid-area:auto !important}
+  .slot-steps{grid-template-columns:1fr;grid-auto-rows:auto;height:auto}
+}
+"""
+
+EMPHASIS_CSS = """
+.kicker{color:var(--em3);font-size:var(--em3-fs);font-weight:var(--em3-w);letter-spacing:.12em;
+  text-transform:uppercase;margin:0 0 var(--space-2)}
+.lead{color:var(--em1);font-size:var(--em1-fs);font-weight:var(--em1-w);line-height:var(--lh-tight);
+  margin:var(--space-3) 0;text-wrap:balance}
+.screen[data-comp] .screen-title,.screen[data-comp] .title-main{color:var(--em2)}
+.screen[data-comp] .rich{color:var(--em4)}
+.screen[data-comp] figcaption{color:var(--em5)}
+mark{background:var(--em3-bg);color:var(--em3);padding:0 .15em;border-radius:3px}
+"""
