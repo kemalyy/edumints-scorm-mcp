@@ -17,8 +17,9 @@ Tüm ekran tipleri aşağıdaki alanlara sahiptir:
 | `on_enter` | `list[VarAction]` | Hayır | Girişte yapılacak değişken atamaları. |
 | `timer_sec` | `int` | Hayır | Ekran süresi (saniye). |
 | `section` | `str` | Hayır | Bölüm/Ünite adı. |
-| `kicker` | `str` | Hayır | K1 — üst etiket (E3, ≤40 karakter). Yalnız `composition: "auto"` projede render edilir; K1'de `title_slide`/`content_slide`. |
+| `kicker` | `str` | Hayır | K1 — üst etiket (E3, ≤40 karakter). Yalnız `composition: "auto"` projede render edilir; K1: `title_slide`/`content_slide`, K2: `hotspot`, `labeled_diagram`, `image_compare`, `data_chart`, `video`, `lottie`, `simulation`; K3: yedi soru tipi; K4: `accordion`, `tabs`, `flashcards`, `timeline`, `summary`, `results_breakdown`, `poll`, `worked_example`, `exploration`; K5: `game`, `decision_scenario`, `escape_room`, `term_match_race`, `branching`, `embed_html` (31 tipin tamamı). |
 | `lead` | `str` | Hayır | K1 — ekranın tek ana mesajı (E1 odak metni, ≤20 kelime önerilir). Yalnız auto projede. |
+| `stimulus` | `Stimulus` | Hayır | K3 — soru tiplerinde (`mcq`, `true_false`, `fill_blank`, `drag_drop`, `matching`, `sorting`; `adaptive_practice`'te öğe başına) ve K4 — `poll`, `exploration`, K5 — `branching` (yansıma/tahmin vakası; skorsuz): `{asset_id?, alt?, text_html?, caption?}` — görsel ve/veya vaka metni; `asset_id` varsa `alt` zorunlu. Soru vakaya uygulanır; soru tiplerinde cevabı uyarana yazmayın (`stimulus_answer_leak` — skorsuz poll/exploration ve doğru cevabı olmayan branching'e uygulanmaz). |
 | `composition` | `str` \| `CompositionSpec` | Hayır | K1 — desen adı (`list_compositions`) veya `{preset, mirror, grid, areas, focal, flow, whitespace, intensity}`. Verilmezse auto projede otomatik seçilir. |
 
 ---
@@ -90,6 +91,22 @@ Tüm ekran tipleri aşağıdaki alanlara sahiptir:
     {"id": "a", "text_html": "Seçenek A", "correct": true},
     {"id": "b", "text_html": "Seçenek B", "correct": false}
   ]
+}
+```
+
+**Uyaranlı (K3) örnek — uygulama sorusu:**
+```json
+{
+  "type": "mcq",
+  "title": "Bu e-postada ne yaparsın?",
+  "stimulus": {"asset_id": "mail1", "alt": "Fatura onayı isteyen e-posta",
+               "text_html": "<p>Elif'e muhasebeden “acil fatura onayı” e-postası geldi; bağlantı farklı bir alan adına gidiyor.</p>"},
+  "prompt_html": "<p>Elif'in ilk adımı ne olmalı?</p>",
+  "options": [
+    {"id": "a", "text_html": "Göndereni bilinen bir kanaldan doğrulamak", "correct": true},
+    {"id": "b", "text_html": "Bağlantıya tıklayıp faturayı kontrol etmek"}
+  ],
+  "evidence_screen_ids": ["s-gonderen-dogrulama"]
 }
 ```
 

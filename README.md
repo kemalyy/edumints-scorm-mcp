@@ -127,14 +127,18 @@ Full working specs live in [`examples/`](examples/) (games, branching, themed an
 
 ## Features
 
-- **45 MCP tools** — `build_from_spec` (single-call path), granular editing
+- **46 MCP tools** — `build_from_spec` (single-call path), granular editing
   (`create_project` / `add_screen` / `update_screen` / …), `set_theme` / `set_tracking`,
   `add_asset` (SSRF-guarded imports), `synthesize_speech` (offline Piper TTS), video tools
   (ffmpeg / HyperFrames motion-graphics), `preview` / `validate_package` / `build_package`,
-  `lint_course` (quality gate), `export_qti` (QTI 2.1), `list_compositions` / `set_composition`.
+  `lint_course` (quality gate), `export_qti` (QTI 2.1), `list_compositions` / `set_composition` /
+  `set_screen_composition`.
 - **Composition system** — every new course gets a deliberate focal point, an emphasis hierarchy
   (E1–E5: `kicker`, `lead`, `<mark>`) and a balanced symmetric/asymmetric layout chosen from a
-  JSON pattern catalogue (rule of thirds, Z/F eye flow, course rhythm) — or any free grid. New
+  JSON pattern catalogue (rule of thirds, Z/F eye flow, course rhythm) — or any free grid — on
+  **all 31 screen types**. The server asks the decisions that matter while the course is built
+  (`composition_questions`), questions/polls/branching take an optional case (`stimulus`) for
+  application-level assessment, tabs become master–detail and game scenes go side by side. New
   default palette `mint` (+ `ink`, `slate`), embedded OFL fonts. Existing courses render unchanged.
 - **31 screen types** — title, content, MCQ, true/false, fill-in-the-blank, drag & drop, hotspot,
   branching scenario, video, accordion, tabs, flashcards, matching, sorting, timeline, lottie,

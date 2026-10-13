@@ -18,6 +18,7 @@ Mevcut geçerli kurslar bozulmaz: ERROR'lar yalnız NET yapısal bug'lardır; pe
 """
 from __future__ import annotations
 
+import html as html_lib
 import json
 import re
 from dataclasses import dataclass
@@ -73,6 +74,8 @@ STRICT_PROMOTED_CODES = frozenset({
     # K1 — kompozisyon/vurgu kalite uyarıları (varsayılanda danışsal, strict'te bloklar)
     "emphasis_inflation", "mark_overuse", "lead_too_long", "multiple_focal_points",
     "composition_monotony", "intensity_run",
+    # K3 — uyaran cevabı birebir veriyorsa soru eşleştirme ölçer (öğretim kalitesi)
+    "stimulus_answer_leak",
 })
 
 
@@ -82,6 +85,53 @@ class LintIssue:
     code: str
     message: str
     path: str
+
+
+_I_FOLD = str.maketrans({"İ": "i", "I": "i", "ı": "i"})
+
+
+def _norm_words(html: str | None) -> str:
+    """HTML etiketleri ve noktalama → boşluk, casefold, boşluk sıkıştırma; kelime sınırı için
+    iki yanda boşluk ("Ankara." ↔ "ankara" eşleşir, "Ankaralı" eşleşmez)."""
+    txt = html_lib.unescape(re.sub(r"<[^>]+>", " ", html or ""))
+    # Türkçe I/İ/ı tek "i"ye katlanır (casefold "İ"yi i + birleşik nokta yapar, "I"↔"ı" eşleşmez)
+    txt = txt.translate(_I_FOLD).casefold().replace("\u0307", "")
+    txt = re.sub(r"[^\w\s]", " ", txt)
+    return " " + " ".join(txt.split()) + " "
+
+
+def _lint_stimulus(s, path: str) -> list[LintIssue]:
+    """K3 — soru uyaranı: görsel alt metni (error) + cevap sızıntısı (warn; strict'te error)."""
+    sts: list[tuple[str, object]] = []
+    if getattr(s, "stimulus", None) is not None:
+        sts.append((f"{path}.stimulus", s.stimulus))
+    if isinstance(s, AdaptivePracticeScreen):
+        sts += [(f"{path}.items[{k}].stimulus", it.stimulus)
+                for k, it in enumerate(s.items) if it.stimulus is not None]
+    out: list[LintIssue] = []
+    for p, st in sts:
+        if st.asset_id and not (st.alt or "").strip():
+            out.append(LintIssue("error", "stimulus_without_alt",
+                                 "Görsel uyaran alt metinsiz olamaz (alt)", f"{p}.alt"))
+    t = s.type.value
+    answers: list[str] = []
+    if t == "mcq":
+        answers = [o.text_html for o in s.options if o.correct]
+    elif t == "fill_blank":
+        answers = [a for b in s.blanks for a in b.accepted]
+    elif t == "true_false" and s.correct:
+        answers = [s.prompt_html]
+    for p, st in sts:
+        body = _norm_words(st.text_html)
+        for a in answers:
+            na = _norm_words(a)
+            if na.strip() and na in body:
+                out.append(LintIssue(
+                    "warn", "stimulus_answer_leak",
+                    f"Uyaran cevabı birebir içeriyor ('{na.strip()}') — soru eşleştirme değil "
+                    "anlama/uygulama ölçmeli: vakayı cevabı söylemeden kur", p))
+                break
+    return out
 
 
 def lint_course(project: Project) -> list[LintIssue]:
@@ -104,6 +154,7 @@ def lint_course(project: Project) -> list[LintIssue]:
         issues += _lint_generic_title(s, path)
         issues += _lint_list_items(s, path)
         issues += _lint_default_feedback(s, path)
+        issues += _lint_stimulus(s, path)
     issues += _lint_media_no_caption(project)
     issues += _lint_consecutive_content_slides(project)
     issues += _lint_theme_logo_alt(project)
@@ -133,6 +184,7 @@ def _screen_html(s) -> str:
 
 
 def _composition_issues(project: Project) -> list[LintIssue]:
+    from core.composition_auto import pref_for
     from core.composition_auto import resolve_project_safe, signals
 
     out: list[LintIssue] = []
@@ -174,7 +226,11 @@ def _composition_issues(project: Project) -> list[LintIssue]:
                                  "lead ve medya aynı ekranda odak için yarışıyor", path))
         run_len = run_len + 1 if c.preset == run_preset else 1
         run_preset = c.preset
-        if run_len == 4:
+        # kullanıcı tercihiyle oluşan seri ve uyaransız soru dizisi (tutarlılık istenir) uyarılmaz
+        # summary yalnız centered'a uyar (çözücü de kırmaz) — uyarı eyleme dönüştürülemez
+        exempt = c.auto and (pref_for(project, s) is not None or c.preset == "question-column"
+                             or s.type.value == "summary")
+        if run_len == 4 and not exempt:
             out.append(LintIssue("warn", "composition_monotony",
                                  f"'{c.preset}' art arda 4. kez", path))
         high_run = high_run + 1 if c.intensity == "high" else 0

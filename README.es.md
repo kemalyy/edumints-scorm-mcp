@@ -45,7 +45,11 @@ un paquete SCORM conforme a los estándares, sin dependencia de proveedor.
 
 ## Características
 
-- **28 tipos de pantalla** — título, contenido, opción múltiple, verdadero/falso, completar huecos,
+- **Sistema de composición** — cada curso nuevo (`composition: "auto"`) recibe en los 31 tipos de pantalla
+  un punto focal deliberado, una jerarquía de énfasis (E1–E5) y un diseño simétrico/asimétrico según la regla
+  de los tercios y el recorrido visual Z/F; el servidor pregunta las decisiones clave durante la creación.
+  Los cursos existentes no cambian.
+- **31 tipos de pantalla** — título, contenido, opción múltiple, verdadero/falso, completar huecos,
   arrastrar y soltar, hotspot, escenario ramificado, acordeón, pestañas, tarjetas, emparejamiento,
   ordenar, línea de tiempo, lottie, **simulación de software guiada**, vídeo, resumen,
   **escenario de decisión**, **carrera de términos**, **sala de escape**, **diagrama etiquetado**,

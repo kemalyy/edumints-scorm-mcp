@@ -128,15 +128,19 @@ Tam çalışan spec'ler [`examples/`](examples/) altında (oyunlar, dallanma, te
 
 ## Özellikler
 
-- **45 MCP aracı** — `build_from_spec` (tek çağrılık yol), granüler düzenleme
+- **46 MCP aracı** — `build_from_spec` (tek çağrılık yol), granüler düzenleme
   (`create_project` / `add_screen` / `update_screen` / …), `set_theme` / `set_tracking`,
   `add_asset` (SSRF-korumalı içe aktarım), `synthesize_speech` (çevrimdışı Piper TTS), video
   araçları (ffmpeg / HyperFrames motion-graphics), `preview` / `validate_package` / `build_package`,
-  `lint_course` (kalite kapısı), `export_qti` (QTI 2.1), `list_compositions` / `set_composition`.
+  `lint_course` (kalite kapısı), `export_qti` (QTI 2.1), `list_compositions` / `set_composition` /
+  `set_screen_composition`.
 - **Kompozisyon sistemi** — her yeni kurs bilinçli bir odak noktası, vurgu hiyerarşisi (E1–E5:
   `kicker`, `lead`, `<mark>`) ve JSON desen kataloğundan seçilen dengeli simetrik/asimetrik bir
-  yerleşim alır (üçler kuralı, Z/F göz akışı, kurs ritmi) — ya da serbest ızgara. Yeni varsayılan
-  palet `mint` (+ `ink`, `slate`), gömülü OFL fontlar. Mevcut kurslar değişmeden render edilir.
+  yerleşim alır (üçler kuralı, Z/F göz akışı, kurs ritmi) — ya da serbest ızgara — **31 ekran
+  tipinin tamamında**. Sunucu, kurs üretilirken önemli kararları sorar (`composition_questions`);
+  soru/anket/dallanma ekranları uygulama düzeyinde ölçme için opsiyonel vaka (`stimulus`) alır;
+  sekmeler ana–detay, oyun sahneleri yan yana. Yeni varsayılan palet `mint` (+ `ink`, `slate`),
+  gömülü OFL fontlar. Mevcut kurslar değişmeden render edilir.
 - **31 ekran tipi** — başlık, içerik, çoktan seçmeli, doğru/yanlış, boşluk doldurma, sürükle-bırak,
   hotspot, dallanan senaryo, video, akordeon, sekme, bilgi kartı, eşleştirme, sıralama, zaman
   çizelgesi, lottie, rehberli yazılım simülasyonu, karar senaryosu, terim yarışı, kaçış odası,

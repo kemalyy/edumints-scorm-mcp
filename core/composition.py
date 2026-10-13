@@ -39,6 +39,7 @@ class ResolvedComposition:
     mirror: bool
     symmetry: str
     auto: bool
+    dom_order: str = "focal-first"  # K2 — soru kipinde "support-first"
 
 
 @lru_cache(maxsize=1)
@@ -79,7 +80,8 @@ def _mirror(a: tuple[int, int, int, int], ncols: int) -> tuple[int, int, int, in
 
 
 def resolve_spec(spec: str | CompositionSpec, screen_type: str, *,
-                 intensity: str = "normal", auto: bool = False) -> ResolvedComposition:
+                 intensity: str = "normal", auto: bool = False,
+                 dom_order: str = "focal-first") -> ResolvedComposition:
     if isinstance(spec, str):
         spec = CompositionSpec(preset=spec)
     catalog = load_catalog()
@@ -91,9 +93,10 @@ def resolve_spec(spec: str | CompositionSpec, screen_type: str, *,
         if screen_type not in base.get("applies_to", []):
             raise CompositionError("composition_unknown",
                                    f"'{spec.preset}' deseni {screen_type} tipine uygulanamaz")
-    elif screen_type not in catalog["centered"]["applies_to"]:
+    elif not any(screen_type in d.get("applies_to", []) for d in catalog.values()):
+        # serbest mod: kataloğun HERHANGİ bir desenine uygulanabilen her tip serbest ızgara alır
         raise CompositionError("composition_unknown",
-                               f"{screen_type} tipi K1'de kompozisyon desteklemiyor")
+                               f"{screen_type} tipi henüz kompozisyon desteklemiyor")
     ncols, cols = _grid(spec.grid or base.get("grid", "thirds"))
     raw_areas = spec.areas if spec.areas is not None else base.get(
         "areas", {"support": "c1r1-c3r3"})
@@ -132,4 +135,5 @@ def resolve_spec(spec: str | CompositionSpec, screen_type: str, *,
         whitespace=spec.whitespace or base.get("whitespace", "normal"),
         intensity=spec.intensity or intensity, mirror=mirror,
         symmetry=base.get("symmetry", "asymmetric" if spec.areas else "symmetric"), auto=auto,
+        dom_order=dom_order,
     )

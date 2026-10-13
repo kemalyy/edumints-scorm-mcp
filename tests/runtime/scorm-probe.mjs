@@ -142,6 +142,254 @@ open(out, "w", encoding="utf-8").write(render_html(p, mode="preview", runtime_js
     asset_data={"i": ("image/svg+xml", svg)}))
 `;
 
+// K2 — görsel etkileşimli tipler auto kompozisyonda: etkileşim bozulmamalı.
+const K2_RENDER_PY = `
+import sys
+from components.renderer import render_html
+from core.project import (Project, new_project_id, HotspotScreen, HotspotRegion,
+                          ImageCompareScreen, SimulationScreen, LabeledDiagramScreen, AssetRef,
+                          DataChartScreen)
+out, kind = sys.argv[1], sys.argv[2]
+preset = sys.argv[3] if len(sys.argv) > 3 else None
+layout = sys.argv[4] if len(sys.argv) > 4 else "stage"
+svg = b'<svg xmlns="http://www.w3.org/2000/svg" width="640" height="420"><rect width="640" height="420" fill="#ccc"/></svg>'
+assets = [AssetRef(id=i, filename=i + ".svg", mime="image/svg+xml", size_bytes=len(svg),
+                   sha256="0", rel_path="assets/" + i + ".svg") for i in ("i", "j")]
+if kind == "hotspot":
+    s = HotspotScreen(id="h1", title="Bul", prompt_html="<p>Dogru bolgeyi sec</p>",
+                      image_asset_id="i", composition="split-thirds", points=10,
+                      regions=[HotspotRegion(id="ok", shape="rect", coords=[40, 40, 200, 120]),
+                               HotspotRegion(id="no", shape="rect", coords=[400, 260, 160, 120],
+                                             correct=False)])
+elif kind == "compare":
+    s = ImageCompareScreen(id="c1", title="Karsilastir", before_asset_id="i",
+                           after_asset_id="j", composition="visual-stack")
+elif kind == "chart":
+    s = DataChartScreen.model_validate({"id": "d1", "title": "Grafik", "chart_type": "bar",
+        "data": [{"label": "a%d" % k, "value": k} for k in range(1, 7)]})
+elif kind == "labeled":
+    s = LabeledDiagramScreen.model_validate({"id": "l1", "title": "Etiketle", "image_asset_id": "i",
+        "labels": [{"id": "a%d" % k, "x": 100 * k, "y": 100 * k, "text": "E%d" % k}
+                   for k in range(1, 6)]})
+else:
+    s = SimulationScreen.model_validate({"id": "s1", "title": "Sim", "composition": "split-thirds",
+        "steps": [{"instruction_html": "<p>Tikla</p>", "image_asset_id": "i",
+                   "regions": [{"id": "a", "shape": "rect", "coords": [40, 40, 200, 120],
+                                "correct": True}]},
+                  {"instruction_html": "<p>Yaz</p>", "image_asset_id": "j",
+                   "input_accepted": ["ok"]}]})
+if preset:
+    s = type(s).model_validate(s.model_dump(mode="json") | {"composition": preset})
+p = Project(id=new_project_id(), title="k2", composition="auto", screens=[s], assets=assets,
+            layout_mode=layout)
+open(out, "w", encoding="utf-8").write(render_html(p, mode="preview", runtime_js="/*probe*/",
+    asset_data={"i": ("image/svg+xml", svg), "j": ("image/svg+xml", svg)}))
+`;
+
+// K3 — soru tipleri auto kompozisyonda (uyaranlı/uyaransız): etkileşim + LMS yazımı bozulmamalı.
+const K3_RENDER_PY = `
+import sys
+from pydantic import TypeAdapter
+from components.renderer import render_html
+from core.project import Project, Screen, new_project_id, AssetRef
+out, kind = sys.argv[1], sys.argv[2]
+preset = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] != "-" else None
+stim = len(sys.argv) > 4 and sys.argv[4] == "stim"
+svg = b'<svg xmlns="http://www.w3.org/2000/svg" width="640" height="420"><rect width="640" height="420" fill="#ccc"/></svg>'
+assets = [AssetRef(id="i", filename="i.svg", mime="image/svg+xml", size_bytes=len(svg),
+                   sha256="0", rel_path="assets/i.svg")]
+ST = {"asset_id": "i", "alt": "Vaka gorseli", "text_html": "<p>" + " ".join(["vaka"] * 45) + "</p>"}
+if kind == "adaptive":
+    ST = dict(ST, text_html="<p>Kisa vaka metni: fatura onayi istenen bir e-posta.</p>")
+O = [{"id": "a", "text_html": "Dogru", "correct": True}, {"id": "b", "text_html": "Yanlis"}]
+if kind == "mcq":
+    d = {"type": "mcq", "id": "q1", "title": "Soru", "prompt_html": "<p>Ne yaparsin?</p>", "options": O}
+elif kind == "mcq7":
+    d = {"type": "mcq", "id": "q1", "title": "Soru", "prompt_html": "<p>Sec</p>",
+         "options": [{"id": "o%d" % k, "text_html": "Secenek %d" % k, "correct": k == 0} for k in range(7)]}
+elif kind == "drag":
+    d = {"type": "drag_drop", "id": "q1", "title": "Surukle", "prompt_html": "<p>Yerlestir</p>",
+         "items": [{"id": "x", "text_html": "Oge", "correct_target_id": "t1"}],
+         "targets": [{"id": "t1", "label_html": "Hedef 1"}, {"id": "t2", "label_html": "Hedef 2"}]}
+elif kind == "match":
+    d = {"type": "matching", "id": "q1", "title": "Eslestir", "prompt_html": "<p>Eslestir</p>",
+         "pairs": [{"id": "p1", "left_html": "A", "right_html": "1"},
+                   {"id": "p2", "left_html": "B", "right_html": "2"}]}
+elif kind == "sort":
+    d = {"type": "sorting", "id": "q1", "title": "Sirala", "prompt_html": "<p>Sirala</p>",
+         "items": [{"id": "s1", "text_html": "Bir"}, {"id": "s2", "text_html": "Iki"},
+                   {"id": "s3", "text_html": "Uc"}]}
+else:
+    d = {"type": "adaptive_practice", "id": "q1", "title": "Pratik", "adaptive": {"strategy": "elo"},
+         "items": [{"id": "i%d" % k, "prompt_html": "<p>Madde %d</p>" % k, "options": O,
+                    "stimulus": ST} for k in range(4)]}
+if stim and kind != "adaptive":
+    d["stimulus"] = ST
+if preset:
+    d["composition"] = preset
+s = TypeAdapter(Screen).validate_python(d)
+p = Project(id=new_project_id(), title="k3", composition="auto", screens=[s], assets=assets)
+open(out, "w", encoding="utf-8").write(render_html(p, mode="preview", runtime_js="/*probe*/",
+    asset_data={"i": ("image/svg+xml", svg)}))
+`;
+
+// K4 — içerik etkileşimleri auto kompozisyonda: etkileşim bozulmamalı, tabs ana–detay.
+const K4_RENDER_PY = `
+import sys
+from pydantic import TypeAdapter
+from components.renderer import render_html
+from core.project import Project, Screen, new_project_id, AssetRef
+out, kind = sys.argv[1], sys.argv[2]
+preset = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] != "-" else None
+stim = len(sys.argv) > 4 and sys.argv[4] == "stim"
+svg = b'<svg xmlns="http://www.w3.org/2000/svg" width="640" height="420"><rect width="640" height="420" fill="#ccc"/></svg>'
+assets = [AssetRef(id="i", filename="i.svg", mime="image/svg+xml", size_bytes=len(svg),
+                   sha256="0", rel_path="assets/i.svg")]
+ST = {"asset_id": "i", "alt": "Vaka gorseli", "text_html": "<p>" + " ".join(["vaka"] * 45) + "</p>"}
+if kind == "tabs":
+    d = {"type": "tabs", "id": "s1", "title": "Sekmeler", "prompt_html": "<p>Incele</p>",
+         "tabs": [{"label": "Bir", "body_html": "<p>P0</p>"}, {"label": "Iki", "body_html": "<p>P1</p>"},
+                  {"label": "Uc", "body_html": "<p>P2</p>"}]}
+elif kind in ("acc", "acc12"):
+    n = 12 if kind == "acc12" else 3
+    d = {"type": "accordion", "id": "s1", "title": "Akordiyon",
+         "items": [{"title": "Baslik %d" % k, "body_html": "<p>Govde %d</p>" % k} for k in range(n)]}
+elif kind == "tl10":
+    d = {"type": "timeline", "id": "s1", "title": "Zaman",
+         "events": [{"date": str(2000 + k), "title": "Olay %d" % k, "body_html": "<p>Aciklama %d</p>" % k}
+                    for k in range(10)]}
+elif kind == "flash":
+    d = {"type": "flashcards", "id": "s1", "title": "Kartlar",
+         "cards": [{"front_html": "On %d" % k, "back_html": "Arka %d" % k} for k in range(4)]}
+elif kind == "poll":
+    d = {"type": "poll", "id": "s1", "title": "Anket", "prompt_html": "<p>Ne yapardin?</p>",
+         "options": [{"id": "a", "text_html": "Sorarim"}, {"id": "b", "text_html": "Beklerim"}],
+         "reflection_html": "<p>Tesekkurler</p>"}
+elif kind == "xp":
+    d = {"type": "exploration", "id": "s1", "title": "Tahmin", "prompt_html": "<p>Tahminin?</p>",
+         "input_kind": "text", "store_key": "g1"}
+else:
+    d = {"type": "worked_example", "id": "s1", "title": "Cozumlu", "fading": "partial",
+         "steps": [{"action_html": "<p>Adim %d</p>" % k, "rationale_html": "<p>Neden %d</p>" % k}
+                   for k in range(2)]}
+if stim:
+    d["stimulus"] = ST
+if len(sys.argv) > 4 and sys.argv[4] == "stimtext":
+    d["stimulus"] = {"text_html": "<p>Ekibine acil fatura onayi e-postasi geldi; baglanti farkli bir alan adina gidiyor.</p>"}
+if len(sys.argv) > 4 and sys.argv[4] == "stimimg":
+    d["stimulus"] = {"asset_id": "i", "alt": "Vaka gorseli"}
+if preset:
+    d["composition"] = preset
+s = TypeAdapter(Screen).validate_python(d)
+p = Project(id=new_project_id(), title="k4", composition="auto", screens=[s], assets=assets)
+open(out, "w", encoding="utf-8").write(render_html(p, mode="preview", runtime_js="/*probe*/",
+    asset_data={"i": ("image/svg+xml", svg)}))
+`;
+
+// K5 — oyun/senaryo/gömülü auto kompozisyonda: etkileşim bozulmamalı, sahne yan yana.
+const K5_RENDER_PY = `
+import sys, json
+from pydantic import TypeAdapter
+from components.renderer import render_html
+from core.project import Project, Screen, new_project_id, AssetRef
+out, kind = sys.argv[1], sys.argv[2]
+preset = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] != "-" else None
+stim = len(sys.argv) > 4 and sys.argv[4] == "stim"
+svg = b'<svg xmlns="http://www.w3.org/2000/svg" width="640" height="420"><rect width="640" height="420" fill="#ccc"/></svg>'
+emb = b'<!doctype html><html><body style="margin:0;background:#9cf"><p>embed</p></body></html>'
+assets = [AssetRef(id="i", filename="i.svg", mime="image/svg+xml", size_bytes=len(svg),
+                   sha256="0", rel_path="assets/i.svg"),
+          AssetRef(id="h", filename="h.html", mime="text/html", size_bytes=len(emb),
+                   sha256="0", rel_path="assets/h.html")]
+extra = []
+if kind == "game":
+    g = [x for x in json.load(open("examples/games/lab-safety-game.en.json"))["screens"]
+         if x["type"] == "game"][0]
+    for n in g["nodes"]:
+        n["image_asset_id"], n["image_alt"] = "i", "Sahne"
+    d = g
+elif kind == "scen":
+    d = {"type": "decision_scenario", "id": "q1", "title": "Senaryo", "points": 10,
+         "nodes": [{"id": "d1", "prompt_html": "<p>Ne yaparsin?</p>", "image_asset_id": "i", "image_alt": "Ofis",
+                    "choices": [{"id": "x", "text_html": "Dogrula", "feedback_html": "<p>Iyi</p>",
+                                 "score_delta": 10, "goto_node_id": "d2"},
+                                {"id": "y", "text_html": "Tikla", "feedback_html": "<p>Kotu</p>",
+                                 "score_delta": -5, "goto_node_id": "d2"}]},
+                   {"id": "d2", "prompt_html": "<p>Sonra?</p>", "image_asset_id": "i", "image_alt": "Ofis 2",
+                    "choices": [{"id": "z", "text_html": "Raporla", "feedback_html": "<p>Tamam</p>"},
+                                {"id": "w", "text_html": "Unut", "feedback_html": "<p>Hayir</p>"}]}]}
+elif kind == "esc":
+    d = {"type": "escape_room", "id": "q1", "title": "Kacis", "lives": 3,
+         "puzzles": [{"id": "p1", "prompt_html": "<p>2+2?</p>", "accepted": ["4"]},
+                     {"id": "p2", "prompt_html": "<p>3+3?</p>", "accepted": ["6"]}]}
+elif kind == "tmr":
+    d = {"type": "term_match_race", "id": "q1", "title": "Yaris", "time_limit_sec": 120,
+         "pairs": [{"id": "a", "term_html": "MFA", "definition_html": "Cok faktor"},
+                   {"id": "b", "term_html": "VPN", "definition_html": "Sanal ag"}]}
+elif kind == "branch":
+    d = {"type": "branching", "id": "q1", "title": "Yol", "prompt_html": "<p>Hangi yol?</p>",
+         "choices": [{"id": "l", "text_html": "Sol", "goto_screen_id": "left"},
+                     {"id": "r", "text_html": "Sag", "goto_screen_id": "right"}]}
+    extra = [{"type": "content_slide", "id": "left", "title": "Sol ekran", "body_html": "<p>L</p>"},
+             {"type": "content_slide", "id": "right", "title": "Sag ekran", "body_html": "<p>R</p>"}]
+elif kind == "embedlead":
+    d = {"type": "embed_html", "id": "q1", "title": "Kimya Laboratuvari Guvenlik Simulasyonu",
+         "kicker": "Etkinlik 3", "html_asset_id": "h",
+         "lead": "Simulasyonda tum adimlari tamamla ve her karardan sonra sonucunu dikkatle incele lutfen simdi"}
+elif kind == "gametall":
+    tall = b'<svg xmlns="http://www.w3.org/2000/svg" width="400" height="1000"><rect width="400" height="1000" fill="#ccc"/></svg>'
+    svg = tall
+    d = {"type": "decision_scenario", "id": "q1", "title": "Uzun gorsel",
+         "nodes": [{"id": "d1", "prompt_html": "<p>Ne yaparsin?</p>", "image_asset_id": "i", "image_alt": "Uzun",
+                    "choices": [{"id": "x", "text_html": "A", "feedback_html": "<p>a</p>"},
+                                {"id": "y", "text_html": "B", "feedback_html": "<p>b</p>"}]}]}
+else:
+    d = {"type": "embed_html", "id": "q1", "title": "Gomulu", "html_asset_id": "h"}
+if stim:
+    d["stimulus"] = {"text_html": "<p>Kisa karar vakasi: ekip toplantisi iptal oldu.</p>"}
+if preset:
+    d["composition"] = preset
+ta = TypeAdapter(Screen)
+p = Project(id=new_project_id(), title="k5", composition="auto",
+            screens=[ta.validate_python(d)] + [ta.validate_python(x) for x in extra], assets=assets)
+open(out, "w", encoding="utf-8").write(render_html(p, mode="preview", runtime_js="/*probe*/",
+    asset_data={"i": ("image/svg+xml", svg), "h": ("text/html", emb)}))
+`;
+
+// K6 — release öncesi düzeltmeler: uzun ekranın üstü (mobil akış), yuvada uzun içerik, görselli kart.
+const K6_RENDER_PY = `
+import sys
+from pydantic import TypeAdapter
+from components.renderer import render_html
+from core.project import Project, Screen, new_project_id, AssetRef
+out, kind, mode = sys.argv[1], sys.argv[2], sys.argv[3]
+svg = b'<svg xmlns="http://www.w3.org/2000/svg" width="640" height="420"><rect width="640" height="420" fill="#ccc"/></svg>'
+assets = [AssetRef(id="i", filename="i.svg", mime="image/svg+xml", size_bytes=len(svg),
+                   sha256="0", rel_path="assets/i.svg")]
+long = "".join("<p>" + " ".join(["uzun metin parcasi"] * 30) + "</p>" for _ in range(4))
+if kind == "longcontent":
+    d = {"type": "content_slide", "id": "s1", "title": "Basligim Burada", "body_html": long,
+         "media_asset_id": "i", "media_alt": "Gorsel"}
+elif kind == "longmcq":
+    d = {"type": "mcq", "id": "s1", "title": "Basligim Burada", "prompt_html": "<p>Ne yaparsin?</p>",
+         "stimulus": {"text_html": long},
+         "options": [{"id": "a", "text_html": "A", "correct": True}, {"id": "b", "text_html": "B"}]}
+elif kind == "flashmix":
+    d = {"type": "flashcards", "id": "s1", "title": "Karisik kartlar",
+         "cards": [{"front_html": "Ag <strong>guvenligi</strong> nedir?", "back_html": "<p>Kisa</p>"},
+                   {"front_html": "<p>" + " ".join(["uzun aciklama"] * 25) + "</p>", "front_asset_id": "i",
+                    "front_alt": "On", "back_html": "<p>Arka</p>"},
+                   {"front_html": "<p>Orta</p>", "back_html": "<p>B</p>"}]}
+else:
+    d = {"type": "flashcards", "id": "s1", "title": "Kartlar",
+         "cards": [{"front_html": "<p>ON METIN</p>", "front_asset_id": "i", "front_alt": "On",
+                    "back_html": "<p>ARKA METIN</p>", "back_asset_id": "i", "back_alt": "Arka"}] * 3}
+s = TypeAdapter(Screen).validate_python(d)
+p = Project(id=new_project_id(), title="k6", composition=mode, screens=[s], assets=assets)
+open(out, "w", encoding="utf-8").write(render_html(p, mode="preview", runtime_js="/*probe*/",
+    asset_data={"i": ("image/svg+xml", svg)}))
+`;
+
 const failures = [];
 function check(label, actual, expected) {
   const ok = actual === expected;
@@ -577,6 +825,598 @@ async function main() {
       }
     }
 
+    // --- K2: auto kompozisyonda gorsel etkilesimli tipler calismaya devam eder ---
+    console.log("\n== K2 — gorsel etkilesimli tipler (auto kompozisyon) ==");
+    const k2 = {};
+    for (const kind of ["hotspot", "compare", "sim"]) {
+      k2[kind] = path.join(tmp, `k2-${kind}.html`);
+      execFileSync("python3", ["-c", K2_RENDER_PY, k2[kind], kind], { cwd: process.cwd() });
+    }
+    const hs = await session(browser, k2.hotspot, { act: async (p) => {
+      await p.waitForTimeout(150);
+      await p.click('.hotspot-region[data-region="ok"], .hotspot-region >> nth=0');
+      await p.click(".btn-check");
+      await p.waitForTimeout(120);
+    } });
+    check("K2 hotspot: cevap LMS'e dogru yazildi", hs.last["cmi.interactions.0.result"], "correct");
+    const cctx = await browser.newContext({ viewport: { width: 1024, height: 700 } });
+    try {
+      const cp = await cctx.newPage();
+      await cp.addInitScript(lmsInit, [false, "", "", null]);
+      await cp.goto(`file://${k2.compare}`);
+      await cp.waitForTimeout(150);
+      const before = await cp.evaluate(() => getComputedStyle(document.querySelector(".ic-after-wrap")).clipPath
+        + "|" + document.querySelector(".ic-after-wrap").getAttribute("style"));
+      await cp.evaluate(() => { const r = document.querySelector(".ic-range"); r.value = "20";
+        r.dispatchEvent(new Event("input", { bubbles: true })); });
+      const after = await cp.evaluate(() => getComputedStyle(document.querySelector(".ic-after-wrap")).clipPath
+        + "|" + document.querySelector(".ic-after-wrap").getAttribute("style"));
+      check("K2 image_compare: kaydirici gorunumu degistirdi", before !== after, true);
+      const sp = await cctx.newPage();
+      await sp.addInitScript(lmsInit, [false, "", "", null]);
+      await sp.goto(`file://${k2.sim}`);
+      await sp.waitForTimeout(200);
+      await sp.click('.sim-step[data-step="0"] .sim-region[data-correct="1"]');
+      await sp.waitForTimeout(150);
+      check("K2 simulation: adim ilerledi", await sp.textContent(".sim-progress"), "2 / 2");
+    } finally {
+      await cctx.close();
+    }
+    // visual-stack'te gorsel kalan yukseklige SIGMALI; labeled_diagram'in son secim satiri dahil
+    for (const kind of ["hotspot", "labeled", "sim", "compare", "chart"]) {
+      const f = path.join(tmp, `k2-fit-${kind}.html`);
+      execFileSync("python3", ["-c", K2_RENDER_PY, f, kind, "visual-stack"], { cwd: process.cwd() });
+      const fctx = await browser.newContext({ viewport: { width: 1024, height: 700 } });
+      try {
+        const fp = await fctx.newPage();
+        await fp.addInitScript(lmsInit, [false, "", "", null]);
+        await fp.goto(`file://${f}`);
+        await fp.waitForTimeout(250);
+        const fit = await fp.evaluate(() => {
+          const inner = document.querySelector(".screen .screen-inner");
+          const els = [...document.querySelectorAll(
+            ".slot-focal .hotspot-img, .slot-focal .ic-img-before, .slot-focal .ld-select, .slot-focal .chart-svg")]
+            .filter((e) => !e.closest("[hidden]"));
+          if (!inner || !els.length) return false;
+          const b = inner.getBoundingClientRect().bottom;
+          return els.every((e) => e.getBoundingClientRect().bottom <= b + 1);
+        });
+        check(`K2 visual-stack ${kind}: gorsel/denetimler sahneye sigiyor`, fit, true);
+      } finally {
+        await fctx.close();
+      }
+    }
+    // Boyut kabı yalnız gerçek sahne modunda; akış düzeninde (layout_mode=flow) kapalı olmalı —
+    // aksi halde odak yuvası içerik yüksekliğini kaybeder ve görseller küçülür (K1 dahil).
+    for (const [layout, want] of [["stage", "size"], ["flow", "normal"]]) {
+      const f = path.join(tmp, `k2-ct-${layout}.html`);
+      execFileSync("python3", ["-c", K2_RENDER_PY, f, "hotspot", "split-thirds", layout], { cwd: process.cwd() });
+      const lctx = await browser.newContext({ viewport: { width: 1024, height: 700 } });
+      try {
+        const lp = await lctx.newPage();
+        await lp.addInitScript(lmsInit, [false, "", "", null]);
+        await lp.goto(`file://${f}`);
+        await lp.waitForTimeout(150);
+        const ct = await lp.evaluate(() => { const e = document.querySelector(".slot-focal");
+          return e ? getComputedStyle(e).containerType : null; });
+        check(`K2 container-type (${layout})`, ct, want);
+      } finally {
+        await lctx.close();
+      }
+    }
+    // Mobilde labeled_diagram görseli yuvanın neredeyse tamamını kullanmalı (60cqw kısıtı yok)
+    {
+      const f = path.join(tmp, "k2-labeled-mobile.html");
+      execFileSync("python3", ["-c", K2_RENDER_PY, f, "labeled", "split-thirds"], { cwd: process.cwd() });
+      const lctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+      try {
+        const lp = await lctx.newPage();
+        await lp.addInitScript(lmsInit, [false, "", "", null]);
+        await lp.goto(`file://${f}`);
+        await lp.waitForTimeout(200);
+        const ratio = await lp.evaluate(() => { const i = document.querySelector(".slot-focal .hotspot-img");
+          const sl = document.querySelector(".slot-focal");
+          return i && sl ? i.getBoundingClientRect().width / sl.getBoundingClientRect().width : 0; });
+        check("K2 mobil labeled: gorsel yuva genisligini kullaniyor (>=0.85)", ratio >= 0.85, true);
+      } finally {
+        await lctx.close();
+      }
+    }
+    const mctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    try {
+      const mp = await mctx.newPage();
+      await mp.addInitScript(lmsInit, [false, "", "", null]);
+      await mp.goto(`file://${k2.hotspot}`);
+      await mp.waitForTimeout(150);
+      // null-guvenli: yuva yoksa TypeError → probe'un genel catch'i "ortam: atlandi" der ve
+      // exit 0 doner (gerileme gorunmez) — bu yuzden eksik yuva acik bir BASARISIZLIK olmali.
+      const top = await mp.evaluate(() => {
+        const s = document.querySelector(".slot-support"), f = document.querySelector(".slot-focal");
+        return s && f ? [s.getBoundingClientRect().top, f.getBoundingClientRect().top] : null;
+      });
+      check("K2 mobil soru kipi: soru gorselden once", !!top && top[0] < top[1], true);
+    } finally {
+      await mctx.close();
+    }
+
+    // --- K3: soru tipleri auto kompozisyonda cevaplanir, LMS'e yazilir ---
+    console.log("\n== K3 — soru tipleri (auto kompozisyon) ==");
+    const k3 = (kind, preset = "-", stim = "") => {
+      const f = path.join(tmp, `k3-${kind}-${preset}-${stim || "plain"}.html`);
+      execFileSync("python3", ["-c", K3_RENDER_PY, f, kind, preset, stim], { cwd: process.cwd() });
+      return f;
+    };
+    const k3Result = async (file, act) => (await session(browser, file, { act: async (p) => {
+      await p.waitForTimeout(150); await act(p); await p.click(".btn-check"); await p.waitForTimeout(120);
+    } })).last["cmi.interactions.0.result"];
+    check("K3 mcq (uyaranli, split-thirds): dogru cevap LMS'e yazildi",
+      await k3Result(k3("mcq", "split-thirds", "stim"), (p) => p.click('.opt[data-opt="a"]')), "correct");
+    check("K3 drag_drop (question-column): surukle-birak dogru",
+      await k3Result(k3("drag", "question-column"),
+        (p) => p.dragAndDrop('.drag-item[data-item="x"]', '.drop-target[data-target="t1"]')), "correct");
+    check("K3 matching: eslestirme dogru",
+      await k3Result(k3("match"), async (p) => {
+        await p.selectOption('.match-select[data-pair="p1"]', "p1");
+        await p.selectOption('.match-select[data-pair="p2"]', "p2");
+      }), "correct");
+    check("K3 sorting: siralama dogru",
+      await k3Result(k3("sort", "-", "stim"), async (p) => {
+        const want = ["s1", "s2", "s3"];
+        for (let n = 0; n < 10; n++) {
+          const ids = await p.$$eval(".sorting .sort-item", (els) => els.map((e) => e.dataset.item));
+          const i = ids.findIndex((v, k) => v !== want[k]);
+          if (i < 0) break;
+          const j = ids.indexOf(want[i]);
+          await p.click(`.sort-item[data-item="${want[i]}"] .sort-up`);
+          if (j <= i) break;
+        }
+      }), "correct");
+    {
+      const actx = await browser.newContext({ viewport: { width: 1024, height: 700 } });
+      try {
+        const ap = await actx.newPage();
+        await ap.addInitScript(lmsInit, [false, "", "", null]);
+        await ap.goto(`file://${k3("adaptive", "split-thirds")}`);
+        await ap.waitForTimeout(250);
+        const vis = await ap.evaluate(() => { const it = [...document.querySelectorAll(".ap-item")]
+          .find((e) => !e.hidden); return it ? !!it.querySelector(".stimulus-text") : null; });
+        check("K3 adaptive: gorunen ogede uyaran var", vis, true);
+        await ap.click(".ap-item:not([hidden]) .opt >> nth=0");
+        await ap.click(".ap-item:not([hidden]) .ap-check");
+        await ap.waitForTimeout(200);
+        const apFit = await ap.evaluate(() => {
+          const inner = document.querySelector(".screen .screen-inner");
+          const it = [...document.querySelectorAll(".ap-item")].find((e) => !e.hidden);
+          const img = it && it.querySelector(".stimulus-media .item-media"), chk = it && it.querySelector(".ap-check");
+          if (!inner || !img || !chk) return null;
+          const ib = inner.getBoundingClientRect();
+          return img.getBoundingClientRect().top >= ib.top - 1 && chk.getBoundingClientRect().bottom <= ib.bottom + 1;
+        });
+        check("K3 adaptive (uyaranli split-thirds): oge gorsel + kontrol sahnede", apFit, true);
+        checkMatch("K3 adaptive: oge ilerledi", (await ap.textContent(".ap-progress")) || "", /^1 \//);
+      } finally {
+        await actx.close();
+      }
+    }
+    // Sigma: uyaranli visual-stack + 7 sikli question-column'da kontrol butonu sahnede
+    // (uyaranli visual-stack burada degil: vaka ustte durdugu icin buton kaydirarak ulasilir —
+    //  K4 bolumundeki "vaka ustte, baslik gorunur, buton ulasilir" kontrolu kapsar)
+    for (const [kind, preset, st] of [["mcq7", "question-column", ""], ["mcq", "split-thirds", "stim"]]) {
+      const fctx = await browser.newContext({ viewport: { width: 1024, height: 700 } });
+      try {
+        const fp = await fctx.newPage();
+        await fp.addInitScript(lmsInit, [false, "", "", null]);
+        await fp.goto(`file://${k3(kind, preset, st)}`);
+        await fp.waitForTimeout(250);
+        const fit = await fp.evaluate(() => {
+          const inner = document.querySelector(".screen .screen-inner");
+          const b = document.querySelector(".btn-check");
+          if (!inner || !b) return null;
+          return b.getBoundingClientRect().bottom <= inner.getBoundingClientRect().bottom + 1;
+        });
+        check(`K3 ${kind} ${preset}: kontrol butonu sahnede`, fit, true);
+      } finally {
+        await fctx.close();
+      }
+    }
+    // Uyaranli split-thirds: gorsel + vaka metni odak yuvasina BIRLIKTE sigar (metin kesilmez)
+    // question-column: istem ile cevaplar arasinda sabit satir boslugu yok
+    {
+      const vctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+      try {
+        const vp = await vctx.newPage();
+        await vp.addInitScript(lmsInit, [false, "", "", null]);
+        await vp.goto(`file://${k3("mcq", "split-thirds", "stim")}`);
+        await vp.waitForTimeout(250);
+        const r = await vp.evaluate(() => {
+          const f = document.querySelector(".slot-focal"), t = document.querySelector(".slot-focal .stimulus-text"),
+            i = document.querySelector(".slot-focal .stimulus-media .item-media");
+          if (!f || !t || !i) return null;
+          const fb = f.getBoundingClientRect(), tb = t.getBoundingClientRect(), ib = i.getBoundingClientRect();
+          return { textInside: tb.bottom <= fb.bottom + 1, textTall: tb.height >= 40, imgVisible: ib.height >= 80 };
+        });
+        check("K3 uyaranli split-thirds: vaka metni yuvaya sigiyor ve gorunur",
+          !!r && r.textInside && r.textTall && r.imgVisible, true);
+        const qp = await vctx.newPage();
+        await qp.addInitScript(lmsInit, [false, "", "", null]);
+        await qp.goto(`file://${k3("mcq", "question-column")}`);
+        await qp.waitForTimeout(250);
+        const gap = await qp.evaluate(() => {
+          const pr = document.querySelector(".slot-support .prompt"), o = document.querySelector(".slot-focal .opt");
+          return pr && o ? o.getBoundingClientRect().top - pr.getBoundingClientRect().bottom : null;
+        });
+        check("K3 question-column: istem-cevap boslugu 0..64px (ust uste binme yok)",
+          gap !== null && gap >= 0 && gap < 64, true);
+        const ct = await qp.evaluate(() => { const e = document.querySelector(".slot-focal");
+          return e ? getComputedStyle(e).containerType : null; });
+        check("K3 question-column: cevap odagi boyut kabi degil (icerikten buyur)", ct, "normal");
+      } finally {
+        await vctx.close();
+      }
+    }
+    // Mobil sira: uyaranli → vaka once; uyaransiz → soru (istem) once
+    {
+      const mctx3 = await browser.newContext({ viewport: { width: 390, height: 844 } });
+      try {
+        for (const [st, want] of [["stim", "focal"], ["", "support"]]) {
+          const mp = await mctx3.newPage();
+          await mp.addInitScript(lmsInit, [false, "", "", null]);
+          await mp.goto(`file://${k3("mcq", "split-thirds", st)}`);
+          await mp.waitForTimeout(150);
+          const first = await mp.evaluate(() => {
+            const s = document.querySelector(".slot-support"), f = document.querySelector(".slot-focal");
+            if (!s || !f) return null;
+            return s.getBoundingClientRect().top < f.getBoundingClientRect().top ? "support" : "focal";
+          });
+          check(`K3 mobil (${st || "uyaransiz"}): ${want} once`, first, want);
+          await mp.close();
+        }
+      } finally {
+        await mctx3.close();
+      }
+    }
+
+    // --- K4: icerik etkilesimleri auto kompozisyonda ---
+    console.log("\n== K4 — icerik etkilesimleri (auto kompozisyon) ==");
+    const k4 = (kind, preset = "-", stim = "") => {
+      const f = path.join(tmp, `k4-${kind}-${preset}-${stim || "plain"}.html`);
+      execFileSync("python3", ["-c", K4_RENDER_PY, f, kind, preset, stim], { cwd: process.cwd() });
+      return f;
+    };
+    const k4Page = async (file, vp, fn) => {
+      const c = await browser.newContext({ viewport: vp });
+      try {
+        const pg = await c.newPage();
+        await pg.addInitScript(lmsInit, [false, "", "", null]);
+        await pg.goto(`file://${file}`);
+        await pg.waitForTimeout(250);
+        return await fn(pg);
+      } finally {
+        await c.close();
+      }
+    };
+    const WIDE = { width: 1280, height: 800 }, MOB = { width: 390, height: 844 };
+    const visPanel = (pg) => pg.evaluate(() => { const v = [...document.querySelectorAll(".tab-panel")]
+      .find((e) => !e.hidden); return v ? v.dataset.panel : null; });
+    await k4Page(k4("tabs"), WIDE, async (pg) => {
+      const md = await pg.evaluate(() => {
+        const l = document.querySelector(".tab-list"), p = [...document.querySelectorAll(".tab-panel")].find((e) => !e.hidden);
+        if (!l || !p) return null;
+        const a = l.getBoundingClientRect(), b = p.getBoundingClientRect();
+        return a.right <= b.left + 1 && Math.abs(a.top - b.top) < 40;
+      });
+      check("K4 tabs genis: ana-detay (liste panelin solunda)", md, true);
+      await pg.click('.tab[data-tab="1"]');
+      check("K4 tabs: tiklama paneli degistirdi", await visPanel(pg), "1");
+      await pg.focus('.tab[data-tab="1"]'); await pg.keyboard.press("ArrowDown");
+      check("K4 tabs: asagi ok sonraki panel", await visPanel(pg), "2");
+      await pg.keyboard.press("ArrowLeft");
+      check("K4 tabs: sol ok (mevcut davranis) hala calisiyor", await visPanel(pg), "1");
+    });
+    await k4Page(k4("tabs"), MOB, async (pg) => {
+      const above = await pg.evaluate(() => {
+        const l = document.querySelector(".tab-list"), p = [...document.querySelectorAll(".tab-panel")].find((e) => !e.hidden);
+        return l && p ? l.getBoundingClientRect().bottom <= p.getBoundingClientRect().top + 1 : null;
+      });
+      check("K4 tabs mobil: liste panelin ustunde", above, true);
+    });
+    await k4Page(k4("acc"), WIDE, async (pg) => {
+      await pg.click(".acc-head >> nth=0");
+      check("K4 accordion: acildi", await pg.evaluate(() => !!document.querySelector("details.acc-item[open]")), true);
+    });
+    await k4Page(k4("flash"), WIDE, async (pg) => {
+      await pg.click(".flashcard >> nth=0");
+      check("K4 flashcards: dondu", await pg.evaluate(() => !!document.querySelector(".flashcard.flipped")), true);
+    });
+    await k4Page(k4("poll", "split-thirds", "stim"), WIDE, async (pg) => {
+      await pg.check(".poll-opts input >> nth=0");
+      await pg.click(".poll-submit");
+      check("K4 poll (uyaranli): yansima gorundu",
+        await pg.evaluate(() => { const r = document.querySelector(".poll-reflection"); return r ? !r.hidden : null; }), true);
+    });
+    await k4Page(k4("xp", "-", "stim"), WIDE, async (pg) => {
+      await pg.fill(".xp-text", "benim tahminim bu");
+      await pg.evaluate(() => document.querySelector(".xp-text").dispatchEvent(new Event("change", { bubbles: true })));
+      check("K4 exploration (uyaranli): girdi kaydedildi",
+        await pg.evaluate(() => { const s = document.querySelector(".xp-saved"); return s ? !s.hidden : null; }), true);
+    });
+    await k4Page(k4("we"), WIDE, async (pg) => {
+      await pg.click(".we-reveal >> nth=0");
+      check("K4 worked_example: gerekce acildi",
+        await pg.getAttribute(".we-reveal >> nth=0", "aria-expanded"), "true");
+    });
+    // Uzun liste kesilmez: odak yuvasi icerikten buyur, son oge kaydirinca sahnede gorunur
+    for (const kind of ["acc12", "tl10"]) {
+      await k4Page(k4(kind), WIDE, async (pg) => {
+        const r = await pg.evaluate(() => {
+          const f = document.querySelector(".slot-focal"), items = document.querySelectorAll(".acc-item, .tl-event");
+          if (!f || !items.length) return null;
+          const last = items[items.length - 1];
+          last.scrollIntoView({ block: "end" });
+          const inner = document.querySelector(".screen .screen-inner").getBoundingClientRect();
+          const lb = last.getBoundingClientRect();
+          return { ct: getComputedStyle(f).containerType, visible: lb.bottom <= inner.bottom + 2 && lb.top >= inner.top - 2,
+                   grows: f.scrollHeight <= f.clientHeight + 2 };
+        });
+        check(`K4 ${kind}: son oge kaydirilarak gorunur, yuva kesmiyor`,
+          !!r && r.ct === "inline-size" && r.visible && r.grows, true);
+      });
+    }
+    // Baslik acilista gorunur (uzun icerikte asagi itilmez) + baslik-koleksiyon arasi sabit bosluk yok
+    for (const [kind, preset] of [["we", "split-thirds"], ["acc12", "split-thirds"], ["tl10", "-"]]) {
+      await k4Page(k4(kind, preset), WIDE, async (pg) => {
+        const ok = await pg.evaluate(() => {
+          const h = document.querySelector(".slot-support .screen-title"), i = document.querySelector(".screen .screen-inner");
+          if (!h || !i) return null;
+          const hb = h.getBoundingClientRect(), ib = i.getBoundingClientRect();
+          return hb.top >= ib.top - 1 && hb.bottom <= ib.top + ib.height * 0.5;
+        });
+        check(`K4 ${kind} ${preset}: baslik acilista sahnenin ust yarisinda`, ok, true);
+      });
+    }
+    await k4Page(k4("tabs"), WIDE, async (pg) => {
+      const gap = await pg.evaluate(() => {
+        const h = document.querySelector(".slot-support"), t = document.querySelector(".slot-focal .tabs");
+        return h && t ? t.getBoundingClientRect().top - h.getBoundingClientRect().bottom : null;
+      });
+      check("K4 tabs visual-stack: baslik-sekme boslugu 0..64px", gap !== null && gap >= 0 && gap < 64, true);
+    });
+    // Uyaranli poll/exploration varsayilan (visual-stack) duzende vaka gorunur ve kesilmez
+    for (const [kind, st] of [["poll", "stimtext"], ["poll", "stimimg"], ["xp", "stimtext"]]) {
+      await k4Page(k4(kind, "-", st), WIDE, async (pg) => {
+        const r = await pg.evaluate(() => {
+          const t = document.querySelector(".slot-focal .stimulus-text"), i = document.querySelector(".slot-focal .stimulus-media .item-media");
+          const e = t || i;
+          if (!e) return null;
+          const comp = document.querySelector(".screen").dataset.comp;
+          const h = e.getBoundingClientRect().height;
+          return { comp, ok: t ? h >= 30 && t.scrollHeight <= t.clientHeight + 1 : h >= 80 };
+        });
+        check(`K4 ${kind} ${st} (varsayilan): vaka gorunur ve kesilmez`, !!r && r.comp === "visual-stack" && r.ok, true);
+      });
+    }
+    // Uyaranli visual-stack (masaustu): vaka USTTE, soru altta; baslik gorunur; buton kaydirilarak ulasilir
+    const stackCheck = async (file, label, btnSel) => k4Page(file, WIDE, async (pg) => {
+      const r = await pg.evaluate((bs) => {
+        const f = document.querySelector(".slot-focal"), sp = document.querySelector(".slot-support"),
+          h = document.querySelector(".slot-support .screen-title"), i = document.querySelector(".screen .screen-inner"),
+          b = document.querySelector(bs);
+        if (!f || !sp || !h || !i || !b) return null;
+        const ib = i.getBoundingClientRect();
+        const caseFirst = f.getBoundingClientRect().top < sp.getBoundingClientRect().top;
+        const titleVisible = h.getBoundingClientRect().top >= ib.top - 1;
+        b.scrollIntoView({ block: "end" });
+        const bb = b.getBoundingClientRect(), ib2 = i.getBoundingClientRect();
+        return { caseFirst, titleVisible, btn: bb.bottom <= ib2.bottom + 2 && bb.top >= ib2.top - 2 };
+      }, btnSel);
+      check(`${label}: vaka ustte, baslik gorunur, buton ulasilir`,
+        !!r && r.caseFirst && r.titleVisible && r.btn, true);
+    });
+    await stackCheck(k4("poll", "-", "stimtext"), "K4 poll visual-stack", ".poll-submit");
+    await stackCheck(k4("poll", "-", "stimimg"), "K4 poll visual-stack (gorsel)", ".poll-submit");
+    await stackCheck(k3("mcq", "visual-stack", "stim"), "K3 mcq visual-stack", ".btn-check");
+    // Mobil sira: uyaranli poll → vaka once; uyaransiz → baslik once
+    for (const [st, want] of [["stim", "focal"], ["", "support"]]) {
+      await k4Page(k4("poll", "split-thirds", st), MOB, async (pg) => {
+        const first = await pg.evaluate(() => {
+          const s = document.querySelector(".slot-support"), f = document.querySelector(".slot-focal");
+          if (!s || !f) return null;
+          return s.getBoundingClientRect().top < f.getBoundingClientRect().top ? "support" : "focal";
+        });
+        check(`K4 mobil poll (${st || "uyaransiz"}): ${want} once`, first, want);
+      });
+    }
+
+    // --- K5: oyun/senaryo/gomulu auto kompozisyonda ---
+    console.log("\n== K5 — oyun / senaryo / gomulu (auto kompozisyon) ==");
+    const k5 = (kind, preset = "-", stim = "") => {
+      const f = path.join(tmp, `k5-${kind}-${preset}-${stim || "plain"}.html`);
+      execFileSync("python3", ["-c", K5_RENDER_PY, f, kind, preset, stim], { cwd: process.cwd() });
+      return f;
+    };
+    const sideBySide = (pg, nodeSel, txtSel, imgSel) => pg.evaluate(([n, t, i]) => {
+      const node = [...document.querySelectorAll(n)].find((e) => !e.hidden);
+      const tx = node && node.querySelector(t), im = node && node.querySelector(i);
+      if (!tx || !im) return null;
+      const a = im.getBoundingClientRect(), b = tx.getBoundingClientRect();
+      return a.right <= b.left + 1 && a.height > 40;
+    }, [nodeSel, txtSel, imgSel]);
+    await k4Page(k5("game"), WIDE, async (pg) => {
+      check("K5 game genis: sahne yan yana (gorsel anlatinin solunda)",
+        await sideBySide(pg, ".game-node", ".game-content", ".game-img"), true);
+      const hud = await pg.evaluate(() => { const h = document.querySelector(".game-hud"), g = document.querySelector("[data-game]"),
+          n = [...document.querySelectorAll(".game-node")].find((e) => !e.hidden);
+        if (!h || !g || !n) return null;
+        const hb = h.getBoundingClientRect(), nb = n.getBoundingClientRect();
+        // HUD dugum izgarasinin DISINDA (kabin dogrudan cocugu), dugumun ustunde ve dugum genisliginde
+        return h.parentElement === g && !h.closest(".game-node") && hb.bottom <= nb.top + 1
+          && Math.abs(hb.width - nb.width) <= 2; });
+      check("K5 game: HUD dugum izgarasinin disinda, ustte, tam genislik", hud, true);
+      const before = await pg.evaluate(() => { const n = [...document.querySelectorAll(".game-node")].find((e) => !e.hidden); return n ? n.dataset.node : null; });
+      await pg.click(".game-node:not([hidden]) .game-choice >> nth=0");
+      await pg.waitForTimeout(150);
+      const nx = await pg.$(".game-node:not([hidden]) .game-next:not([hidden])");
+      if (nx) { await nx.click(); await pg.waitForTimeout(150); }
+      const after = await pg.evaluate(() => { const n = [...document.querySelectorAll(".game-node")].find((e) => !e.hidden); return n ? n.dataset.node : null; });
+      check("K5 game: secim dugumu ilerletti", !!after && after !== before, true);
+      check("K5 game: yeni dugum de yan yana",
+        await sideBySide(pg, ".game-node", ".game-content", ".game-img"), true);
+    });
+    await k4Page(k5("game"), MOB, async (pg) => {
+      const order = await pg.evaluate(() => {
+        const n = [...document.querySelectorAll(".game-node")].find((e) => !e.hidden);
+        const t = n && n.querySelector(".game-content"), i = n && n.querySelector(".game-img");
+        return t && i ? t.getBoundingClientRect().top < i.getBoundingClientRect().top : null;
+      });
+      check("K5 game mobil: anlati gorselden once (DOM sirasi)", order, true);
+    });
+    await k4Page(k5("scen"), WIDE, async (pg) => {
+      check("K5 decision_scenario genis: sahne yan yana",
+        await sideBySide(pg, ".scen-node", ".scen-prompt", ".scen-img"), true);
+      await pg.click('.scen-node:not([hidden]) .scen-choice[data-choice="x"]');
+      await pg.waitForTimeout(150);
+      check("K5 decision_scenario: skor yazildi", (await pg.textContent(".scen-score")).trim(), "10");
+      await pg.click(".scen-node:not([hidden]) .scen-next");
+      await pg.waitForTimeout(150);
+      check("K5 decision_scenario: sonraki dugum", await pg.evaluate(() =>
+        { const n = [...document.querySelectorAll(".scen-node")].find((e) => !e.hidden); return n ? n.dataset.node : null; }), "d2");
+    });
+    await k4Page(k5("esc"), WIDE, async (pg) => {
+      await pg.fill('.esc-puzzle:not([hidden]) .esc-input', "4");
+      await pg.click('.esc-puzzle:not([hidden]) .esc-submit');
+      await pg.waitForTimeout(200);
+      check("K5 escape_room: bulmaca ilerledi", (await pg.textContent(".esc-progress")).trim(), "2 / 2");
+    });
+    await k4Page(k5("tmr"), WIDE, async (pg) => {
+      await pg.selectOption('.tmr-select[data-pair="a"]', "a");
+      await pg.selectOption('.tmr-select[data-pair="b"]', "b");
+      await pg.click(".tmr-finish");
+      await pg.waitForTimeout(200);
+      check("K5 term_match_race: skor", (await pg.textContent(".tmr-score")).trim(), "2 / 2");
+    });
+    {
+      const bs = await session(browser, k5("branch"), { act: async (p) => {
+        await p.waitForTimeout(150); await p.click('.branch-choice[data-choice="r"]'); await p.waitForTimeout(200);
+      } });
+      check("K5 branching: hedef ekrana gitti", bs.shown, "right");
+    }
+    await k4Page(k5("embed"), WIDE, async (pg) => {
+      const h = await pg.evaluate(() => { const f = document.querySelector(".slot-focal .embed-frame"); return f ? f.getBoundingClientRect().height : null; });
+      check("K5 embed_html: iframe yuvayi dolduruyor (>=200px)", h !== null && h >= 200, true);
+    });
+    await stackCheck(k5("branch", "-", "stim"), "K5 branching visual-stack", ".branch-choice");
+    for (const vp of [WIDE, { width: 1000, height: 640 }]) {
+      await k4Page(k5("embedlead"), vp, async (pg) => {
+        const ok = await pg.evaluate(() => {
+          const k = document.querySelector(".slot-support .kicker, .slot-support .screen-title"),
+            sp = document.querySelector(".slot-support"),
+            i = document.querySelector(".screen .screen-inner"), f = document.querySelector(".slot-focal .embed-frame");
+          if (!k || !sp || !i || !f) return null;
+          // destek yuvasindan YUKARI tasma yok (ic dolgu payi maskelemesin) + iframe dolu
+          return k.getBoundingClientRect().top >= sp.getBoundingClientRect().top - 1
+            && k.getBoundingClientRect().top >= i.getBoundingClientRect().top - 1
+            && f.getBoundingClientRect().height >= 150;
+        });
+        check(`K5 embed (${vp.width}): ust etiket/baslik gorunur, iframe dolu`, ok, true);
+      });
+    }
+    await k4Page(k5("gametall"), WIDE, async (pg) => {
+      const ok = await pg.evaluate(() => {
+        const im = document.querySelector(".scen-node:not([hidden]) .scen-img"), i = document.querySelector(".screen .screen-inner");
+        if (!im || !i) return null;
+        return im.getBoundingClientRect().bottom <= i.getBoundingClientRect().bottom + 1 && im.getBoundingClientRect().height > 80;
+      });
+      check("K5 uzun sahne gorseli sahneye sigiyor", ok, true);
+    });
+
+    // --- K6: release oncesi duzeltmeler ---
+    console.log("\n== K6 — uzun ekran, uzun icerik, gorselli kart ==");
+    const k6 = (kind, mode) => {
+      const f = path.join(tmp, `k6-${kind}-${mode}.html`);
+      execFileSync("python3", ["-c", K6_RENDER_PY, f, kind, mode], { cwd: process.cwd() });
+      return f;
+    };
+    for (const mode of ["classic", "auto"]) {
+      for (const kind of ["longcontent", "longmcq"]) {
+        await k4Page(k6(kind, mode), MOB, async (pg) => {
+          const ok = await pg.evaluate(() => {
+            const st = document.querySelector(".stage"); if (st) st.scrollTop = 0; window.scrollTo(0, 0);
+            // ekranın KENDİSİ (yalnız başlık değil — auto'da başlık vakanın altında olabilir) sahnenin üstünden taşmaz
+          const sc = document.querySelector('.screen[aria-hidden="false"]');
+          return sc && st ? sc.getBoundingClientRect().top >= st.getBoundingClientRect().top - 1 : null;
+          });
+          check(`K6 mobil ${kind} ${mode}: baslik kaydirilarak ulasilir`, ok, true);
+        });
+      }
+      await k4Page(k6("flashimg", mode), WIDE, async (pg) => {
+        const face = (sel) => pg.evaluate((fs) => {
+          const c = document.querySelector(".flashcard"), f = c && c.querySelector(fs);
+          const im = f && f.querySelector("img"), tx = f && f.querySelector("p");
+          if (!c || !im || !tx) return null;
+          const cb = c.getBoundingClientRect(), ib = im.getBoundingClientRect(), tb = tx.getBoundingClientRect();
+          const inside = (b) => b.top >= cb.top - 1 && b.bottom <= cb.bottom + 1 && b.left >= cb.left - 1 && b.right <= cb.right + 1;
+          return inside(ib) && inside(tb) && tb.top >= ib.bottom - 1;
+        }, sel);
+        check(`K6 gorselli kart ${mode}: on yuz gorsel ustte, metin altta, kart icinde`, await face(".fc-front"), true);
+        await pg.click(".flashcard >> nth=0"); await pg.waitForTimeout(700);
+        check(`K6 gorselli kart ${mode}: arka yuz de duzenli`, await face(".fc-back"), true);
+        const backShown = await pg.evaluate(() => { const c = document.querySelector(".flashcard"); const r = c.getBoundingClientRect();
+          const e = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return !!(e && e.closest(".fc-back")); });
+        check(`K6 gorselli kart ${mode}: cevrilince gorunen yuz arka yuz`, backShown, true);
+      });
+    }
+    // split-halves: iki gorsel ayni hizada (aux yuvasi da yuvaya sigar; safe hizalama kaydirmaz)
+    {
+      const f = path.join(tmp, "k6-halves.html");
+      execFileSync("python3", ["-c", `
+import sys
+from pydantic import TypeAdapter
+from components.renderer import render_html
+from core.project import Project, Screen, new_project_id, AssetRef
+svg = b'<svg xmlns="http://www.w3.org/2000/svg" width="640" height="420"><rect width="640" height="420" fill="#ccc"/></svg>'
+a = [AssetRef(id="i", filename="i.svg", mime="image/svg+xml", size_bytes=len(svg), sha256="0", rel_path="assets/i.svg")]
+s = TypeAdapter(Screen).validate_python({"type": "content_slide", "id": "s1", "title": "Gercek ve klon",
+    "composition": "split-halves", "blocks": [{"asset_id": "i", "caption": "Gercek"}, {"asset_id": "i", "caption": "Klon"}]})
+open(sys.argv[1], "w").write(render_html(Project(id=new_project_id(), title="k6", composition="auto", screens=[s], assets=a),
+    mode="preview", runtime_js="", asset_data={"i": ("image/svg+xml", svg)}))
+`, f], { cwd: process.cwd() });
+      await k4Page(f, { width: 1024, height: 700 }, async (pg) => {
+        const d = await pg.evaluate(() => {
+          const ims = [...document.querySelectorAll(".comp-grid .item-media, .comp-grid img")].filter((e) => e.getBoundingClientRect().height > 20);
+          return ims.length >= 2 ? Math.abs(ims[0].getBoundingClientRect().top - ims[1].getBoundingClientRect().top) : null;
+        });
+        check("K6 split-halves: iki gorsel ayni hizada (<=2px)", d !== null && d <= 2, true);
+      });
+    }
+    for (const mode of ["classic", "auto"]) {
+      await k4Page(k6("flashmix", mode), WIDE, async (pg) => {
+        const r = await pg.evaluate(() => {
+          const cards = [...document.querySelectorAll(".flashcard")];
+          if (cards.length < 3) return null;
+          // görünen yüz = buton kutusu (yüzen yüz / tıklanabilir boşluk yok)
+          const fit = cards.every((c) => { const b = c.getBoundingClientRect(), f = c.querySelector(".fc-front").getBoundingClientRect();
+            return Math.abs(b.top - f.top) <= 2 && Math.abs(b.bottom - f.bottom) <= 2; });
+          // satır içi biçimli metin tek satırda kalır (parçalara bölünmez)
+          const f0 = cards[0].querySelector(".fc-front"), t = f0 && f0.querySelector("strong");
+          const w = f0 && document.createTreeWalker(f0, NodeFilter.SHOW_TEXT);
+          let first = null; while (w && w.nextNode()) { if (w.currentNode.textContent.trim().startsWith("Ag")) { first = w.currentNode; break; } }
+          if (!t || !first) return { fit, inline: false };
+          const rg = document.createRange(); rg.selectNodeContents(first);
+          // "Ag" ile <strong> AYNI satırda (flex sütunu her parçayı ayrı satıra bölüyordu)
+          return { fit, inline: Math.abs(rg.getBoundingClientRect().top - t.getBoundingClientRect().top) < 6 };
+        });
+        check(`K6 karisik kartlar ${mode}: yuz = kart kutusu`, !!r && r.fit, true);
+        check(`K6 karisik kartlar ${mode}: satir ici metin bolunmez`, !!r && r.inline, true);
+      });
+    }
+    await k4Page(k6("longcontent", "auto"), WIDE, async (pg) => {
+      const ok = await pg.evaluate(() => {
+        const h = document.querySelector(".slot-support .screen-title"), sp = document.querySelector(".slot-support");
+        return h && sp ? h.getBoundingClientRect().top >= sp.getBoundingClientRect().top - 1 : null;
+      });
+      check("K6 uzun icerik split-thirds: baslik yuvadan yukari tasmaz", ok, true);
+    });
+
     // --- K1 z-flow: dort adim da masaustu sahnesinde gorunur (tasma yok) ---
     console.log("\n== K1 — z-flow tasma yok ==");
     const zfile = path.join(tmp, "zflow.html");
@@ -588,8 +1428,9 @@ async function main() {
       await zpage.goto(`file://${zfile}`);
       await zpage.waitForTimeout(200);
       const z = await zpage.evaluate(() => {
-        const inner = document.querySelector(".screen.active .screen-inner, .screen .screen-inner")
-          .getBoundingClientRect();
+        const ie = document.querySelector(".screen.active .screen-inner, .screen .screen-inner");
+        if (!ie) return { n: 0, fits: false };  // null-guvenli
+        const inner = ie.getBoundingClientRect();
         const steps = [...document.querySelectorAll(".slot-steps .step")]
           .map((e) => e.getBoundingClientRect());
         return { n: steps.length, fits: steps.every((r) => r.bottom <= inner.bottom + 1) };
@@ -613,10 +1454,11 @@ async function main() {
         await cpage.goto(`file://${cfile}`);
         await cpage.waitForTimeout(150);
         const r = await cpage.evaluate(() => {
-          const f = document.querySelector(".slot-focal").getBoundingClientRect();
-          const s = document.querySelector(".slot-support").getBoundingClientRect();
-          const cols = getComputedStyle(document.querySelector(".comp-grid"))
-            .gridTemplateColumns.trim().split(/\s+/).length;
+          const fe = document.querySelector(".slot-focal"), se = document.querySelector(".slot-support");
+          const ge = document.querySelector(".comp-grid");
+          if (!fe || !se || !ge) return { focalAbove: false, sideBySide: false, cols: 0 };  // null-guvenli
+          const f = fe.getBoundingClientRect(), s = se.getBoundingClientRect();
+          const cols = getComputedStyle(ge).gridTemplateColumns.trim().split(/\s+/).length;
           return { focalAbove: f.top < s.top, sideBySide: f.left !== s.left, cols };
         });
         if (label === "mobil") {

@@ -262,6 +262,120 @@ def main() -> None:
                               pal, composition="auto")
         (OUT_DIR / f"comp-palette-{pal}.html").write_text(html, encoding="utf-8", newline="")
 
+    # D) K2 — yedi görsel etkileşimli tip × {visual-stack, split-thirds} (auto, mint) + hotspot ve
+    #    data_chart için split-thirds koyu ve mobil. İçerik examples/'tan (A katmanıyla aynı kaynak).
+    k2 = ["hotspot", "labeled_diagram", "image_compare", "data_chart", "video", "lottie",
+          "simulation"]
+    def _real(assets):
+        # examples/'taki görseller çoğunlukla 1×1 yer tutucu → yerleşim görünmez; D katmanında
+        # aynı asset kimlikleri gerçek boyutlu sentetik SVG'ye bağlanır (A katmanı değişmez).
+        return [dict(a, source=COMP_ASSET["source"], filename=a.get("filename", "x") + ".svg")
+                if str(a.get("source", "")).startswith("data:image/png") else a for a in assets]
+
+    for t in k2:
+        screen, assets, _ = screens[t]
+        assets = _real(assets)
+        for preset in ("visual-stack", "split-thirds"):
+            html = render_fixture(f"Gorsel: k2 {t} {preset}", dict(screen, composition=preset),
+                                  assets, composition="auto")
+            (OUT_DIR / f"k2-{t}-{preset}.html").write_text(html, encoding="utf-8", newline="")
+    for t in ("hotspot", "data_chart"):
+        screen, assets, _ = screens[t]
+        assets = _real(assets)
+        sc = dict(screen, composition="split-thirds")
+        html = render_fixture(f"Gorsel: k2 {t} koyu", sc, assets, None, "dark", composition="auto")
+        (OUT_DIR / f"k2-{t}-split-thirds-dark.html").write_text(html, encoding="utf-8", newline="")
+        html = render_fixture(f"Gorsel: k2 {t} mobil", sc, assets, composition="auto")
+        (OUT_DIR / f"k2-{t}@mobile.html").write_text(html, encoding="utf-8", newline="")
+
+    # E) K3 — yedi soru tipi × {question-column (uyaransız), split-thirds + uyaran (görsel + vaka)}
+    #    + uyaranlı mcq koyu ve mobil. Uyaran sentetik (examples/'ta soru uyaranı yok).
+    stim = {"asset_id": "compimg", "alt": "Şüpheli e-posta ekran görüntüsü",
+            "caption": "Pazartesi 08:47 gelen e-posta",
+            "text_html": "<p>Muhasebeden Elif, “fatura onayı” konulu bir e-posta aldı. Gönderen "
+                         "adresi tanıdık görünüyor ama bağlantı farklı bir alan adına gidiyor.</p>"}
+    q_types = ["mcq", "true_false", "fill_blank", "drag_drop", "matching", "sorting",
+               "adaptive_practice"]
+
+    def _with_stim(screen):
+        if screen["type"] == "adaptive_practice":
+            return dict(screen, items=[dict(it, stimulus=stim) for it in screen["items"]])
+        return dict(screen, stimulus=stim)
+
+    for t in q_types:
+        screen, assets, _ = screens[t]
+        assets = _real(assets)
+        html = render_fixture(f"Gorsel: k3 {t} soru sutunu", dict(screen, composition="question-column"),
+                              assets, composition="auto")
+        (OUT_DIR / f"k3-{t}-question-column.html").write_text(html, encoding="utf-8", newline="")
+        html = render_fixture(f"Gorsel: k3 {t} uyaranli", _with_stim(dict(screen, composition="split-thirds")),
+                              assets + [COMP_ASSET], composition="auto")
+        (OUT_DIR / f"k3-{t}-split-thirds-stim.html").write_text(html, encoding="utf-8", newline="")
+    screen, assets, _ = screens["mcq"]
+    sc = _with_stim(dict(screen, composition="split-thirds"))
+    html = render_fixture("Gorsel: k3 mcq koyu", sc, _real(assets) + [COMP_ASSET], None, "dark",
+                          composition="auto")
+    (OUT_DIR / "k3-mcq-split-thirds-stim-dark.html").write_text(html, encoding="utf-8", newline="")
+    html = render_fixture("Gorsel: k3 mcq mobil", sc, _real(assets) + [COMP_ASSET], composition="auto")
+    (OUT_DIR / "k3-mcq-stim@mobile.html").write_text(html, encoding="utf-8", newline="")
+
+    # F) K4 — sekiz içerik etkileşimi × {varsayılan (otomatik), split-thirds} + summary centered
+    #    + uyaranlı poll koyu ve mobil + tabs mobil (ana–detay dar ekranda yatay).
+    k4 = ["accordion", "tabs", "flashcards", "timeline", "results_breakdown", "poll",
+          "worked_example", "exploration"]
+    for t in k4:
+        screen, assets, _ = screens[t]
+        assets = _real(assets)
+        html = render_fixture(f"Gorsel: k4 {t}", dict(screen), assets, composition="auto")
+        (OUT_DIR / f"k4-{t}-auto.html").write_text(html, encoding="utf-8", newline="")
+        html = render_fixture(f"Gorsel: k4 {t} split", dict(screen, composition="split-thirds"),
+                              assets, composition="auto")
+        (OUT_DIR / f"k4-{t}-split-thirds.html").write_text(html, encoding="utf-8", newline="")
+    screen, assets, _ = screens["summary"]
+    html = render_fixture("Gorsel: k4 summary", dict(screen), _real(assets), composition="auto")
+    (OUT_DIR / "k4-summary-centered.html").write_text(html, encoding="utf-8", newline="")
+    screen, assets, _ = screens["poll"]
+    sc = dict(screen, stimulus=stim, composition="split-thirds")
+    html = render_fixture("Gorsel: k4 poll koyu", sc, _real(assets) + [COMP_ASSET], None, "dark",
+                          composition="auto")
+    (OUT_DIR / "k4-poll-stim-dark.html").write_text(html, encoding="utf-8", newline="")
+    html = render_fixture("Gorsel: k4 poll mobil", sc, _real(assets) + [COMP_ASSET],
+                          composition="auto")
+    (OUT_DIR / "k4-poll-stim@mobile.html").write_text(html, encoding="utf-8", newline="")
+    sc_stack = dict(screen, stimulus={k: v for k, v in stim.items() if k != "asset_id" and k != "alt"
+                                      and k != "caption"})  # kısa metin → varsayılan visual-stack
+    html = render_fixture("Gorsel: k4 poll vaka ustte", sc_stack, _real(assets), composition="auto")
+    (OUT_DIR / "k4-poll-stim-stack.html").write_text(html, encoding="utf-8", newline="")
+    screen, assets, _ = screens["tabs"]
+    html = render_fixture("Gorsel: k4 tabs mobil", dict(screen), _real(assets), composition="auto")
+    (OUT_DIR / "k4-tabs@mobile.html").write_text(html, encoding="utf-8", newline="")
+
+    # G) K5 — altı tip × {varsayılan, split-thirds} + game ve decision_scenario mobil + vakalı
+    #    branching koyu. Oyun/senaryo düğümlerine görsel eklenir (yan yana sahne görünsün).
+    def _with_scene(screen):
+        key = {"game": "nodes", "decision_scenario": "nodes"}.get(screen["type"])
+        if not key:
+            return dict(screen), []
+        nodes = [dict(n, image_asset_id="compimg", image_alt="Sahne") for n in screen[key]]
+        return dict(screen, **{key: nodes}), [COMP_ASSET]
+    k5 = ["game", "decision_scenario", "escape_room", "term_match_race", "branching", "embed_html"]
+    for t in k5:
+        screen, assets, _ = screens[t]
+        sc, extra = _with_scene(screen)
+        assets = _real(assets) + extra
+        html = render_fixture(f"Gorsel: k5 {t}", sc, assets, composition="auto")
+        (OUT_DIR / f"k5-{t}-auto.html").write_text(html, encoding="utf-8", newline="")
+        html = render_fixture(f"Gorsel: k5 {t} split", dict(sc, composition="split-thirds"), assets,
+                              composition="auto")
+        (OUT_DIR / f"k5-{t}-split-thirds.html").write_text(html, encoding="utf-8", newline="")
+        if t in ("game", "decision_scenario"):
+            html = render_fixture(f"Gorsel: k5 {t} mobil", sc, assets, composition="auto")
+            (OUT_DIR / f"k5-{t}@mobile.html").write_text(html, encoding="utf-8", newline="")
+    screen, assets, _ = screens["branching"]
+    html = render_fixture("Gorsel: k5 branching vakali koyu", dict(screen, stimulus=stim),
+                          _real(assets) + [COMP_ASSET], None, "dark", composition="auto")
+    (OUT_DIR / "k5-branching-stim-dark.html").write_text(html, encoding="utf-8", newline="")
+
     print(f"\ntoplam {len(list(OUT_DIR.glob('*.html')))} fixture -> {OUT_DIR}")
 
 
