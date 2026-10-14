@@ -1,0 +1,17 @@
+{
+  "skill_latest": "2.4.0",
+  "skill_min_compatible": "2.4.0",
+  "download_url": "https://github.com/kemalyy/edumints-scorm-skill",
+  "changes": {
+    "2.4.0": "Sunucuya bağlı rehberler (araç çağrıları, alanlar, kompozisyon, ekran tipleri, medya, tema, video) get_guide aracına taşındı; skill inceldi ve oturum başında get_guide(skill_version=…) çağırıyor."
+  },
+  "topics": {
+    "cookbook": "Araç çağrıları, build_from_spec tam şekli, yanıt şekilleri, geri bildirim döngüsü",
+    "composition": "Kompozisyon: odak, vurgu kademeleri, desenler, karar izi, düzen soruları",
+    "screen-types": "31 ekran tipinin karar rehberi (ne zaman hangisi)",
+    "artifact": "Kendine yeten HTML → SCORM: embed_html / wrap_artifact",
+    "media": "Görsel/ses/video ekleme: add_asset, TTS, SVG, Canva akışı",
+    "themes": "Tema preset'leri ve özelleştirme",
+    "video": "Programatik video: render_motion_video VideoSpec"
+  }
+}
