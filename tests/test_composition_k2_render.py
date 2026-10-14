@@ -111,4 +111,7 @@ def test_video_narration_in_support_and_no_inner_split():
 
 def test_display_types_are_focal_first():
     html = R(screens()["data_chart"], "split-thirds")
-    assert html.index("slot-focal") < html.index("slot-support")
+    # v1.8.1 (#175): başlık her zaman önce; sonra odak (destek yuvası boşsa basılmaz)
+    assert html.index("slot-title") < html.index("slot-focal")
+    if "slot-support" in html:
+        assert html.index("slot-focal") < html.index("slot-support")

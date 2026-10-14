@@ -40,6 +40,10 @@ class ResolvedComposition:
     symmetry: str
     auto: bool
     dom_order: str = "focal-first"  # K2 — soru kipinde "support-first"
+    # v1.8.1 — karar izi (#173) ve geçersiz ezmede yedek (#170)
+    source: str = "auto"      # auto | rhythm | course:visual=… | course:question=… | screen
+    reason: str = ""          # kısa gerekçe (ör. "stimulus_words=46>40")
+    error: str | None = None  # ekranın açık kompozisyonu geçersizse hata kodu (desen = yedek)
 
 
 @lru_cache(maxsize=1)
@@ -91,8 +95,12 @@ def resolve_spec(spec: str | CompositionSpec, screen_type: str, *,
             raise CompositionError("composition_unknown", f"Bilinmeyen desen: {spec.preset!r}")
         base = catalog[spec.preset]
         if screen_type not in base.get("applies_to", []):
-            raise CompositionError("composition_unknown",
-                                   f"'{spec.preset}' deseni {screen_type} tipine uygulanamaz")
+            # v1.8.1 (#171) — desen VAR ama bu tipe uymuyor: ayrı kod + uyan desenler önerilir
+            fits = sorted(n for n, d in catalog.items() if screen_type in d.get("applies_to", []))
+            raise CompositionError(
+                "composition_not_applicable",
+                f"'{spec.preset}' deseni {screen_type} tipine uygulanamaz — bu tipe uyan desenler: "
+                f"{', '.join(fits) or '(yok)'} (eski kod: composition_unknown)")
     elif not any(screen_type in d.get("applies_to", []) for d in catalog.values()):
         # serbest mod: kataloğun HERHANGİ bir desenine uygulanabilen her tip serbest ızgara alır
         raise CompositionError("composition_unknown",

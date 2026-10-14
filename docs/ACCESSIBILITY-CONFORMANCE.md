@@ -236,6 +236,13 @@ accessibility, and how it was verified (`tests/runtime/scorm-probe.mjs`, Playwri
 | 1.4.3 Contrast (Minimum) | Emphasis levels (`--em1…--em5`) derived per theme with an AA check; the `mint` / `ink` / `slate` palettes pass the existing contrast gate in light and dark. | theme contrast tests |
 | 1.1.1 Non-text Content | New `stimulus` images require `alt` (`stimulus_without_alt` is a build-blocking error). | lint tests |
 
+**v1.8.1 (reading order):** on composed screens where the image or case is the visual focus, the
+kicker + title used to follow the focal content in the DOM. The title now always comes first (its own
+slot, placed on top of the text column on wide screens). Verified by render tests (all 31 types) and
+probes (desktop: title above the text column, focal full height; mobile: first element is the title;
+case question: title → case → question). Also added: `before_alt` / `after_alt` for `image_compare`,
+and `missing_alt_text` names the field to fill (1.1.1).
+
 **Known limitations added in v1.8.0:** the tab list keeps `aria-orientation="vertical"` on narrow
 screens where it is shown horizontally (both arrow-key pairs work); a scrollable case text inside a
 slot has no `tabindex` (older Safari/Firefox cannot keyboard-scroll it); in composed layouts very long

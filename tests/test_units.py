@@ -1580,7 +1580,7 @@ async def test_w10_style_brand_composition_end_to_end():
             "custom_fonts": [{"family": "Acme Sans", "asset_id": "corp_font", "weight": 700}],
         }})
 
-        prev = await c.call_tool("preview", {"project_id": pid})
+        prev = await c.call_tool("preview", {"project_id": pid, "include_html": True})
         html = prev.data.inline_html if hasattr(prev.data, "inline_html") else prev.data["inline_html"]
 
         # playful'ın MİRAS ALINMIŞ yapısal kişiliği korunmuş (3D buton efekti, playground'dan extends)

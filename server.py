@@ -521,6 +521,23 @@ def _parse_screen(data: dict) -> Screen:
         raise ToolError("invalid_screen", f"Geçersiz ekran tanımı: {e}")
 
 
+def _validate_screen_for_write(screen) -> None:
+    """v1.8.1 (#170) — yazma anında, lint'te ERROR olacak kompozisyon/uyaran sorunlarını reddeder
+    (add_screen / update_screen / build_from_spec aynı kuralı uygular; proje değişmez)."""
+    from core.antislop import _lint_stimulus
+    from core.composition import CompositionError, resolve_spec
+
+    comp = getattr(screen, "composition", None)
+    if comp is not None:
+        try:
+            resolve_spec(comp, screen.type.value)
+        except CompositionError as e:
+            raise ToolError(e.code, f"{screen.id or screen.type.value}: {e}") from e
+    for issue in _lint_stimulus(screen, screen.id or screen.type.value):
+        if issue.severity == "error":
+            raise ToolError(issue.code, f"{issue.path}: {issue.message}")
+
+
 def _parse_spec(data: dict) -> CourseSpec:
     try:
         return CourseSpec.model_validate(data)
@@ -571,6 +588,7 @@ async def add_screen(project_id: str, screen: dict) -> AddScreenOut:
     await SVC.ensure()
     try:
         screen = _parse_screen(screen)
+        _validate_screen_for_write(screen)
         owner = await _owner()
         p = await _load(project_id, owner)
         if not screen.id:
@@ -584,15 +602,24 @@ async def add_screen(project_id: str, screen: dict) -> AddScreenOut:
 
 @mcp.tool
 async def update_screen(project_id: str, screen_id: str, screen: dict) -> OkOut:
-    """Var olan bir ekranı günceller. `screen`: tipli ekran JSON nesnesi (`type` zorunlu)."""
+    """Var olan bir ekranı günceller. `screen`: tipli ekran JSON nesnesi (`type` zorunlu) — ekran
+    BÜTÜNÜYLE değiştirilir (gönderilmeyen içerik alanları silinir). İstisna (v1.8.1): `composition`
+    anahtarı hiç gönderilmezse ekranın mevcut kompozisyon ezmesi KORUNUR (tip aynıysa); açıkça `null`
+    → otomatik seçime döner. Geçersiz kompozisyon / alt'sız görsel vaka reddedilir."""
     await SVC.ensure()
     try:
+        raw = screen
         screen = _parse_screen(screen)
         owner = await _owner()
         p = await _load(project_id, owner)
         idx = next((i for i, s in enumerate(p.screens) if s.id == screen_id), None)
         if idx is None:
             raise ToolError("not_found", f"Ekran bulunamadı: {screen_id}")
+        old = p.screens[idx]
+        if isinstance(raw, dict) and "composition" not in raw and old.type == screen.type:
+            # v1.8.1 (#168) — içerik güncellemesi kullanıcının düzen kararını silmez
+            screen = screen.model_copy(update={"composition": getattr(old, "composition", None)})
+        _validate_screen_for_write(screen)
         screen.id = screen_id
         p.screens[idx] = screen
         await SVC.store.update_project(p)
@@ -791,6 +818,11 @@ async def svg_to_asset(
         p = await _load(project_id, owner)
         if "<svg" not in svg_content.lower():
             raise ToolError("invalid_svg", "Geçerli bir <svg …> içeriği gerekli")
+        from core.svg_safe import SvgError, clean
+        try:
+            svg_content = clean(svg_content)  # v1.8.1 (#178) — etkin içerik temizliği
+        except SvgError as e:
+            raise ToolError("invalid_svg", str(e)) from e
         if rasterize:
             try:
                 import cairosvg
@@ -1120,8 +1152,12 @@ async def render_screen_video(
 
 
 @mcp.tool
-async def preview(project_id: str) -> PreviewOut:
+async def preview(project_id: str, include_html: bool = False) -> PreviewOut:
     """Tek-dosya, harici bağımlılıksız önizleme üretir + hosted URL döndürür.
+
+    v1.8.1: varsayılan yanıt HAFİF — `hosted_url`, `compositions`, `composition_questions`,
+    `size_bytes` (sayfanın bayt boyutu). Tam HTML'i yanıtta istiyorsan `include_html=true` ver;
+    kullanıcıya göstermek için `hosted_url` yeterlidir.
 
     BÜYÜK ÇIKTI UYARISI: `inline_html` tek dosyada her şeyi taşır (taban ~546 KB) ve gömülü
     artifact/asset'ler data-URI olarak base64'lenir (≈ boyut × 1.33; `html_to_asset` 25 MB'a
@@ -1133,7 +1169,8 @@ async def preview(project_id: str) -> PreviewOut:
         p = await _load(project_id, owner)
         token, html = await _build_preview(p)
         return PreviewOut(
-            inline_html=html,
+            inline_html=html if include_html else None,
+            size_bytes=len(html.encode("utf-8")),
             hosted_url=f"{SETTINGS.public_base_url}/preview/{token}",
             compositions=_comp_summary(p),
             composition_questions=_comp_questions(p),
@@ -1330,6 +1367,17 @@ async def build_from_spec(spec: dict, strict: bool | None = None) -> BuildFromSp
     await SVC.ensure()
     try:
         spec = _parse_spec(spec)
+        for s in spec.screens:
+            _validate_screen_for_write(s)
+        # v1.8.1 — SVG'ler depoya HİÇBİR şey yazılmadan önce temizlenir/doğrulanır (sahipsiz asset yok)
+        from core.svg_safe import SvgError, clean as clean_svg
+        clean_svgs: dict[int, bytes] = {}
+        for i, ainp in enumerate(spec.assets):
+            if ainp.svg is not None:
+                try:
+                    clean_svgs[i] = clean_svg(ainp.svg).encode("utf-8")
+                except SvgError as e:
+                    raise ToolError("invalid_svg", f"assets[{ainp.id}]: {e}") from e
         owner = await _owner()
         await enforce_project_quota(SVC.store, owner)
         from core.project import new_project_id
@@ -1371,13 +1419,22 @@ async def build_from_spec(spec: dict, strict: bool | None = None) -> BuildFromSp
         # asset çekimi server'da (SSRF) → store (CONTRACTS.md §12.6)
         max_bytes = SETTINGS.max_asset_mb * 1024 * 1024
         existing: set[str] = set()
-        for ainp in spec.assets:
-            if ainp.source.startswith("data:"):
+        for i, ainp in enumerate(spec.assets):
+            if ainp.svg is not None:  # v1.8.1 (#178) — ham SVG, base64'süz; yukarıda temizlendi
+                data, mime = clean_svgs[i], "image/svg+xml"
+                if len(data) > max_bytes:
+                    raise ToolError("asset_too_large", f"assets[{ainp.id}]: SVG {len(data)} bayt")
+                fname = ainp.filename or f"{ainp.id or 'diagram'}.svg"
+                if not fname.lower().endswith(".svg"):
+                    fname += ".svg"
+            elif ainp.source.startswith("data:"):
                 data, mime = decode_data_uri(ainp.source, max_bytes=max_bytes)
+                fname = ainp.filename
             else:
                 data, mime = await safe_fetch_asset(ainp.source, max_bytes=max_bytes)
+                fname = ainp.filename
             await enforce_size_quota(SVC.store, owner, len(data))
-            rel = _safe_filename(ainp.filename, existing)
+            rel = _safe_filename(fname, existing)
             existing.add(rel)
             ref = AssetRef(
                 id=ainp.id or new_asset_id(), filename=os.path.basename(rel), mime=mime,
