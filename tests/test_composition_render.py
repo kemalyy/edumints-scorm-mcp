@@ -26,7 +26,9 @@ def test_auto_split_thirds_slots_and_attrs():
     sec = re.search(r'<section class="screen"[^>]*>', html).group(0)
     assert 'data-comp="split-thirds"' in sec and 'data-focal="focal"' in sec
     assert 'data-intensity="high"' in sec  # tek ekran = ilk = high
-    assert re.search(r'class="slot slot-focal"[^>]*grid-area:1 / 2 / 4 / 4', html)
+    # v1.8.1 (#175): başlık satırı eklendi — odak başlık satırını da kaplar (1/2/5/4)
+    assert re.search(r'class="slot slot-focal"[^>]*grid-area:1 / 2 / 5 / 4', html)
+    assert re.search(r'class="slot slot-title"[^>]*grid-area:1 / 1 / 2 / 2', html)
     assert '<p class="kicker">Adım 1</p>' in html
     assert '<p class="lead">Alan adı tek harf farklı.</p>' in html
 

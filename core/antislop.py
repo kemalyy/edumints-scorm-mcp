@@ -26,6 +26,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from .project import (
+    ImageCompareScreen,
     HOTSPOT_COORD_ARITY,
     QUIZ_TYPES,
     ExplorationScreen,
@@ -100,6 +101,13 @@ def _norm_words(html: str | None) -> str:
     return " " + " ".join(txt.split()) + " "
 
 
+def _orig(html: str | None) -> str:
+    """Mesajda gösterilecek ORİJİNAL metin (v1.8.1 #174): etiketsiz, boşluk sıkıştırılmış, ilk 60
+    karakter — eşleştirme normalize metinle yapılır ama kullanıcı kendi yazdığını görür."""
+    t = " ".join(re.sub(r"<[^>]+>", " ", html_lib.unescape(html or "")).split())
+    return t if len(t) <= 60 else t[:59] + "…"
+
+
 def _lint_stimulus(s, path: str) -> list[LintIssue]:
     """K3 — soru uyaranı: görsel alt metni (error) + cevap sızıntısı (warn; strict'te error)."""
     sts: list[tuple[str, object]] = []
@@ -128,7 +136,7 @@ def _lint_stimulus(s, path: str) -> list[LintIssue]:
             if na.strip() and na in body:
                 out.append(LintIssue(
                     "warn", "stimulus_answer_leak",
-                    f"Uyaran cevabı birebir içeriyor ('{na.strip()}') — soru eşleştirme değil "
+                    f"Uyaran cevabı birebir içeriyor ('{_orig(a)}') — soru eşleştirme değil "
                     "anlama/uygulama ölçmeli: vakayı cevabı söylemeden kur", p))
                 break
     return out
@@ -193,8 +201,9 @@ def _composition_issues(project: Project) -> list[LintIssue]:
             if getattr(s, "lead", None) or getattr(s, "kicker", None) or getattr(
                     s, "composition", None):
                 out.append(LintIssue("info", "composition_ignored_classic",
-                                     "Kompozisyon/vurgu alanları classic projede render edilmez — "
-                                     "set_composition(mode='auto') ile yükselt", f"screens[{i}]"))
+                                     "Kompozisyon ayarı classic projede uygulanmaz; kicker/lead sade biçimde "
+                                     "(başlık üstü etiket / başlık altı vurgulu satır) gösterilir — tam düzen "
+                                     "için set_composition(mode='auto')", f"screens[{i}]"))
         return out
     comps, errs = resolve_project_safe(project)
     for i, e in errs:
@@ -467,12 +476,12 @@ def _lint_missing_alt(s, path: str) -> list[LintIssue]:
     """Görsel taşıyan alanlarda alt-text eksikse WARN (yapıyı bozmaz, danışsal)."""
     out: list[LintIssue] = []
 
-    def check(asset_id, alt, sub_path):
+    def check(asset_id, alt, sub_path, field="image_alt"):
         if asset_id and not (alt or "").strip():
             out.append(LintIssue("warn", "missing_alt_text",
-                                 f"Görsel var ama alt-text yok ({sub_path}) — ekran okuyucu kullanıcılar "
-                                 "için görselin içeriğini kısaca anlatan bir alt metni ekle",
-                                 sub_path))
+                                 f"Görsel var ama alt-text yok ({sub_path}) → `{field}` alanını doldur — "
+                                 "ekran okuyucu kullanıcılar için görselin içeriğini kısaca anlatan bir "
+                                 "alt metin", sub_path))
 
     if isinstance(s, HotspotScreen):
         check(s.image_asset_id, s.image_alt, f"{path}.image_asset_id")
@@ -498,22 +507,26 @@ def _lint_missing_alt(s, path: str) -> list[LintIssue]:
             check(e.image_asset_id, e.image_alt, f"{path}.events[{i}]")
     elif isinstance(s, FlashcardsScreen):
         for i, c in enumerate(s.cards):
-            check(c.front_asset_id, c.front_alt, f"{path}.cards[{i}].front_asset_id")
-            check(c.back_asset_id, c.back_alt, f"{path}.cards[{i}].back_asset_id")
+            check(c.front_asset_id, c.front_alt, f"{path}.cards[{i}].front_asset_id", "front_alt")
+            check(c.back_asset_id, c.back_alt, f"{path}.cards[{i}].back_asset_id", "back_alt")
+    elif isinstance(s, ImageCompareScreen):
+        # v1.8.1 (#176) — alt yoksa label kullanılır; ikisi de yoksa varsayılan "Önce/Sonra" anlamsız
+        check(s.before_asset_id, s.before_alt or s.before_label, f"{path}.before_asset_id", "before_alt")
+        check(s.after_asset_id, s.after_alt or s.after_label, f"{path}.after_asset_id", "after_alt")
     elif isinstance(s, WorkedExampleScreen):
         # F1 (#112) — artefakt görseli için artifact_caption hem figcaption hem alt-text kaynağı
         # (renderer ContentBlock.caption paraleli); boşsa alt-text boşluğu.
         for i, st in enumerate(s.steps):
-            check(st.artifact_asset_id, st.artifact_caption, f"{path}.steps[{i}]")
+            check(st.artifact_asset_id, st.artifact_caption, f"{path}.steps[{i}]", "artifact_caption")
     else:
         media_asset_id = getattr(s, "media_asset_id", None)
         if media_asset_id:
-            check(media_asset_id, getattr(s, "media_alt", None), f"{path}.media_asset_id")
+            check(media_asset_id, getattr(s, "media_alt", None), f"{path}.media_asset_id", "media_alt")
         # W9 review fix — ContentSlide.blocks görselleri de kapsanmalı: renderer
         # (components/renderer.py) block görselleri için b.caption'ı alt-text olarak
         # kullanıyor; bu blok yoksa lint'in gözden kaçırdığı bir alt-text boşluğu oluşuyordu.
         for i, b in enumerate(getattr(s, "blocks", None) or []):
-            check(b.asset_id, b.caption, f"{path}.blocks[{i}]")
+            check(b.asset_id, b.caption, f"{path}.blocks[{i}]", "caption")
     return out
 
 
@@ -668,9 +681,10 @@ _INHERENTLY_VISUAL_TYPES = {
 
 def _has_visual(s) -> bool:
     """Ekran görsel taşıyor mu? Doğası gereği görsel tipler VEYA herhangi bir görsel-alanı dolu
-    olan ekranlar True döner. Alan yüzeyi `_lint_missing_alt` ile PARALEL tutulur (aynı ekran
-    tiplerini, aynı alt-alanları gezer) — DRY yerine okunabilirlik tercih edildi; biri değişirse
-    öteki elle senkron kalmalı (testler bunu yakalar)."""
+    olan ekranlar True döner. Tek kaynak (v1.8.1 #169): vaka (stimulus) görselleri ve `{{asset:…}}`
+    gömmeleri de sayılır. `_lint_missing_alt` alt metni olan alanları gezer; stimulus alt'ı
+    `_lint_stimulus`'ta (error) — yeni bir görsel alanı eklenirse ikisi de güncellenir
+    (tests/test_v181_visual.py parametrik)."""
     if s.type in _INHERENTLY_VISUAL_TYPES:
         return True
     if isinstance(s, AccordionScreen):
@@ -692,7 +706,15 @@ def _has_visual(s) -> bool:
     for b in getattr(s, "blocks", None) or []:
         if b.asset_id:
             return True
-    return False
+    # v1.8.1 (#169) — vaka (stimulus) görseli: ekran + adaptive öğe başına
+    st = getattr(s, "stimulus", None)
+    if st is not None and st.asset_id:
+        return True
+    if isinstance(s, AdaptivePracticeScreen) and any(
+            it.stimulus is not None and it.stimulus.asset_id for it in s.items):
+        return True
+    # {{asset:<id>}} gömmeleri (renderer P6 — herhangi bir metin alanında satır içi görsel)
+    return "{{asset:" in s.model_dump_json()
 
 
 def _lint_text_only_runs(project: Project) -> list[LintIssue]:

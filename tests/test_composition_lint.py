@@ -72,5 +72,8 @@ def test_strict_promotes_composition_warnings():
 
 def test_summary_lists_resolved():
     out = summary(P(ContentSlide(id="c1", title="a", media_asset_id="img")))
-    assert out == [{"screen_id": "c1", "preset": "split-thirds", "focal": "focal",
-                    "intensity": "high", "auto": True}]
+    base = {k: out[0][k] for k in ("screen_id", "preset", "focal", "intensity", "auto")}
+    assert base == {"screen_id": "c1", "preset": "split-thirds", "focal": "focal",
+                    "intensity": "high", "auto": True}
+    # v1.8.1 (#173) — karar izi alanları da var
+    assert out[0]["source"] == "auto" and out[0]["dom_order"] == ["title", "focal", "support"]

@@ -2,8 +2,8 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.kemalyy/edumints-scorm-mcp",
   "title": "edumints SCORM MCP",
-  "description": "Compiles structured specs into SCORM 1.2/2004 e-learning packages. 43 tools, quality gate, no LLM.",
-  "version": "1.8.0",
+  "description": "Compiles structured specs into SCORM 1.2/2004 e-learning packages. 46 tools, quality gate, no LLM.",
+  "version": "1.8.1",
   "websiteUrl": "https://mcp.edumints.com",
   "repository": {
     "url": "https://github.com/kemalyy/edumints-scorm-mcp",

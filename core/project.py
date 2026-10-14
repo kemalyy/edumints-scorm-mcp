@@ -929,6 +929,9 @@ class ImageCompareScreen(ScreenBase):
     before_label: str | None = None
     after_label: str | None = None
     caption: str | None = None
+    # v1.8.1 (#176) — görsellerin alt metni; verilmezse label (yoksa varsayılan) kullanılır
+    before_alt: str | None = None
+    after_alt: str | None = None
 
 
 class GameScreen(ScreenBase):
@@ -1307,8 +1310,17 @@ class AssetInput(BaseModel):
     # Yazarın atadığı stabil id (ekranlar *_asset_id ile buna referans verir). Yoksa server üretir
     # ama o durumda ekranlardan referans verilemez. CONTRACTS.md §2.
     id: str | None = None
-    filename: str
-    source: str  # "data:<mime>;base64,..." | "https://..."
+    filename: str | None = None  # v1.8.1: svg varlıkta verilmezse "<id>.svg"
+    source: str | None = None  # "data:<mime>;base64,..." | "https://..."
+    svg: str | None = None  # v1.8.1 (#178) — ham SVG (base64'süz); source ile TAM BİRİ zorunlu
+
+    @model_validator(mode="after")
+    def _one_source(self):
+        if bool(self.source) == bool(self.svg):
+            raise ValueError("asset: `source` ya da `svg` alanlarından TAM BİRİ verilmeli")
+        if self.source and not self.filename:
+            raise ValueError("asset: `source` ile `filename` zorunlu")
+        return self
 
 
 class CourseSpec(BaseModel):
@@ -1380,8 +1392,10 @@ class ListScreensOut(BaseModel):
 
 
 class PreviewOut(BaseModel):
-    inline_html: str
+    # v1.8.1 (#177) — tam HTML yalnız include_html=true ile (varsayılan yanıt hafif, < 20 KB)
+    inline_html: str | None = None
     hosted_url: str
+    size_bytes: int = 0
     compositions: list[dict] = Field(default_factory=list)  # K1 — çözülmüş kompozisyon özeti
     composition_questions: list[dict] = Field(default_factory=list)  # K2 — kullanıcıya sor
 

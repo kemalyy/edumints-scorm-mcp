@@ -5,6 +5,53 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.8.1] — 2026-10-14
+
+Fixes for the 13 findings of an end-to-end test report (tracking issue #181).
+
+### Fixed
+- **`update_screen` no longer drops a composition override** (#168): leave `composition` out to keep
+  it, send `null` to return to automatic.
+- **`text_only_run` counts case (stimulus) images and `{{asset:…}}` embeds** (#169) — a strict build no
+  longer blocks a run of case questions that do have images; visual detection lives in one function.
+- **Validation at write time** (#170): `add_screen` / `update_screen` / `build_from_spec` reject an
+  invalid composition and a case image without `alt`; in lint an invalid override no longer drops the
+  screen (a fallback pattern is shown) and the neighbouring screen's pattern no longer shifts.
+- **Reading order: the title always comes first** (#175, accessibility) — on screens where the image or
+  case is the focus, the kicker + title get their own slot first in the DOM; on wide screens the title
+  sits on top of the text column.
+- `stimulus_answer_leak` quotes the original text (#174).
+
+### Added
+- **Decision trace** (#173): each `compositions[]` entry carries `source` (`auto`, `rhythm`,
+  `course:visual=…`, `course:question=…`, `screen`), a short `reason` (e.g. `stimulus_words=46>40`),
+  `dom_order` and `params` (mirror is visible). The case-length "inconsistency" (#172) was the rhythm
+  rule — now visible as `source=rhythm`; the word counter ignores punctuation and `___`.
+- `composition_not_applicable` (#171) — a pattern that exists but does not fit the type has its own
+  code; the message lists the patterns that fit.
+- **Light `preview`** (#177): returns `hosted_url` + `compositions` + `composition_questions` +
+  `size_bytes` (< 20 KB) by default; the full page with `include_html=true`. (96% of the auto/classic
+  size difference is embedded fonts.)
+- **Alt text guidance** (#176): `missing_alt_text` names the field to fill; `image_compare` gets
+  `before_alt` / `after_alt`.
+- **SVG inside `build_from_spec`** (#178): `assets[].svg` (no base64). SVGs are sanitized with an
+  allowlist — only SVG-namespace elements are kept (`xmlns="http://www.w3.org/2000/svg"` required);
+  scripts, `foreignObject`, `<style>`, animations that target `href`, `on*`, `xml:base`, non-local links
+  and external `url(…)` are removed; DTD/ENTITY is rejected. Applies to `svg_to_asset` too (it did not
+  sanitize before). An invalid SVG rejects the build before any asset is stored.
+- **`kicker` / `lead` in classic projects** (#179), shown plainly (only on screens that set them; other
+  screens are byte-identical).
+- #180: in a side-by-side run created by a course preference the mirror already alternates (test
+  added); a top-band run stays the user's choice and is visible through `source`.
+
+### Changed (heads-up)
+- `preview` no longer returns `inline_html` by default — clients that need the full HTML pass
+  `include_html=true`.
+- The automatic layout's word counter no longer counts punctuation or `___`; existing auto screens near
+  the 30/40-word thresholds may switch pattern on re-render (#172, intended).
+- The error code for "pattern not applicable to this type" changed from `composition_unknown` to
+  `composition_not_applicable` (the message mentions the old code).
+
 ## [1.8.0] — 2026-10-13
 
 The composition system. New projects (`composition: "auto"`, the default for new projects) get a

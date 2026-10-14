@@ -30,7 +30,7 @@ async def render_one(client, spec_path: Path) -> str:
     res = await client.call_tool("build_from_spec", {"spec": spec})
     data = res.data
     project_id = data.project_id if hasattr(data, "project_id") else data["project_id"]
-    res2 = await client.call_tool("preview", {"project_id": project_id})
+    res2 = await client.call_tool("preview", {"project_id": project_id, "include_html": True})
     data2 = res2.data
     return data2.inline_html if hasattr(data2, "inline_html") else data2["inline_html"]
 

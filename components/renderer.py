@@ -20,6 +20,7 @@ scorm-again'in Scorm12API/Scorm2004API'sini yerel fallback olarak kurar (önizle
 from __future__ import annotations
 
 import json
+import dataclasses
 import re
 from contextvars import ContextVar
 from functools import lru_cache
@@ -52,6 +53,7 @@ from .templates import (
     BASE_CSS,
     COMPOSITION_CSS,
     STIMULUS_CSS,
+    CLASSIC_LEAD_CSS,
     EMPHASIS_CSS,
     EMBED_CSS,
     EMBED_JS,
@@ -513,6 +515,8 @@ def _render_html_inner(
                   + (XPSLIDER_CSS if _uses_xp_slider(project) else "")
                   # K3 — uyaran CSS'i yalnız projede uyaran varsa (uyaransız kurs bayt-aynı)
                   + (STIMULUS_CSS if _uses_stimulus(project) else "")
+                  # v1.8.1 (#179) — classic kicker/lead CSS'i yalnız kullanılınca
+                  + (CLASSIC_LEAD_CSS if _uses_classic_lead(project) else "")
                   # K1 — kompozisyon + vurgu CSS'i yalnız auto projede (classic bayt-aynı)
                   + (COMPOSITION_CSS + EMPHASIS_CSS if auto_comp else "") + dark_css),
         custom_css=theme.custom_css or "",
@@ -1077,8 +1081,56 @@ def _place(comp, parts: dict[str, str]) -> str:
     first = "support" if getattr(comp, "dom_order", "focal-first") == "support-first" \
         else comp.focal
     order = [first] + [n for n in ("support", "focal", "aux", "steps") if n != first]
+    # DOM'da gerçekten İLK basılacak yuva (ızgarada olmayan / boş yuvalar atlanır — hero-focal gibi
+    # tek alanlı desenlerde odak adı alanlarda yoktur)
+    shown = next((n for n in order if n in comp.areas and parts.get(n)), None)
+    comp, title, rows = _split_title(comp, parts, first=shown)
+    if title:  # v1.8.1 (#175) — başlık her ekranda DOM'da ilk (kendi yuvası + başlık satırı)
+        return (f'<div class="comp-grid" data-title="1" style="--comp-rows:{rows}">'
+                + _slot("title", title, comp)
+                + "".join(_slot(n, parts.get(n, ""), comp) for n in order) + "</div>")
     return '<div class="comp-grid">' + "".join(_slot(n, parts.get(n, ""), comp)
                                                for n in order) + "</div>"
+
+
+_TITLE_HEAD = re.compile(
+    r'^(?:<p class="kicker">.*?</p>)?<(h[12]) class="(?:screen-title|title-main)">.*?</\1>', re.S)
+
+
+def _split_title(comp, parts: dict[str, str], first: str | None = None):
+    """v1.8.1 (#175) — kicker + başlık, bulunduğu yuvanın BAŞINDAYSA ayrı `title` yuvasına alınır.
+    Izgaraya o yuvanın hemen üstüne içerik boyunda bir satır eklenir: başlık o yuvanın sütunlarında
+    durur; aynı satırdan başlayan alanlar (ör. yan sütundaki görsel) başlık satırını da kaplar, daha
+    aşağıdan başlayanlar bir satır kayar. Başlık yuvanın içinde gömülüyse (summary) ya da yuvası
+    zaten DOM'da İLKSE (destek-önce ekranlar, tek yuvalı desenler) dokunulmaz — başlık zaten ilk."""
+    for name in ("support", comp.focal, "focal", "aux"):
+        html = parts.get(name) or ""
+        m = _TITLE_HEAD.match(html)
+        if not m or name not in comp.areas:
+            continue
+        if name == first:
+            return comp, "", comp.rows
+        parts[name] = html[m.end():]
+        r0 = comp.areas[name][0]
+        areas = {}
+        for k, (rs, cs, re_, ce) in comp.areas.items():
+            if rs > r0:
+                areas[k] = (rs + 1, cs, re_ + 1, ce)
+            elif re_ > r0:  # aynı satırdan başlayan ya da satırı kesen alan: başlık satırını kaplar
+                areas[k] = (rs, cs, re_ + 1, ce)
+            else:
+                areas[k] = (rs, cs, re_, ce)
+        _, cs0, end, ce0 = areas[name]  # başlığın yuvası başlık satırının altından devam eder
+        areas[name] = (r0 + 1, cs0, end, ce0)
+        areas["title"] = (r0, comp.areas[name][1], r0 + 1, comp.areas[name][3])
+        tracks = comp.rows.split()
+        if comp.areas[name][2] - r0 == 1 and r0 - 1 < len(tracks):
+            # tek satırlık bant (visual-stack / question-column / üst bant): başlık ayrılınca kalan
+            # bant da içerik boyunda — odak alanı kalan yüksekliğin tamamını alır
+            tracks[r0 - 1] = "auto"
+        tracks.insert(r0 - 1, "auto")
+        return dataclasses.replace(comp, areas=areas), m.group(0), " ".join(tracks)
+    return comp, "", comp.rows
 
 
 def _kicker(s) -> str:
@@ -1225,10 +1277,10 @@ def _slots_image_compare(s, comp) -> str:
     focal = (
         f'<figure class="img-compare-wrap"><div class="img-compare" data-compare>'
         f'<img class="ic-img ic-img-before" data-asset="{_attr(s.before_asset_id)}"'
-        f' alt="{_attr(s.before_label or _T("compare_before"))}">{bl}'
+        f' alt="{_attr(s.before_alt or s.before_label or _T("compare_before"))}">{bl}'
         f'<div class="ic-after-wrap"><img class="ic-img ic-img-after"'
         f' data-asset="{_attr(s.after_asset_id)}"'
-        f' alt="{_attr(s.after_label or _T("compare_after"))}">{al}</div>'
+        f' alt="{_attr(s.after_alt or s.after_label or _T("compare_after"))}">{al}</div>'
         f'<input class="ic-range" type="range" min="0" max="100" value="50"'
         f' aria-label="{_attr(_T("compare_slider"))}">'
         f'<div class="ic-divider"></div></div>{cap}</figure>')
@@ -1398,12 +1450,34 @@ _SLOT_RENDERERS = {
 }
 
 
+_CLASSIC_HEAD = re.compile(r'<h1 class="title-main">.*?</h1>|<h2 class="screen-title">.*?</h2>', re.S)
+
+
+def _classic_kicker_lead(s, body: str) -> str:
+    """v1.8.1 (#179) — classic projede kicker/lead kaybolmasın: başlık üstünde küçük üst etiket,
+    başlıktan hemen sonra vurgulu tek mesaj. YALNIZ dolu ekranlarda (boş ekran bayt-aynı)."""
+    kicker, lead = getattr(s, "kicker", None), getattr(s, "lead", None)
+    if not (kicker or lead):
+        return body
+    m = _CLASSIC_HEAD.search(body)
+    if not m:
+        return body
+    k = f'<p class="kicker-classic">{_text(kicker)}</p>' if kicker else ""
+    ld = f'<p class="lead-classic"><strong>{_text(lead)}</strong></p>' if lead else ""
+    return body[:m.start()] + k + m.group(0) + ld + body[m.end():]
+
+
+def _uses_classic_lead(project: Project) -> bool:
+    return project.composition != "auto" and any(
+        getattr(s, "kicker", None) or getattr(s, "lead", None) for s in project.screens)
+
+
 def _render_screen(s, idx: int, comp=None) -> str:
     sid = s.id or f"idx{idx}"
     if comp is not None and s.type.value in _SLOT_RENDERERS:
         body = _SLOT_RENDERERS[s.type.value](s, comp)
     else:
-        body = _SCREEN_DISPATCH.get(s.type, _render_unknown)(s)
+        body = _classic_kicker_lead(s, _SCREEN_DISPATCH.get(s.type, _render_unknown)(s))
     reveal = _effective_reveal(s)
     if reveal != "none":
         body = _wrap_blocks(body)
@@ -2165,8 +2239,8 @@ def _r_image_compare(s) -> str:
         head += f'<div class="rich prompt">{sanitize(s.prompt_html)}</div>'
     return (
         f'{head}<figure class="img-compare-wrap"><div class="img-compare" data-compare>'
-        f'<img class="ic-img ic-img-before" data-asset="{_attr(s.before_asset_id)}" alt="{_attr(s.before_label or _T("compare_before"))}">{bl}'
-        f'<div class="ic-after-wrap"><img class="ic-img ic-img-after" data-asset="{_attr(s.after_asset_id)}" alt="{_attr(s.after_label or _T("compare_after"))}">{al}</div>'
+        f'<img class="ic-img ic-img-before" data-asset="{_attr(s.before_asset_id)}" alt="{_attr(s.before_alt or s.before_label or _T("compare_before"))}">{bl}'
+        f'<div class="ic-after-wrap"><img class="ic-img ic-img-after" data-asset="{_attr(s.after_asset_id)}" alt="{_attr(s.after_alt or s.after_label or _T("compare_after"))}">{al}</div>'
         f'<input class="ic-range" type="range" min="0" max="100" value="50" aria-label="{_attr(_T("compare_slider"))}">'
         f'<div class="ic-divider"></div></div>{cap}</figure>'
     )

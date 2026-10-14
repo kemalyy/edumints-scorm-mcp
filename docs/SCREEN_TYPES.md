@@ -2,6 +2,21 @@
 
 `edumints-scorm-mcp` içerisinde tanımlı 31 ekran tipi bulunmaktadır. Her ekran tipi `core/project.py` içerisindeki modellerden türetilmiştir.
 
+## Görsel alt metin alanları (v1.8.1)
+
+| Bağlam | Görsel alanı | Alt metin alanı |
+| :--- | :--- | :--- |
+| content_slide | `media_asset_id` | `media_alt` |
+| content_slide blokları | `blocks[].asset_id` | `blocks[].caption` (alt olarak da kullanılır) |
+| hotspot · labeled_diagram | `image_asset_id` | `image_alt` |
+| simulation | `steps[].image_asset_id` | `steps[].image_alt` |
+| accordion · tabs · timeline | `items[]/tabs[]/events[].image_asset_id` | `…image_alt` |
+| flashcards | `front_asset_id` / `back_asset_id` | `front_alt` / `back_alt` |
+| decision_scenario · game | `nodes[].image_asset_id` | `nodes[].image_alt` |
+| image_compare | `before_asset_id` / `after_asset_id` | `before_alt` / `after_alt` (yoksa label) |
+| worked_example | `steps[].artifact_asset_id` | `steps[].artifact_caption` |
+| soru/poll/exploration/branching vakası | `stimulus.asset_id` | `stimulus.alt` (zorunlu — error) |
+
 ## Ortak Alanlar (Base Fields)
 
 Tüm ekran tipleri aşağıdaki alanlara sahiptir:

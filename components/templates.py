@@ -3188,6 +3188,9 @@ body[data-layout] .screen .slot-focal:has(>.adaptive){container-type:normal;
 .screen[data-comp]:has(.slot-focal>.embed-wrap) .slot-support{justify-content:flex-start}
 .screen[data-comp]:has(.slot-focal>.embed-wrap) .comp-grid{
   grid-template-rows:auto minmax(0,1fr) minmax(0,1fr)}
+/* v1.8.1 (#175) — başlık satırı varsa: başlık · bant · iframe (2 satır) */
+.screen[data-comp]:has(.slot-focal>.embed-wrap) .comp-grid[data-title]{
+  grid-template-rows:auto auto minmax(0,1fr) minmax(0,1fr)}
 /* vakalı visual-stack (K3 soru + K4 poll/exploration + K5 branching), masaüstü: vaka ÜSTTE (önce
    okunur — DOM sırasıyla da tutarlı), soru altta; satırlar içerikten, blok sahnede ortalı, uzunsa
    sahne kaydırılır (başlık yukarı taşıp kaybolmaz). Yuva konumu inline grid-area'da → !important. */
@@ -3195,11 +3198,12 @@ body[data-layout] .screen .slot-focal:has(>.adaptive){container-type:normal;
   .screen[data-comp="visual-stack"]:has(.slot-focal>.stimulus) .screen-inner{
     justify-content:safe center}
   .screen[data-comp="visual-stack"]:has(.slot-focal>.stimulus) .comp-grid{flex:0 0 auto;
-    min-height:auto;grid-template-rows:auto auto auto}
+    min-height:auto;grid-template-rows:auto auto auto auto}
+  /* v1.8.1 (#175) — başlık satırı 1; vaka 2; soru 3+ (başlık → vaka → soru, DOM ile aynı) */
   .screen[data-comp="visual-stack"]:has(.slot-focal>.stimulus) .slot-focal{
-    grid-row:1 !important;container-type:normal}
+    grid-row:2 !important;container-type:normal}
   .screen[data-comp="visual-stack"]:has(.slot-focal>.stimulus) .slot-support{
-    grid-row:2 / span 2 !important;justify-content:flex-start}
+    grid-row:3 / span 2 !important;justify-content:flex-start}
   .screen[data-comp="visual-stack"]:has(.slot-focal>.stimulus) .slot-focal>.stimulus.stimulus-media .item-media{
     max-height:min(36vh,340px);flex:none}
   .screen[data-comp="visual-stack"]:has(.slot-focal>.stimulus) .slot-focal>.stimulus-text{
@@ -3218,6 +3222,7 @@ body[data-layout] .screen .slot-focal:has(>.c-body){container-type:inline-size;
 .screen[data-comp]:has(.slot-focal>.c-body) .screen-inner{justify-content:safe center}
 .screen[data-comp]:has(.slot-focal>.c-body) .comp-grid{flex:0 0 auto;min-height:auto;
   grid-template-rows:auto auto auto}
+.screen[data-comp]:has(.slot-focal>.c-body) .comp-grid[data-title]{grid-template-rows:auto auto auto auto}
 /* yan sütundaki başlık üste hizalı ve kaydırırken görünür kalır (uzun listede aşağı itilmez) */
 .screen[data-comp]:has(.slot-focal>.c-body) .slot-support{justify-content:flex-start;align-self:start}
 .screen[data-comp^="split"]:has(.slot-focal>.c-body) .slot-support{position:sticky;top:0}
@@ -3235,6 +3240,7 @@ body[data-layout] .screen .slot-focal:has(>.c-body){container-type:inline-size;
 }
 .screen[data-comp="question-column"] .comp-grid{grid-template-rows:auto auto auto;
   align-content:center}
+.screen[data-comp="question-column"] .comp-grid[data-title]{grid-template-rows:auto auto auto auto}
 @media(max-width:640px){
   .q-answer[data-many] .options,.q-answer[data-many] .matching{
     grid-template-columns:1fr}
@@ -3285,4 +3291,12 @@ TABS_V_JS = r"""
     }); });
   });
 })();
+"""
+
+
+# v1.8.1 (#179) — classic projede kicker/lead sade gösterim (YALNIZ dolu ekranlı kursta basılır)
+CLASSIC_LEAD_CSS = """
+.kicker-classic{margin:0 0 var(--space-1);font-size:13px;font-weight:var(--w-strong);letter-spacing:.06em;
+  text-transform:uppercase;color:var(--c-primary)}
+.lead-classic{margin:var(--space-2) 0 var(--space-4);font-size:var(--fs-h4);line-height:var(--lh-tight)}
 """

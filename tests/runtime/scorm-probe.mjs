@@ -1166,7 +1166,7 @@ async function main() {
     for (const [kind, preset] of [["we", "split-thirds"], ["acc12", "split-thirds"], ["tl10", "-"]]) {
       await k4Page(k4(kind, preset), WIDE, async (pg) => {
         const ok = await pg.evaluate(() => {
-          const h = document.querySelector(".slot-support .screen-title"), i = document.querySelector(".screen .screen-inner");
+          const h = document.querySelector(".comp-grid .screen-title"), i = document.querySelector(".screen .screen-inner");
           if (!h || !i) return null;
           const hb = h.getBoundingClientRect(), ib = i.getBoundingClientRect();
           return hb.top >= ib.top - 1 && hb.bottom <= ib.top + ib.height * 0.5;
@@ -1199,7 +1199,7 @@ async function main() {
     const stackCheck = async (file, label, btnSel) => k4Page(file, WIDE, async (pg) => {
       const r = await pg.evaluate((bs) => {
         const f = document.querySelector(".slot-focal"), sp = document.querySelector(".slot-support"),
-          h = document.querySelector(".slot-support .screen-title"), i = document.querySelector(".screen .screen-inner"),
+          h = document.querySelector(".comp-grid .screen-title"), i = document.querySelector(".screen .screen-inner"),
           b = document.querySelector(bs);
         if (!f || !sp || !h || !i || !b) return null;
         const ib = i.getBoundingClientRect();
@@ -1308,8 +1308,8 @@ async function main() {
     for (const vp of [WIDE, { width: 1000, height: 640 }]) {
       await k4Page(k5("embedlead"), vp, async (pg) => {
         const ok = await pg.evaluate(() => {
-          const k = document.querySelector(".slot-support .kicker, .slot-support .screen-title"),
-            sp = document.querySelector(".slot-support"),
+          const k = document.querySelector(".comp-grid .kicker, .comp-grid .screen-title"),
+            sp = k && k.closest(".slot"),
             i = document.querySelector(".screen .screen-inner"), f = document.querySelector(".slot-focal .embed-frame");
           if (!k || !sp || !i || !f) return null;
           // destek yuvasindan YUKARI tasma yok (ic dolgu payi maskelemesin) + iframe dolu
@@ -1411,11 +1411,59 @@ open(sys.argv[1], "w").write(render_html(Project(id=new_project_id(), title="k6"
     }
     await k4Page(k6("longcontent", "auto"), WIDE, async (pg) => {
       const ok = await pg.evaluate(() => {
-        const h = document.querySelector(".slot-support .screen-title"), sp = document.querySelector(".slot-support");
+        const h = document.querySelector(".comp-grid .screen-title"), sp = document.querySelector(".slot-title");
         return h && sp ? h.getBoundingClientRect().top >= sp.getBoundingClientRect().top - 1 : null;
       });
       check("K6 uzun icerik split-thirds: baslik yuvadan yukari tasmaz", ok, true);
     });
+
+    // --- v1.8.1 #175: baslik her zaman once ---
+    console.log("\n== v1.8.1 — baslik once (okuma sirasi) ==");
+    {
+      const f = path.join(tmp, "v181-title.html");
+      execFileSync("python3", ["-c", `
+import sys
+from pydantic import TypeAdapter
+from components.renderer import render_html
+from core.project import Project, Screen, new_project_id, AssetRef
+svg = b'<svg xmlns="http://www.w3.org/2000/svg" width="640" height="420"><rect width="640" height="420" fill="#ccc"/></svg>'
+a = [AssetRef(id="i", filename="i.svg", mime="image/svg+xml", size_bytes=len(svg), sha256="0", rel_path="assets/i.svg")]
+s = TypeAdapter(Screen).validate_python({"type": "content_slide", "id": "s1", "kicker": "ADIM 1", "title": "Baslik",
+    "media_asset_id": "i", "media_alt": "g", "body_html": "<p>" + "govde metni " * 20 + "</p>", "composition": "split-thirds"})
+open(sys.argv[1], "w").write(render_html(Project(id=new_project_id(), title="t", composition="auto", screens=[s], assets=a),
+    mode="preview", runtime_js="", asset_data={"i": ("image/svg+xml", svg)}))
+`, f], { cwd: process.cwd() });
+      await k4Page(f, WIDE, async (pg) => {
+        const r = await pg.evaluate(() => {
+          const t = document.querySelector(".slot-title"), s = document.querySelector(".slot-support"),
+            fo = document.querySelector(".slot-focal"), g = document.querySelector(".comp-grid");
+          if (!t || !s || !fo || !g) return null;
+          const tb = t.getBoundingClientRect(), sb = s.getBoundingClientRect(), fb = fo.getBoundingClientRect(), gb = g.getBoundingClientRect();
+          return { above: tb.bottom <= sb.top + 1 && Math.abs(tb.left - sb.left) < 2,
+                   full: Math.abs(fb.top - gb.top) < 2 && Math.abs(fb.bottom - gb.bottom) < 2 };
+        });
+        check("v1.8.1 masaustu: baslik destek sutununun ustunde", !!r && r.above, true);
+        check("v1.8.1 masaustu: odak gorsel tam yukseklikte", !!r && r.full, true);
+      });
+      await k4Page(f, MOB, async (pg) => {
+        const first = await pg.evaluate(() => {
+          const els = [...document.querySelectorAll('.screen[aria-hidden="false"] .comp-grid *')]
+            .filter((e) => e.children.length === 0 && (e.textContent.trim() || e.tagName === "IMG"));
+          const top = els.sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top)[0];
+          return top ? top.className || top.tagName : null;
+        });
+        check("v1.8.1 mobil: ilk gorunen oge ust etiket/baslik", /kicker|screen-title/.test(first || ""), true);
+      });
+      await k4Page(k3("mcq", "visual-stack", "stim"), WIDE, async (pg) => {
+        const ord = await pg.evaluate(() => {
+          const t = document.querySelector(".slot-title"), c = document.querySelector(".slot-focal .stimulus"),
+            p = document.querySelector(".slot-support .prompt");
+          return t && c && p ? t.getBoundingClientRect().top < c.getBoundingClientRect().top &&
+            c.getBoundingClientRect().top < p.getBoundingClientRect().top : null;
+        });
+        check("v1.8.1 vakali soru: baslik → vaka → soru (masaustu)", ord, true);
+      });
+    }
 
     // --- K1 z-flow: dort adim da masaustu sahnesinde gorunur (tasma yok) ---
     console.log("\n== K1 — z-flow tasma yok ==");

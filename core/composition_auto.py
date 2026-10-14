@@ -2,6 +2,8 @@
 Saf mantık; yalnız spec'e bakar (LLM yok, ölçüm yok)."""
 from __future__ import annotations
 
+import dataclasses
+
 import re
 from dataclasses import dataclass
 
@@ -35,8 +37,14 @@ class Signals:
     has_bg: bool
 
 
+_WORDLIKE = re.compile(r"\w", re.UNICODE)
+
+
 def _words(html: str | None) -> int:
-    return len(_TAG.sub(" ", html or "").split())
+    """Görünür kelime sayısı (v1.8.1 #172): HTML etiketleri, yalnız noktalamadan oluşan parçalar ve
+    boşluk işaretleri (`___`) sayılmaz. Belgedeki eşiklerin (30 / 40 / 120 kelime) tanımı budur."""
+    toks = _TAG.sub(" ", html or "").split()
+    return sum(1 for t in toks if _WORDLIKE.search(t.replace("_", "")))
 
 
 def signals(s) -> Signals:
@@ -184,55 +192,103 @@ def _explicit_intensity(s) -> str | None:
     return getattr(c, "intensity", None) if c is not None and not isinstance(c, str) else None
 
 
+def _auto_reason(s, t) -> str:
+    """Otomatik seçimin kısa gerekçesi (v1.8.1 #173) — eşiklerle birlikte."""
+    if t in STIM_TYPES and has_stimulus(s):
+        n = stimulus_words(s)
+        if any(st.asset_id and st.text_html for st in _stimuli(s)):
+            return f"stimulus_image+text,words={n}"
+        return f"stimulus_words={n}>40" if n > 40 else f"stimulus_words={n}<=40"
+    if t in K2_TYPES:
+        if getattr(s, "lead", None):
+            return "lead"
+        n = text_weight(s)
+        return f"text_weight={n}>30" if n > 30 else f"text_weight={n}<=30"
+    if t in K4_TYPES or t in K5_TYPES:
+        if getattr(s, "lead", None):
+            return "lead"
+        n = k4_words(s)
+        return f"intro_words={n}>30" if n > 30 else f"intro_words={n}<=30"
+    if t in Q_TYPES:
+        return "no_stimulus"
+    sg = signals(s)
+    return f"media={sg.media},blocks={sg.blocks},words={sg.words},lead={int(sg.has_lead)}"
+
+
+def _auto_choice(project, s, t, prev_preset, prev_mirror, run):
+    """Otomatik seçim (kurs tercihi + monotonluk kırıcı dahil) → (preset, mirror, source, reason)."""
+    preset, mirror = auto_preset(s, prev_preset, prev_mirror)
+    source, reason = "auto", _auto_reason(s, t)
+    pref = pref_for(project, s)
+    pref_driven = pref is not None
+    if pref_driven:
+        field = "visual" if t in K2_TYPES else "question"
+        source, reason = f"course:{field}={pref}", "user_preference"
+        # kullanıcının cevabı (üretim sırasında soruldu) otomatik kuralı ezer ve
+        # monotonluk kırıcıdan MUAFTIR: "üstte" diyen kullanıcı her ekranda üstte görür.
+        if pref == "stack":
+            preset, mirror = "visual-stack", False
+        else:
+            preset = "split-thirds"
+            mirror = (not prev_mirror) if prev_preset == "split-thirds" else False
+    # tek sütun dizisi tutarlı kalmalı (question-column'un alternatifi yok); summary
+    # yalnız centered'a uyar
+    steady = preset == "question-column" or t == "summary"
+    if not pref_driven and not steady and preset == prev_preset and run >= 3:
+        alt = {"title_slide": "statement"}.get(t, "centered")
+        if t in K2_TYPES or t in STIM_TYPES or t in K4_TYPES or t in K5_TYPES:
+            alt = "split-thirds" if preset == "visual-stack" else "visual-stack"
+        source, reason = "rhythm", f"rhythm:{preset}×{run + 1}"
+        preset, mirror = (alt if preset != alt else "f-flow"), False
+    return preset, mirror, source, reason
+
+
+def _dom_order(s, t) -> str:
+    if t in Q_TYPES or t in K4_TYPES or t in K5_TYPES:  # uyaranlı: vaka önce; aksi başlık
+        # adaptive: vaka zaten her öğenin İÇİNDE istemden önce; odak tüm alıştırma olduğundan
+        # focal-first başlık/yönergeyi Kontrol butonunun arkasına iterdi (WCAG 1.3.2)
+        return "focal-first" if has_stimulus(s) and t != "adaptive_practice" else "support-first"
+    return "support-first" if is_quiz_mode(s) else "focal-first"
+
+
 def _resolve(project, collect: list | None) -> list[ResolvedComposition | None]:
     if project.composition != "auto":
         return [None] * len(project.screens)
     inten = intensities(project)
     out: list[ResolvedComposition | None] = []
     prev_preset, prev_mirror, run = None, False, 0
+
+    def auto_r(s, t, order, i):
+        preset, mirror, source, reason = _auto_choice(project, s, t, prev_preset, prev_mirror, run)
+        r = resolve_spec(CompositionSpec(preset=preset, mirror=mirror or None), t,
+                         intensity=inten[i], auto=True, dom_order=order)
+        return dataclasses.replace(r, source=source, reason=reason)
+
     for i, s in enumerate(project.screens):
         t = s.type.value
         explicit = getattr(s, "composition", None)
+        order = _dom_order(s, t)
         try:
-            if t in Q_TYPES or t in K4_TYPES or t in K5_TYPES:  # uyaranlı: vaka önce; aksi başlık
-                # adaptive: vaka zaten her öğenin İÇİNDE istemden önce; odak tüm alıştırma olduğundan
-                # focal-first başlık/yönergeyi Kontrol butonunun arkasına iterdi (WCAG 1.3.2)
-                order = ("focal-first" if has_stimulus(s) and t != "adaptive_practice"
-                         else "support-first")
-            else:
-                order = "support-first" if is_quiz_mode(s) else "focal-first"
             if explicit is not None:
-                r = resolve_spec(explicit, t, intensity=_explicit_intensity(s) or inten[i],
-                                 dom_order=order)
+                r = dataclasses.replace(
+                    resolve_spec(explicit, t, intensity=_explicit_intensity(s) or inten[i],
+                                 dom_order=order), source="screen", reason="author_override")
             elif t in COMPOSED_TYPES:
-                preset, mirror = auto_preset(s, prev_preset, prev_mirror)
-                pref = pref_for(project, s)
-                pref_driven = pref is not None
-                if pref_driven:
-                    # kullanıcının cevabı (üretim sırasında soruldu) otomatik kuralı ezer ve
-                    # monotonluk kırıcıdan MUAFTIR: "üstte" diyen kullanıcı her ekranda üstte görür.
-                    if pref == "stack":
-                        preset, mirror = "visual-stack", False
-                    else:
-                        preset = "split-thirds"
-                        mirror = (not prev_mirror) if prev_preset == "split-thirds" else False
-                # tek sütun dizisi tutarlı kalmalı (question-column'un alternatifi yok); summary
-                # yalnız centered'a uyar
-                steady = preset == "question-column" or t == "summary"
-                if not pref_driven and not steady and preset == prev_preset and run >= 3:
-                    alt = {"title_slide": "statement"}.get(t, "centered")
-                    if t in K2_TYPES or t in STIM_TYPES or t in K4_TYPES or t in K5_TYPES:
-                        alt = "split-thirds" if preset == "visual-stack" else "visual-stack"
-                    preset, mirror = (alt if preset != alt else "f-flow"), False
-                r = resolve_spec(CompositionSpec(preset=preset, mirror=mirror or None), t,
-                                 intensity=inten[i], auto=True, dom_order=order)
+                r = auto_r(s, t, order, i)
             else:
                 r = None
         except CompositionError as e:
             if collect is None:
                 raise
             collect.append((i, e))
+            # v1.8.1 (#170) — geçersiz açık ezme: ekran DÜŞMEZ; otomatik seçim yedek olarak
+            # çizilir ve ritim onunla ilerler (komşu ekranın deseni değişmez)
             r = None
+            if explicit is not None and t in COMPOSED_TYPES:
+                try:
+                    r = dataclasses.replace(auto_r(s, t, order, i), error=e.code)
+                except CompositionError:
+                    r = None
         out.append(r)
         if r is not None:
             run = run + 1 if r.preset == prev_preset else 1
@@ -249,9 +305,40 @@ def resolve_project_safe(project):
     return _resolve(project, errs), errs
 
 
+def dom_order_list(c, screen=None) -> list[str]:
+    """Okuma sırası — renderer `_place` ile aynı kural: v1.8.1 (#175) başlık (kicker + başlık) hangi
+    yuvada durursa dursun önce okunur; sonra dom_order'a göre ızgarada VAR olan odak/destek yuvaları."""
+    first = "support" if c.dom_order == "support-first" else c.focal
+    order = [first] + [n for n in ("support", "focal", "aux", "steps") if n != first]
+    slots = [n for n in dict.fromkeys(order) if n in c.areas]
+    titled = screen is None or bool((getattr(screen, "title", "") or "").strip())
+    return (["title"] if titled else []) + slots
+
+
+def _params(c) -> dict:
+    """Varsayılandan farklı ince ayarlar (mirror, odak hücresi, akış, boşluk)."""
+    out: dict = {}
+    if c.mirror:
+        out["mirror"] = True
+    if c.focal_cell:
+        out["focal_cell"] = c.focal_cell
+    out["flow"], out["whitespace"] = c.flow, c.whitespace
+    return out
+
+
 def summary(project) -> list[dict]:
     """Şeffaflık — çözülmüş kompozisyonların özeti (lint_course / preview yanıtında döner)."""
     comps, _ = resolve_project_safe(project)
-    return [{"screen_id": s.id, "preset": c.preset, "focal": c.focal,
-             "intensity": c.intensity, "auto": c.auto}
-            for s, c in zip(project.screens, comps) if c is not None]
+    out = []
+    for s, c in zip(project.screens, comps):
+        if c is None:
+            continue
+        rec = {"screen_id": s.id, "preset": c.preset, "focal": c.focal,
+               "intensity": c.intensity, "auto": c.auto,
+               # v1.8.1 (#173) — karar izi
+               "source": c.source, "reason": c.reason, "dom_order": dom_order_list(c, s),
+               "params": _params(c)}
+        if c.error:  # v1.8.1 (#170) — geçersiz ezme: kayıt düşmez, yedek desen görünür
+            rec.update(preset=None, error=c.error, fallback=c.preset)
+        out.append(rec)
+    return out

@@ -49,8 +49,8 @@ def test_hero_focal_cell_is_background():
 
 @pytest.mark.parametrize("spec,stype,code", [
     ("nope", "content_slide", "composition_unknown"),
-    ("split-thirds", "title_slide", "composition_unknown"),
-    ("centered", "mcq", "composition_unknown"),
+    ("split-thirds", "title_slide", "composition_not_applicable"),  # v1.8.1 #171
+    ("centered", "mcq", "composition_not_applicable"),
     (CompositionSpec(grid="thirds", areas={"support": "c4r1-c4r1"}), "content_slide",
      "composition_unknown"),
     (CompositionSpec(grid="thirds", areas={"support": "c2r1-c1r1"}), "content_slide",

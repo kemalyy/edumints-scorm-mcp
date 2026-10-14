@@ -91,7 +91,7 @@ async def test_preview_is_single_file_no_external_deps():
         pid = proj.data.project_id
         await c.call_tool("add_screen", {"project_id": pid,
                                          "screen": {"type": "title_slide", "title": "Merhaba"}})
-        pv = await c.call_tool("preview", {"project_id": pid})
+        pv = await c.call_tool("preview", {"project_id": pid, "include_html": True})
     html = pv.data.inline_html
     # harici bağımlılık yok: <script src=...> ve <link href=...> bulunmamalı
     assert "<script src=" not in html

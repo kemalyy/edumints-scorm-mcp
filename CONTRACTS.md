@@ -466,7 +466,17 @@ ThemeTokens.emphasis: Emphasis | None        # e1..e5 {color,size,weight} + e3_b
   (`visual`/`question` ≠ auto/None) monotonluk kırıcıdan muaftır ve o seriler `composition_monotony`
   uyarısı üretmez. `centered` K2 tiplerine uygulanmaz (görsel her zaman odak). Şema MRTR `inputRequests`'e
   eşlenebilir (klasik elicitation kullanılmaz — `json_response=True`).
-- **Lint (yalnız auto):** `composition_unknown`/`focal_area_empty` (error); `multiple_focal_points`,
+- **Karar izi (v1.8.1):** `compositions[]` öğesi `{screen_id, preset, focal, intensity, auto, source,
+  reason, dom_order, params}`; `source` ∈ `auto` | `rhythm` (monotonluk kırıcı) | `course:visual=…` |
+  `course:question=…` | `screen` (yazar ezmesi); `reason` eşikli kısa gerekçe (`stimulus_words=46>40`,
+  `text_weight=31>30`, `rhythm:visual-stack×4` …); `dom_order` okuma sırası (`["title", …]`); `params`
+  mirror / odak hücresi / akış / boşluk. Geçersiz ezmeli ekran düşmez: `{preset: null, error, fallback}`
+  (ritim fallback desenle ilerler). Kelime sayımı: görünür kelimeler (noktalama ve `___` sayılmaz).
+- **Başlık önce (v1.8.1):** her kompozisyonlu ekranda kicker + başlık DOM'da ilk. Odak-önce ekranlarda
+  başlık `slot-title` yuvasına alınır ve ızgaraya başlığın yuvasının üstüne içerik boyunda satır eklenir
+  (yan sütundaki odak o satırı da kaplar); başlık zaten ilk basılan yuvadaysa dokunulmaz.
+- **Lint (yalnız auto):** `composition_unknown` (katalogda yok) / `composition_not_applicable` (v1.8.1:
+  desen var ama tipe uymuyor — mesaj uyan desenleri listeler) / `focal_area_empty` (error); `multiple_focal_points`,
   `emphasis_inflation`, `mark_overuse`, `lead_too_long`, `composition_monotony`, `intensity_run` (warn →
   strict'te error); `composition_ignored_classic` (info, classic projede alan doluysa).
 - **Lint (K3, her modda):** `stimulus_without_alt` (error — görsel uyaran `alt`sız);
@@ -509,7 +519,9 @@ class AssetInput(BaseModel):
                                           # referans verir. Verilmezse server üretir (ama o durumda
                                           # ekranlardan referanslanamaz). build_from_spec bunu AssetRef.id yapar.
     filename: str
-    source: str                           # "data:<mime>;base64,..." | "https://..."
+    source: str | None                    # "data:<mime>;base64,..." | "https://..."
+    svg: str | None                       # v1.8.1 — ham SVG (base64'süz); source ile TAM BİRİ; filename
+                                          # yoksa "<id>.svg"; script/foreignObject/on*/dış href temizlenir
 
 class CourseMetadata(BaseModel):
     # S7 (2.3) — additive/opsiyonel; boş/None alan → manifest'te ilgili LOM elemanı hiç basılmaz.
@@ -667,6 +679,11 @@ add_screen(project_id: str, screen: Screen) -> AddScreenOut
     # AddScreenOut = { screen_id: str }
 
 update_screen(project_id: str, screen_id: str, screen: Screen) -> OkOut
+    # Ekran BÜTÜNÜYLE değiştirilir (gönderilmeyen içerik alanları silinir). v1.8.1: `composition`
+    # anahtarı hiç gönderilmezse (tip aynıysa) mevcut kompozisyon ezmesi KORUNUR; `null` → otomatik.
+    # add_screen / update_screen / build_from_spec yazma anında doğrular: geçersiz kompozisyon
+    # (composition_unknown | composition_not_applicable) ve alt'sız görsel vaka (stimulus_without_alt)
+    # REDDEDİLİR, proje değişmez.
 
 list_screens(project_id: str) -> ListScreensOut
     # ListScreensOut = { screens: list[ScreenSummary] }
@@ -688,10 +705,11 @@ search_images(query: str, source: str = "openverse", limit: int = 5) -> dict
     #          license, license_url?, creator?, source_page?}] }
     # Seçilen `url`, add_asset(project_id, source=url, filename=...) ile projeye eklenir.
 
-preview(project_id: str) -> PreviewOut
+preview(project_id: str, include_html: bool = False) -> PreviewOut
 publish_demo(project_id: str, slug: str) -> {url, slug}   # KALICI /demo/{slug} linki (TTL yok, upsert)
-    # PreviewOut = { inline_html: str, hosted_url: str }
-    # inline_html: TEK dosya, harici bağımlılık YOK (runtime + tema gömülü)
+    # PreviewOut = { hosted_url, compositions, composition_questions, size_bytes, inline_html? }
+    # v1.8.1: varsayılan yanıt HAFİF (< 20 KB); inline_html yalnız include_html=true ile —
+    # TEK dosya, harici bağımlılık YOK (runtime + tema + gömülü fontlar; auto ~+315 KB font)
     # hosted_url:  PUBLIC_BASE_URL + "/preview/{token}"
     # 1.2 — metadata (DemoMeta, §4) store'da; sahiplik store'dan doğrulanır (eski yalnız-.owner-
     # dosyalı yayınlar bir kereliğine göç eder — bkz. §4). HTML boyutu owner kotasına dahildir.
