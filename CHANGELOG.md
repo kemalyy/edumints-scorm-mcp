@@ -5,6 +5,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.9.0] — 2026-10-14
+
+### Added
+- **`get_guide` tool** — the server-coupled guides (tool calls, the full `build_from_spec` shape,
+  composition, screen types, artifact → SCORM, media, themes, video) are now served by the server
+  (`guides/`) and are current with every deploy. `topic="schema:<screen_type>"` generates the field list
+  straight from the server's models (type-specific fields first, common fields separately; union variants
+  such as `adaptive[elo]` / `adaptive[bkt]` each listed). The same call checks the authoring skill's
+  version (`skill_status`: current / outdated / incompatible / unknown) and returns a `notice` with the
+  download link — informational, it never blocks a tool. `SKILL_DOWNLOAD_URL` overrides the link for
+  self-hosters.
+- Server `instructions` point clients to `get_guide` (and tell older skills to update), when the client
+  forwards them to the model.
+- CI: every tool name mentioned in the guides must be a registered tool.
+
+### Changed
+- 47 tools (was 46). The authoring skill 2.4.0 fetches these guides from the server instead of bundling
+  them; skills older than 2.4.0 get an update notice from `get_guide`.
+
 ## [1.8.1] — 2026-10-14
 
 Fixes for the 13 findings of an end-to-end test report (tracking issue #181).

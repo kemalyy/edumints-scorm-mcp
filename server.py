@@ -113,6 +113,19 @@ class Settings:
 
 SETTINGS = Settings()
 
+
+def _server_version() -> str:
+    """pyproject sürümü (imajda pyproject.toml kopyalı); okunamazsa paket metadata'sı."""
+    import tomllib
+    try:
+        return tomllib.loads((Path(__file__).parent / "pyproject.toml").read_text())["project"]["version"]
+    except (OSError, KeyError, tomllib.TOMLDecodeError):
+        from importlib.metadata import PackageNotFoundError, version
+        try:
+            return version("scorm-mcp")
+        except PackageNotFoundError:
+            return "unknown"
+
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
 logger = logging.getLogger("scorm_mcp.audit")
 
@@ -173,7 +186,20 @@ def _build_auth():
     )
 
 
-mcp = FastMCP(name="scorm-mcp", auth=_build_auth())
+def _guide_instructions(meta: dict) -> str:
+    """Sunucu instructions notu — skill sürümü guides/_meta.json'dan (elle yazılmaz, eskimez)."""
+    return (
+        "scorm-mcp: Claude yazar, sunucu montajcı. Araç/alan ayrıntılarının GÜNCEL kaynağı get_guide aracıdır "
+        "(get_guide() → konu listesi; get_guide(topic=\"cookbook\") → build_from_spec şekli; "
+        "get_guide(topic=\"schema:mcq\") → ekran alanları). authoring-scorm-courses skill'i kullanıyorsan işe "
+        f"get_guide(skill_version=…) ile başla; {meta['skill_latest']}'dan eski skill'ler eskidir — kullanıcıya "
+        "güncellemesini öner."
+    )
+
+
+from core.guides import load_meta as _load_guide_meta  # noqa: E402
+
+mcp = FastMCP(name="scorm-mcp", auth=_build_auth(), instructions=_guide_instructions(_load_guide_meta()))
 
 from auth.ratelimit import RateLimiter  # noqa: E402
 
@@ -1621,6 +1647,37 @@ async def list_compositions() -> dict:
               "symmetry": d.get("symmetry", ""), "applies_to": d.get("applies_to", [])}
              for n, d in load_catalog().items()]
     return {"count": len(items), "compositions": items}
+
+
+@mcp.tool
+async def get_guide(topic: str | None = None, skill_version: str | None = None) -> dict:
+    """Sunucuya bağlı rehberler — araç çağrıları, build_from_spec şekli, alanlar, kompozisyon, medya, tema,
+    video — HER ZAMAN GÜNCEL kaynak. topic yok → konu listesi + skill sürüm durumu (oturum başında
+    skill_version ile çağır). topic="cookbook" vb. → rehber metni. topic="schema:<ekran_tipi>" → o tipin
+    alanları (sunucu modelinden). Keşif — proje gerektirmez; notice hiçbir aracı bloklamaz."""
+    from core import guides
+    meta = guides.load_meta()
+    status, notice = guides.skill_status(skill_version, meta)
+    out = {"server_version": _server_version(), "skill_latest": meta["skill_latest"],
+           "skill_status": status, "notice": notice, "topics": guides.topics(),
+           "topic": None, "content": None}
+    if topic is None or not topic.strip():
+        return out
+    t = guides.normalize_topic(topic)
+    try:
+        if t.startswith("schema:"):
+            st = t.split(":", 1)[1]
+            out["topic"], out["content"] = f"schema:{guides.normalize_topic(st)}", guides.screen_schema(st)
+        else:
+            out["topic"], out["content"] = t, guides.read_topic(t)
+    except KeyError:
+        if t.startswith("schema:"):
+            from core.project import ScreenType
+            raise _wrap(ToolError("unknown_screen_type",
+                                  f"'{t}' yok. Ekran tipleri: {', '.join(s.value for s in ScreenType)}"))
+        raise _wrap(ToolError("unknown_topic", f"'{t}' yok. Konular: {', '.join(sorted(meta['topics']))}, "
+                                               "schema:<ekran_tipi>"))
+    return out
 
 
 @mcp.tool

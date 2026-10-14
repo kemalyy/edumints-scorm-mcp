@@ -45,6 +45,7 @@ COPY components ./components
 COPY auth ./auth
 COPY themes ./themes
 COPY compositions ./compositions
+COPY guides ./guides
 COPY runtime ./runtime
 COPY server.py ./server.py
 COPY examples ./examples

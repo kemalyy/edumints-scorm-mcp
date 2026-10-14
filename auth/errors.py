@@ -12,6 +12,8 @@ ErrorCode = Literal[
     "asset_error",
     "build_error",
     "rate_limited",
+    "unknown_topic",
+    "unknown_screen_type",
 ]
 
 

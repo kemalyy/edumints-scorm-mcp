@@ -778,6 +778,21 @@ lint_course(project_id: str, strict: bool | None = None) -> dict
 Toplam tool sayısı **40** (senaryo hattı Faz 2: 30 → 38, 8 senaryo aracı; Faz 3: 38 → 40,
 `fill_media_slot` + `match_media_manifest` — §3.0.1).
 
+### 3.0.0a Rehber aracı (v1.9.0)
+
+```python
+get_guide(topic: str | None = None, skill_version: str | None = None) -> GuideOut
+    # Sunucuya bağlı rehberlerin güncel kaynağı (guides/). Keşif; proje gerektirmez, yan etkisi yok.
+    # GuideOut = { server_version, skill_latest, skill_status, notice?, topics[{name, summary, size_bytes}],
+    #              topic?, content? }
+    # skill_status: current | outdated | incompatible | unknown (notice bilgilendirir, hiçbir aracı bloklamaz)
+    # topic: cookbook | composition | screen-types | artifact | media | themes | video | schema:<ekran_tipi>
+    #        (büyük/küçük harf ve boşluk normalize; schema: alanları sunucu modelinden üretir)
+    # Hatalar: unknown_topic, unknown_screen_type (mesajda seçenekler)
+    # Sürümler guides/_meta.json'da; SKILL_DOWNLOAD_URL indirme adresini ezer. Sunucu `instructions`
+    # alanı da get_guide'a yönlendirir (eski skill'ler için, istemci iletirse).
+```
+
 ### 3.0.0 Kompozisyon araçları (K1)
 
 ```python
