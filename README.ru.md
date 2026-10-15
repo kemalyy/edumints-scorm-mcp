@@ -112,6 +112,39 @@ python server.py              # обслуживает MCP по HTTP
 > Работает в паре со **skill для авторинга** (Claude Agent Skill, обучающим ИИ-клиента создавать
 > качественные курсы с этим сервером): https://github.com/kemalyy/edumints-scorm-skill
 
+## Пример
+
+Курс создаётся одним вызовом `build_from_spec` (это `examples/small.json`, сокращённо):
+
+```json
+{
+  "title": "Intro to SCORM",
+  "scorm_version": "1.2",
+  "language": "en",
+  "tracking": { "completion_rule": "viewed_all_and_passed", "passing_score": 50 },
+  "screens": [
+    { "type": "title_slide", "id": "t1", "title": "Intro to SCORM", "subtitle": "Core concepts in 5 minutes" },
+    { "type": "content_slide", "id": "c1", "title": "What is SCORM?", "body_html": "<p><strong>SCORM</strong> lets e-learning content talk to an LMS.</p>" },
+    { "type": "mcq", "id": "q1", "title": "Mini quiz", "prompt_html": "<p>What is SCORM for?</p>",
+      "options": [
+        { "id": "a", "text_html": "Content–LMS communication", "correct": true },
+        { "id": "b", "text_html": "Video editing" }
+      ], "points": 10 },
+    { "type": "summary", "id": "s1", "title": "Well done", "body_html": "<p>You learned the basics.</p>" }
+  ]
+}
+```
+
+```
+build_from_spec(spec) → { project_id, screens: 4, warnings: [] }
+build_package(project_id) → downloadable SCORM zip
+                              ├─ imsmanifest.xml
+                              ├─ index.html          (self-contained player + runtime)
+                              └─ assets/
+```
+
+Полные рабочие спецификации — в [`examples/`](examples/) (игры, ветвление, тематические и многоязычные курсы).
+
 ## Ключевые инструменты (MCP)
 
 | Инструмент | Назначение |
