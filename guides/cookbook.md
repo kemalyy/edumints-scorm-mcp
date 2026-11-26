@@ -249,7 +249,7 @@ items, scenario/game nodes) · `front_alt`/`back_alt` (flashcards) · `before_al
 - **Faz 11 — dahili Türkçe TTS (Piper):** `synthesize_speech(project_id, text, voice=None, filename)`
   → Türkçe mp3 narration asset (ücretsiz, çevrimdışı). Üst kalite/başka dil için kendi TTS MCP'n +
   `add_asset` (birincil). Detay: **`get_guide(topic="media")`**.
-- `preview(project_id)` → `{ hosted_url, compositions, composition_questions, size_bytes }` (light; `include_html=true` adds `inline_html`). `validate_package` then `build_package` → download.
+- `preview(project_id)` → `{ hosted_url, compositions, composition_questions, size_bytes }` (light; `include_html=true` adds `inline_html`; `allow_feedback=false` gives a view-only link). `validate_package` then `build_package` → download. Shared a link with the wrong person? `revoke_links(project_id)` closes every preview and download link of the project at once.
 - `list_screen_types()` / `list_themes()` — discovery: the 31 screen types + theme presets (no auth).
 - **`lint_course(project_id)`** → `{ error_count, warn_count, clean, issues[] }`. Anti-slop quality gate for
   game/adaptive screens (intrinsic integration, no fake choice, scaffolding, adaptive spread, a11y).

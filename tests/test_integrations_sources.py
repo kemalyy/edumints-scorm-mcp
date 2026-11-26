@@ -26,7 +26,7 @@ async def test_wikimedia_adapter_success():
         }
     }
     
-    with patch("core.integrations.wikimedia.assert_safe_url") as mock_assert, \
+    with patch("core.integrations.wikimedia.assert_safe_url_async") as mock_assert, \
          patch("httpx.AsyncClient.get") as mock_get, \
          patch("core.integrations.wikimedia.safe_fetch_asset") as mock_fetch:
         
@@ -73,7 +73,7 @@ async def test_wikimedia_adapter_license_filtering():
 @pytest.mark.asyncio
 async def test_wikimedia_adapter_ssrf_blocked():
     """SSRF bloklandığında graceful degrade."""
-    with patch("core.integrations.wikimedia.assert_safe_url") as mock_assert:
+    with patch("core.integrations.wikimedia.assert_safe_url_async") as mock_assert:
         mock_assert.side_effect = ToolError("asset_error", "Engelli IP")
         
         adapter = WikimediaAdapter()

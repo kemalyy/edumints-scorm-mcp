@@ -55,7 +55,7 @@ async def test_openverse_adapter_success():
         }]
     }
     
-    with patch("core.integrations.openverse.assert_safe_url") as mock_assert, \
+    with patch("core.integrations.openverse.assert_safe_url_async") as mock_assert, \
          patch("httpx.AsyncClient.get") as mock_get, \
          patch("core.integrations.openverse.safe_fetch_asset") as mock_fetch:
         
@@ -89,7 +89,7 @@ async def test_openverse_adapter_no_results():
 @pytest.mark.asyncio
 async def test_openverse_adapter_ssrf_blocked():
     """SSRF bloklandığında graceful degrade (hata fırlatmaz, None döner)."""
-    with patch("core.integrations.openverse.assert_safe_url") as mock_assert:
+    with patch("core.integrations.openverse.assert_safe_url_async") as mock_assert:
         mock_assert.side_effect = ToolError("asset_error", "Engelli IP")
         
         adapter = OpenverseAdapter()

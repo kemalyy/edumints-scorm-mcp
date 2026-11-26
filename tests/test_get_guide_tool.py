@@ -48,7 +48,7 @@ async def test_old_skill_gets_notice():
 async def test_tool_registered_and_instructions_mention_it():
     async with Client(server.mcp) as c:
         names = {t.name for t in await c.list_tools()}
-    assert "get_guide" in names and len(names) == 47
+    assert "get_guide" in names and len(names) == 48
     assert "get_guide" in server.mcp.instructions and "2.4.0" in server.mcp.instructions
 
 

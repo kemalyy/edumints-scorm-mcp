@@ -9,7 +9,7 @@ from urllib.parse import quote
 
 import httpx
 
-from auth.ssrf import assert_safe_url, safe_fetch_asset
+from auth.ssrf import assert_safe_url_async, safe_fetch_asset
 from .base import Provenance, ProvenanceAdapter
 
 logger = logging.getLogger(__name__)
@@ -33,7 +33,7 @@ class OpenverseAdapter(ProvenanceAdapter):
             search_url = f"{OPENVERSE_API_BASE}/images/?q={quote(query)}&license=cc0,pdm&page_size=1"
             
             # SSRF Guard: API URL'sini doğrula
-            assert_safe_url(search_url)
+            await assert_safe_url_async(search_url)
 
             headers = {}
             if self.api_key:
@@ -85,7 +85,7 @@ class OpenverseAdapter(ProvenanceAdapter):
             search_url = f"{OPENVERSE_API_BASE}/images/?q={quote(query)}&license=cc0,pdm&page_size={limit}"
 
             # SSRF Guard: API URL'sini doğrula
-            assert_safe_url(search_url)
+            await assert_safe_url_async(search_url)
 
             headers = {}
             if self.api_key:

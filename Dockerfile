@@ -51,7 +51,7 @@ COPY server.py ./server.py
 COPY examples ./examples
 COPY tools ./tools
 
-RUN pip install --upgrade pip && pip install ".[tts]"
+RUN pip install --upgrade pip "setuptools>=84.1.0" && pip install ".[tts]"
 
 # kalıcı volume + non-root kullanıcı
 RUN mkdir -p /data && useradd -r -u 10001 -d /app appuser && chown -R appuser /app /data

@@ -48,6 +48,7 @@ class PreviewMeta(BaseModel):
     token: str
     project_id: str
     expires_at: datetime
+    allow_feedback: bool = True  # v1.9.1: False → yalnız görüntüleme (yorum yazılamaz)
 
 
 class DemoMeta(BaseModel):
@@ -118,6 +119,17 @@ class Store(ABC):
 
     async def set_principal_tier(self, principal_id: str, tier: str) -> None:
         return None
+
+    # v1.9.1 — açılışta yarım kalan işler
+    async def fail_active_jobs(self, reason: str) -> int:
+        return 0
+
+    # v1.9.1 — onay iptali: principal iptal edilince anahtarları devre dışı kalır, OAuth kapanır
+    async def set_principal_revoked(self, principal_id: str, revoked: bool) -> int:
+        return 0
+
+    async def is_principal_revoked(self, principal_id: str) -> bool:
+        return False
 
     # bir projenin son (süresi geçmemiş) preview token'ı (portal panel listesi için)
     async def latest_preview_for_project(self, project_id: str) -> "PreviewMeta | None":
@@ -207,7 +219,8 @@ class Store(ABC):
 
     # preview token'ları
     @abstractmethod
-    async def put_preview(self, token: str, project_id: str, ttl_sec: int) -> None: ...
+    async def put_preview(self, token: str, project_id: str, ttl_sec: int,
+                          allow_feedback: bool = True) -> None: ...
     @abstractmethod
     async def get_preview(self, token: str) -> PreviewMeta | None: ...
 
@@ -339,6 +352,14 @@ class SqliteStore(Store):
         for col in ("owner_principal", "created_at", "preview"):
             if col not in cols:
                 await self._db.execute(f"ALTER TABLE api_keys ADD COLUMN {col} TEXT")
+        async with self._db.execute("PRAGMA table_info(principals)") as cur:
+            pcols = {r[1] for r in await cur.fetchall()}
+        async with self._db.execute("PRAGMA table_info(previews)") as cur:
+            vcols = {r[1] for r in await cur.fetchall()}
+        if "allow_feedback" not in vcols:  # v1.9.1
+            await self._db.execute("ALTER TABLE previews ADD COLUMN allow_feedback INTEGER NOT NULL DEFAULT 1")
+        if "revoked_at" not in pcols:  # v1.9.1
+            await self._db.execute("ALTER TABLE principals ADD COLUMN revoked_at TEXT")
         await self._db.commit()
 
     # -- principal (kota sahibi: API-key id VEYA logto:<sub>) + tier --
@@ -366,6 +387,37 @@ class SqliteStore(Store):
                 (principal_id, tier, utcnow().isoformat()),
             )
             await self.db.commit()
+
+    async def set_principal_revoked(self, principal_id: str, revoked: bool) -> int:
+        """İptal: revoked_at yazılır + principal'ın TÜM anahtarları devre dışı (→ devre dışı bırakılan
+        sayısı). Geri alma: yalnız revoked_at temizlenir; eski anahtarlar devre dışı kalır."""
+        now = utcnow().isoformat()
+        async with self._wlock:
+            await self.db.execute(
+                "INSERT INTO principals(principal_id,tier,created_at,revoked_at) VALUES(?,?,?,?) "
+                "ON CONFLICT(principal_id) DO UPDATE SET revoked_at=excluded.revoked_at",
+                (principal_id, "standard", now, now if revoked else None),
+            )
+            n = 0
+            if revoked:
+                cur = await self.db.execute(
+                    "UPDATE api_keys SET disabled=1 WHERE owner_principal=? AND disabled=0", (principal_id,))
+                n = cur.rowcount or 0
+                # süreli paylaşım linkleri de kapanır (yeniden üretilebilir); kalıcı demolar silinmez,
+                # /demo rotası iptal edilen sahibin demolarını 404 döndürür (geri alınabilir)
+                await self.db.execute(
+                    "DELETE FROM previews WHERE project_id IN (SELECT id FROM projects WHERE owner_key_id=?)",
+                    (principal_id,))
+                await self.db.execute("DELETE FROM packages WHERE owner_key_id=?", (principal_id,))
+            await self.db.commit()
+        return n
+
+    async def is_principal_revoked(self, principal_id: str) -> bool:
+        async with self.db.execute(
+            "SELECT revoked_at FROM principals WHERE principal_id=?", (principal_id,)
+        ) as cur:
+            row = await cur.fetchone()
+        return bool(row and row["revoked_at"])
 
     async def close(self) -> None:
         if self._db:
@@ -578,16 +630,31 @@ class SqliteStore(Store):
             await self.db.commit()
 
     # -- preview --
-    async def put_preview(self, token: str, project_id: str, ttl_sec: int) -> None:
+    async def put_preview(self, token: str, project_id: str, ttl_sec: int,
+                          allow_feedback: bool = True) -> None:
         from datetime import timedelta
 
         exp = utcnow() + timedelta(seconds=ttl_sec)
         async with self._wlock:
             await self.db.execute(
-                "INSERT OR REPLACE INTO previews(token,project_id,expires_at) VALUES(?,?,?)",
-                (token, project_id, exp.isoformat()),
+                "INSERT OR REPLACE INTO previews(token,project_id,expires_at,allow_feedback) VALUES(?,?,?,?)",
+                (token, project_id, exp.isoformat(), 1 if allow_feedback else 0),
             )
             await self.db.commit()
+
+    async def delete_previews_for_project(self, project_id: str) -> list[str]:
+        """v1.9.1 — projenin TÜM preview token'larını iptal eder; silinen token'ları döndürür."""
+        async with self._wlock:
+            async with self.db.execute("SELECT token FROM previews WHERE project_id=?", (project_id,)) as cur:
+                toks = [r["token"] for r in await cur.fetchall()]
+            await self.db.execute("DELETE FROM previews WHERE project_id=?", (project_id,))
+            await self.db.commit()
+        return toks
+
+    async def packages_for_project(self, project_id: str) -> list[PackageMeta]:
+        async with self.db.execute("SELECT * FROM packages WHERE project_id=?", (project_id,)) as cur:
+            rows = await cur.fetchall()
+        return [_row_to_pkg(r) for r in rows]
 
     async def get_preview(self, token: str) -> PreviewMeta | None:
         async with self.db.execute(
@@ -597,7 +664,8 @@ class SqliteStore(Store):
         if not row:
             return None
         return PreviewMeta(token=row["token"], project_id=row["project_id"],
-                           expires_at=_dt(row["expires_at"]))
+                           expires_at=_dt(row["expires_at"]),
+                           allow_feedback=bool(row["allow_feedback"]) if "allow_feedback" in row.keys() else True)
 
     async def latest_preview_for_project(self, project_id: str) -> PreviewMeta | None:
         async with self.db.execute(
@@ -609,7 +677,8 @@ class SqliteStore(Store):
         if not row:
             return None
         return PreviewMeta(token=row["token"], project_id=row["project_id"],
-                           expires_at=_dt(row["expires_at"]))
+                           expires_at=_dt(row["expires_at"]),
+                           allow_feedback=bool(row["allow_feedback"]) if "allow_feedback" in row.keys() else True)
 
     async def expired_previews(self, now: datetime) -> list[PreviewMeta]:
         async with self.db.execute(
@@ -785,6 +854,14 @@ class SqliteStore(Store):
                 (job.status, job.package_id, job.error, _iso(job.finished_at), job.id),
             )
             await self.db.commit()
+
+    async def fail_active_jobs(self, reason: str) -> int:
+        async with self._wlock:
+            cur = await self.db.execute(
+                "UPDATE jobs SET status='error', error=?, finished_at=? WHERE status IN ('queued','running')",
+                (reason, utcnow().isoformat()))
+            await self.db.commit()
+        return cur.rowcount or 0
 
     async def active_job_for_project(self, project_id: str) -> BuildJob | None:
         async with self.db.execute(

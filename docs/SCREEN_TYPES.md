@@ -680,7 +680,8 @@ Sonraki ekranda geri oynatma:
 Keyfi **kendine-yeten HTML**'i (Claude artifact, tek dosyalık uygulama/simülasyon)
 sandbox'lı bir iframe içinde çalıştırır ve LMS'e izlenebilir hâle getirir. HTML
 **sanitize EDİLMEZ** — kasıtlı tam uygulama; izolasyon iframe sandbox'ıyla sağlanır
-(`allow-scripts allow-same-origin allow-forms allow-popups`).
+(`allow-scripts allow-forms allow-popups` — v1.9.1'den beri `allow-same-origin` YOK: artifact her
+modda opak kökende çalışır, kurs sayfasına ve LMS API'sine erişemez; tek kanal postMessage köprüsü).
 
 HTML, JSON blob'da değil **filesystem asset'inde** saklanır: önce `html_to_asset`
 (ham HTML → `text/html` asset) ile yükle, dönen `id`'yi `html_asset_id`'ye ver — ya da

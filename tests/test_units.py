@@ -54,8 +54,14 @@ def test_ssrf_metadata_host_blocked():
 
 
 def test_data_uri_decode():
-    data, mime = decode_data_uri("data:image/png;base64,aGVsbG8=", max_bytes=100)
-    assert data == b"hello" and mime == "image/png"
+    # v1.9.1: image/* içerik imzası zorunlu — "hello" artık image/png sayılmaz
+    import base64
+
+    png = b"\x89PNG\r\n\x1a\nabc"
+    data, mime = decode_data_uri("data:image/png;base64," + base64.b64encode(png).decode(), max_bytes=100)
+    assert data == png and mime == "image/png"
+    data, mime = decode_data_uri("data:text/plain;base64,aGVsbG8=", max_bytes=100)
+    assert data == b"hello" and mime == "text/plain"
 
 
 def test_data_uri_size_limit():
@@ -1725,7 +1731,7 @@ async def test_w11_openverse_adapter_search_maps_results():
         }]
     }
 
-    with patch("core.integrations.openverse.assert_safe_url") as mock_assert, \
+    with patch("core.integrations.openverse.assert_safe_url_async") as mock_assert, \
          patch("httpx.AsyncClient.get") as mock_get, \
          patch("core.integrations.openverse.safe_fetch_asset") as mock_fetch:
         mock_get.return_value = MagicMock(status_code=200, json=lambda: mock_api_resp)
@@ -1753,7 +1759,7 @@ async def test_w11_openverse_adapter_search_graceful_on_error():
     from unittest.mock import MagicMock, patch
     from core.integrations.openverse import OpenverseAdapter
 
-    with patch("core.integrations.openverse.assert_safe_url"), \
+    with patch("core.integrations.openverse.assert_safe_url_async"), \
          patch("httpx.AsyncClient.get") as mock_get:
         mock_get.return_value = MagicMock(status_code=500)
         adapter = OpenverseAdapter()
@@ -1767,7 +1773,7 @@ async def test_w11_openverse_adapter_search_encodes_query():
     from unittest.mock import MagicMock, patch
     from core.integrations.openverse import OpenverseAdapter
 
-    with patch("core.integrations.openverse.assert_safe_url"), \
+    with patch("core.integrations.openverse.assert_safe_url_async"), \
          patch("httpx.AsyncClient.get") as mock_get, \
          patch("core.integrations.openverse.safe_fetch_asset"):
         mock_get.return_value = MagicMock(status_code=200, json=lambda: {"results": []})
@@ -1814,7 +1820,7 @@ async def test_w11_wikimedia_adapter_search_filters_by_license():
         }
     }
 
-    with patch("core.integrations.wikimedia.assert_safe_url") as mock_assert, \
+    with patch("core.integrations.wikimedia.assert_safe_url_async") as mock_assert, \
          patch("httpx.AsyncClient.get") as mock_get, \
          patch("core.integrations.wikimedia.safe_fetch_asset") as mock_fetch:
         mock_get.return_value = MagicMock(status_code=200, json=lambda: mock_api_resp)

@@ -37,6 +37,7 @@ from auth import (
     verify_key,
 )
 from auth.oauth import make_jwt_verifier
+from auth.ssrf import DEFAULT_ALLOWED_MIMES, HTML_MIMES, check_extension
 from core.packager import Packager
 from core.project import (
     CompositionDefaults,
@@ -88,6 +89,12 @@ class Settings:
         # SP-5 — ANTISLOP_STRICT=1: sunucu genelinde strict anti-slop VARSAYILANI (tool'ların
         # strict parametresi verilmediğinde geçerli; açık strict=True/False her zaman kazanır).
         self.antislop_strict = os.environ.get("ANTISLOP_STRICT", "0") in ("1", "true", "yes")
+        # v1.9.1 — portalın onay iptali/geri alma çağrıları için paylaşılan sır; boşsa uçlar kapalı (404)
+        self.admin_api_token = os.environ.get("ADMIN_API_TOKEN", "").strip()
+        # v1.9.1 — dizin profili: Anthropic Software Directory Policy model tabanlı TTS'i desteklemez →
+        # synthesize_speech gizlenir ve build_from_spec auto_tts yolu kapanır. ChatGPT alan doğrulama token'ı.
+        self.directory_profile = os.environ.get("DIRECTORY_PROFILE", "0") in ("1", "true", "yes")
+        self.openai_apps_challenge = os.environ.get("OPENAI_APPS_CHALLENGE", "").strip()
         self.scorm_default_version = os.environ.get("SCORM_DEFAULT_VERSION", "1.2")
         self.preview_ttl_min = int(os.environ.get("PREVIEW_TTL_MIN", "60"))
         self.auth_enabled = os.environ.get("SCORM_AUTH_ENABLED", "1") not in ("0", "false", "")
@@ -157,6 +164,7 @@ class Services:
                 public_base_url=SETTINGS.public_base_url,
                 package_ttl_days=SETTINGS.package_ttl_days,
             )
+            await self.packager.recover_orphans()  # v1.9.1
             await self.packager.start_ttl_cleaner()
             _jwt_verifier()  # C1: JWT doğrulayıcıyı startup'ta warm et (lazy-global race'i önler)
             self._ready = True
@@ -175,7 +183,8 @@ def _build_auth():
         return None
     from auth.oauth import ApiKeyVerifier, build_auth_provider
 
-    api_key_verifier = ApiKeyVerifier(ensure=SVC.ensure, get_key=lambda raw: SVC.store.get_key(raw))
+    api_key_verifier = ApiKeyVerifier(ensure=SVC.ensure, get_key=lambda raw: SVC.store.get_key(raw),
+                                      is_revoked=lambda pid: SVC.store.is_principal_revoked(pid))
     return build_auth_provider(
         issuer=SETTINGS.logto_issuer,
         jwks_uri=SETTINGS.logto_jwks,
@@ -201,7 +210,100 @@ from core.guides import load_meta as _load_guide_meta  # noqa: E402
 
 mcp = FastMCP(name="scorm-mcp", auth=_build_auth(), instructions=_guide_instructions(_load_guide_meta()))
 
+# v1.9.1 — araç annotation'ları (Claude/ChatGPT dizinleri zorunlu tutar). Sınıflandırma GERÇEK yan
+# etkiye göre: R = salt okunur, D = yıkıcı (siler/üzerine yazar), W = yazar ama yıkıcı değil.
+# İkinci harf grubu: I = idempotent, O = açık dünya (dış ağa çıkar / herkese açık yayın).
+# Tabloda olmayan araç tanımlanırsa açılış hata verir (sessizce annotation'sız kalmasın).
+_TOOL_META: dict[str, tuple[str, str]] = {
+    "create_project": ("Create SCORM project", "W"),
+    "add_screen": ("Add screen", "W"),
+    "update_screen": ("Replace screen", "DI"),
+    "list_screens": ("List screens", "R"),
+    "lint_course": ("Lint course quality", "R"),
+    "export_qti": ("Export quiz as QTI 2.1", "R"),
+    "remove_screen": ("Remove screen", "DI"),
+    "reorder_screens": ("Reorder screens", "WI"),
+    "set_theme": ("Set theme", "WI"),
+    "set_tracking": ("Set completion tracking", "WI"),
+    "add_asset": ("Add asset from data URI or URL", "WO"),
+    "svg_to_asset": ("Add SVG diagram asset", "W"),
+    "html_to_asset": ("Add HTML asset", "W"),
+    "wrap_artifact": ("Wrap HTML artifact as course", "WO"),
+    "search_images": ("Search public-domain images", "RO"),
+    "make_video_from_image_audio": ("Make video from image and audio", "W"),
+    "normalize_audio_asset": ("Normalize audio asset", "W"),
+    "synthesize_speech": ("Synthesize narration", "W"),
+    "render_motion_video": ("Render motion-graphic video", "W"),
+    "render_screen_video": ("Render screen as video", "W"),
+    "preview": ("Preview course", "W"),
+    "publish_demo": ("Publish public demo link", "DIO"),  # aynı slug'a yayın içeriği ezer
+    "list_demos": ("List demo links", "R"),
+    "unpublish_demo": ("Unpublish demo link", "DI"),
+    "revoke_links": ("Revoke preview and download links", "DI"),
+    "build_package": ("Build SCORM package", "W"),
+    "build_status": ("Check build status", "R"),
+    "validate_package": ("Validate package", "R"),
+    "build_from_spec": ("Build course from spec", "WO"),
+    "list_feedback": ("List reviewer feedback", "R"),
+    "resolve_feedback": ("Resolve reviewer feedback", "WI"),
+    "list_screen_types": ("List screen types", "R"),
+    "list_themes": ("List themes", "R"),
+    "list_compositions": ("List composition patterns", "R"),
+    "get_guide": ("Get authoring guide", "R"),
+    "set_composition": ("Set composition mode", "WI"),
+    "set_screen_composition": ("Set screen composition", "WI"),
+    "create_scenario": ("Create scenario", "W"),
+    "scenario_upsert_node": ("Upsert scenario node", "WI"),
+    "scenario_upsert_page": ("Upsert scenario page", "WI"),
+    "scenario_reorder": ("Reorder scenario pages", "WI"),
+    "scenario_tree": ("Show scenario tree", "R"),
+    "scenario_gaps": ("Check scenario gaps", "R"),
+    "scenario_compile": ("Compile scenario to spec", "R"),
+    "scenario_delete_node": ("Delete scenario node", "DI"),
+    "scenario_delete_page": ("Delete scenario page", "DI"),
+    "fill_media_slot": ("Fill scenario media slot", "WO"),
+    "match_media_manifest": ("Match media manifest", "R"),
+}
+
+
+def _annotations_for(name: str):
+    from mcp.types import ToolAnnotations
+    if name not in _TOOL_META:
+        raise RuntimeError(f"_TOOL_META'da annotation yok: {name} (dizin başvurusu zorunlu tutar)")
+    title, kind = _TOOL_META[name]
+    ro = kind.startswith("R")
+    return ToolAnnotations(title=title, readOnlyHint=ro, destructiveHint=None if ro else kind.startswith("D"),
+                           idempotentHint=True if ro else ("I" in kind), openWorldHint="O" in kind)
+
+
+_mcp_tool = mcp.tool
+
+
+def _annotated_tool(fn=None, **kw):
+    if fn is None:
+        return lambda f: _annotated_tool(f, **kw)
+    kw.setdefault("annotations", _annotations_for(fn.__name__))
+    return _mcp_tool(fn, **kw)
+
+
+mcp.tool = _annotated_tool
+
 from auth.ratelimit import RateLimiter  # noqa: E402
+from fastmcp.server.middleware import Middleware  # noqa: E402
+
+from auth.keys import reservation_scope  # noqa: E402
+
+
+class _QuotaScopeMiddleware(Middleware):
+    """v1.9.1 — her araç çağrısı bir kota rezervasyon kapsamıdır: kapsam içinde alınan kota
+    rezervasyonları çağrı bitince (yazma DB'ye işlenmiş olarak) bırakılır."""
+
+    async def on_call_tool(self, context, call_next):
+        with reservation_scope():
+            return await call_next(context)
+
+
+mcp.add_middleware(_QuotaScopeMiddleware())
 
 _RATE_LIMITER = RateLimiter(capacity=SETTINGS.rate_limit_per_min, refill_per_sec=SETTINGS.rate_limit_per_min / 60.0)
 
@@ -242,13 +344,17 @@ async def _owner_resolve() -> ApiKey:
         # OAuth (Logto) kullanıcısı — C5: onay = scorm 'mcp' scope (mcp-user/portal-admin rolü).
         # Scope yoksa kullanıcı onaysız → forbidden (araçlar açılmaz). API-key yolu bu noktaya gelmez
         # (üstte erken döner; ApiKeyVerifier zaten scopes=['mcp'] verir).
-        sub = getattr(tok, "subject", None) or claims.get("sub") or "unknown"
+        sub = getattr(tok, "subject", None) or claims.get("sub")
+        if not sub:  # v1.9.1: sub'sız token'lar ortak "unknown" principal'ını paylaşmasın
+            raise ToolError("unauthorized", "Token kullanıcı kimliği (sub) taşımıyor")
         if "mcp" not in (getattr(tok, "scopes", None) or []):
             raise ToolError(
                 "forbidden",
                 "Hesabın henüz onaylanmadı. Bir yönetici onayladıktan sonra araçlar açılır "
                 "(mcp.edumints.com). Onaylandıysan Claude'da connector'ı yeniden bağla.",
             )
+        if await SVC.store.is_principal_revoked(f"logto:{sub}"):  # v1.9.1: onay kaldırıldı
+            raise ToolError("forbidden", "Hesabının erişimi kaldırıldı (yönetici). Destek: mcp.edumints.com")
         return ApiKey(
             id=f"logto:{sub}", label="logto-user", key_hash="",
             max_projects=SETTINGS.max_projects_per_key, max_total_mb=SETTINGS.max_project_mb,
@@ -303,6 +409,8 @@ async def _validate_bearer(raw: str | None) -> tuple[ApiKey | None, list[str]]:
             return None, []
         # principal = owner_principal (kimliğe bağlı) VEYA key.id (eski). Route'lar owner.id'yi principal sayar.
         pid = k.owner_principal or k.id
+        if await SVC.store.is_principal_revoked(pid):  # yarışla eklenmiş anahtar dahil
+            return None, []
         owner = ApiKey(
             id=pid, label=k.label, key_hash="",
             max_projects=k.max_projects, max_total_mb=k.max_total_mb,
@@ -314,7 +422,11 @@ async def _validate_bearer(raw: str | None) -> tuple[ApiKey | None, list[str]]:
     at = await v.verify_token(raw)
     if at is None:
         return None, []
-    sub = getattr(at, "subject", None) or (getattr(at, "claims", None) or {}).get("sub") or "unknown"
+    sub = getattr(at, "subject", None) or (getattr(at, "claims", None) or {}).get("sub")
+    # v1.9.1: sub'sız token reddedilir; onayı kaldırılan kullanıcının hâlâ geçerli JWT'si HTTP
+    # rotalarında da (yeni anahtar üretme dahil) çalışmaz
+    if not sub or await SVC.store.is_principal_revoked(f"logto:{sub}"):
+        return None, []
     owner = ApiKey(
         id=f"logto:{sub}", label="logto-user", key_hash="",
         max_projects=SETTINGS.max_projects_per_key, max_total_mb=SETTINGS.max_project_mb,
@@ -507,14 +619,15 @@ async def _render_preview_html(
     )
 
 
-async def _build_preview(p: Project) -> tuple[str, str]:
-    """Önizleme render eder, diske + DB'ye TTL'li yazar. → (token, html)."""
-    html = await _render_preview_html(p, review=True)
+async def _build_preview(p: Project, allow_feedback: bool = True) -> tuple[str, str]:
+    """Önizleme render eder, diske + DB'ye TTL'li yazar. → (token, html). v1.9.1: allow_feedback=False
+    → yalnız görüntüleme linki (yorum arayüzü basılmaz, /feedback 403)."""
+    html = await _render_preview_html(p, review=allow_feedback)
     token = secrets.token_urlsafe(18)
     out = Path(SETTINGS.data_dir) / "previews" / f"{token}.html"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(html, encoding="utf-8")
-    await SVC.store.put_preview(token, p.id, SETTINGS.preview_ttl_min * 60)
+    await SVC.store.put_preview(token, p.id, SETTINGS.preview_ttl_min * 60, allow_feedback=allow_feedback)
     return token, html
 
 
@@ -809,6 +922,7 @@ async def add_asset(project_id: str, source: str, filename: str) -> AssetRef:
             data, mime = decode_data_uri(source, max_bytes=max_bytes)
         else:
             data, mime = await safe_fetch_asset(source, max_bytes=max_bytes)
+        check_extension(filename, mime)  # v1.9.1: .html/.svg uzantısı MIME etiketini atlatamaz
         await enforce_size_quota(SVC.store, owner, len(data))
         existing = {a.rel_path for a in p.assets}
         rel = _safe_filename(filename, existing)
@@ -901,6 +1015,9 @@ async def html_to_asset(project_id: str, html_content: str, filename: str = "app
 # text/plain ile servis eder. Güvenlik farkı yok — çekilen mime kullanılmaz, asset her hâlde
 # "text/html" olarak saklanır ve html_content yolu zaten keyfi string kabul eder.
 _ARTIFACT_ALLOWED_MIMES = ("text/html", "application/xhtml+xml", "text/plain")
+# v1.9.1 — build_from_spec assets: varsayılan liste + bilinçli HTML profili (embed_html ekranları);
+# data-URI ve URL yolu bu listeyi BİRLİKTE kullanır. add_asset / yuva ingest varsayılan listede kalır.
+_SPEC_ASSET_MIMES = DEFAULT_ALLOWED_MIMES + HTML_MIMES
 
 
 @mcp.tool
@@ -1178,7 +1295,7 @@ async def render_screen_video(
 
 
 @mcp.tool
-async def preview(project_id: str, include_html: bool = False) -> PreviewOut:
+async def preview(project_id: str, include_html: bool = False, allow_feedback: bool = True) -> PreviewOut:
     """Tek-dosya, harici bağımlılıksız önizleme üretir + hosted URL döndürür.
 
     v1.8.1: varsayılan yanıt HAFİF — `hosted_url`, `compositions`, `composition_questions`,
@@ -1188,12 +1305,15 @@ async def preview(project_id: str, include_html: bool = False) -> PreviewOut:
     BÜYÜK ÇIKTI UYARISI: `inline_html` tek dosyada her şeyi taşır (taban ~546 KB) ve gömülü
     artifact/asset'ler data-URI olarak base64'lenir (≈ boyut × 1.33; `html_to_asset` 25 MB'a
     kadar kabul eder). `wrap_artifact` ile sarılmış bir artifact'te `inline_html`'i bağlama
-    çekmek yerine `hosted_url`'i kullan/paylaş."""
+    çekmek yerine `hosted_url`'i kullan/paylaş.
+
+    v1.9.1: `allow_feedback=false` → yalnız görüntüleme linki (linki alan yorum yazamaz). Linki kapatmak
+    için `revoke_links`."""
     await SVC.ensure()
     try:
         owner = await _owner()
         p = await _load(project_id, owner)
-        token, html = await _build_preview(p)
+        token, html = await _build_preview(p, allow_feedback=allow_feedback)
         return PreviewOut(
             inline_html=html if include_html else None,
             size_bytes=len(html.encode("utf-8")),
@@ -1201,6 +1321,30 @@ async def preview(project_id: str, include_html: bool = False) -> PreviewOut:
             compositions=_comp_summary(p),
             composition_questions=_comp_questions(p),
         )
+    except ToolError as e:
+        raise _wrap(e)
+
+
+@mcp.tool
+async def revoke_links(project_id: str) -> dict:
+    """Projenin TÜM paylaşım linklerini hemen kapatır: önizleme (`/preview/…`, yorum dahil) ve indirme
+    (`/files/…`) linkleri 404 döner. Proje ve kalıcı demo (`unpublish_demo` ayrı) etkilenmez; yeni link için
+    `preview` / `build_package`. Hassas içerik yanlış kişiyle paylaşıldıysa kullan. Sürmekte olan bir build
+    bittiğinde yeni bir indirme linki oluşabilir — gerekirse build bittikten sonra tekrar çağır."""
+    await SVC.ensure()
+    try:
+        owner = await _owner()
+        p = await _load(project_id, owner)
+        toks = await SVC.store.delete_previews_for_project(p.id)
+        for t in toks:
+            (Path(SETTINGS.data_dir) / "previews" / f"{t}.html").unlink(missing_ok=True)
+        pkgs = await SVC.store.packages_for_project(p.id)
+        for m in pkgs:
+            await SVC.store.delete_package(m.id)
+            (Path(SETTINGS.data_dir) / m.rel_path).unlink(missing_ok=True)
+        logger.info("event=links_revoked owner=%s project_id=%s previews=%d packages=%d",
+                    owner.id, p.id, len(toks), len(pkgs))
+        return {"project_id": p.id, "previews_revoked": len(toks), "packages_revoked": len(pkgs)}
     except ToolError as e:
         raise _wrap(e)
 
@@ -1453,12 +1597,15 @@ async def build_from_spec(spec: dict, strict: bool | None = None) -> BuildFromSp
                 fname = ainp.filename or f"{ainp.id or 'diagram'}.svg"
                 if not fname.lower().endswith(".svg"):
                     fname += ".svg"
-            elif ainp.source.startswith("data:"):
-                data, mime = decode_data_uri(ainp.source, max_bytes=max_bytes)
+            elif ainp.source.startswith("data:"):  # v1.9.1: iki yol AYNI liste (HTML: embed_html)
+                data, mime = decode_data_uri(ainp.source, max_bytes=max_bytes, allowed_mimes=_SPEC_ASSET_MIMES)
                 fname = ainp.filename
             else:
-                data, mime = await safe_fetch_asset(ainp.source, max_bytes=max_bytes)
+                data, mime = await safe_fetch_asset(ainp.source, max_bytes=max_bytes,
+                                                    allowed_mimes=_SPEC_ASSET_MIMES)
                 fname = ainp.filename
+            if ainp.svg is None:
+                check_extension(fname, mime, html_ok=True)
             await enforce_size_quota(SVC.store, owner, len(data))
             rel = _safe_filename(fname, existing)
             existing.add(rel)
@@ -1471,7 +1618,11 @@ async def build_from_spec(spec: dict, strict: bool | None = None) -> BuildFromSp
 
         # W9 — opt-in otomatik narration TTS: narration_text dolu + narration_asset_id boş ekranlar.
         # Piper yoksa SESSİZCE atlanır (build kırılmaz; narration_text CC olarak kalır).
-        if spec.auto_tts:
+        spec_warnings: list[str] = []
+        if spec.auto_tts and SETTINGS.directory_profile:  # v1.9.1: dizin profilinde TTS kapalı
+            spec_warnings.append("auto_tts bu sunucuda kapalı (dizin profili): seslendirmeyi kendi TTS "
+                                 "aracınla üretip add_asset ile ekle; narration_text altyazı olarak kalır.")
+        elif spec.auto_tts:
             from core import tts, media
             if tts.piper_available(spec.tts_voice):
                 for s in p.screens:
@@ -1504,7 +1655,7 @@ async def build_from_spec(spec: dict, strict: bool | None = None) -> BuildFromSp
         out = await _job_to_out(job, p)
         return BuildFromSpecOut(
             project_id=p.id, job_id=job.id, status=job.status, download_url=out.download_url,
-            warnings=out.warnings,
+            warnings=spec_warnings + list(out.warnings),
         )
     except ToolError as e:
         raise _wrap(e)
@@ -2254,6 +2405,8 @@ async def create_key(request: Request) -> JSONResponse:
         owner_principal=owner.id, created_at=utcnow(),
         preview=raw[:10] + "…" + raw[-4:],  # maskeli gösterim; ham key saklanmaz
     )
+    if await SVC.store.is_principal_revoked(owner.id):  # doğrulama ile yazma arasında iptal edildiyse
+        return JSONResponse({"error": "forbidden", "detail": "access revoked"}, status_code=403)
     await SVC.store.upsert_key(key, raw_key=raw)
     logger.info("event=key_create owner=%s key_id=%s", owner.id, key.id)
     return JSONResponse({"api_key": raw, "key_id": key.id, "principal": owner.id})
@@ -2369,26 +2522,40 @@ async def projects_list(request: Request) -> JSONResponse:
     })
 
 
-@mcp.custom_route("/files/{token}", methods=["GET"])
-async def files(request: Request):
-    await SVC.ensure()
-    token = request.path_params["token"]
-    meta = await SVC.store.get_package_by_token(token)
+# v1.9.1  — capability URL'leri (/files, /preview, /feedback) tek geçerlilik kuralı + gizlilik
+# başlıkları: link başka siteye Referer ile sızmasın, ara önbelleklerde kalmasın.
+_CAPABILITY_HEADERS = {"Referrer-Policy": "no-referrer", "Cache-Control": "private, no-store",
+                       "X-Content-Type-Options": "nosniff"}
+
+
+def _capability_status(meta) -> int | None:
+    """Token meta'sı → None (geçerli) | 404 (yok) | 410 (süresi dolmuş)."""
     if meta is None:
-        return PlainTextResponse("not found", status_code=404)
+        return 404
     exp = meta.expires_at
     if exp.tzinfo is None:
         from datetime import timezone
 
         exp = exp.replace(tzinfo=timezone.utc)
-    if exp < utcnow():
-        return PlainTextResponse("expired", status_code=410)
+    return 410 if exp < utcnow() else None
+
+
+_CAPABILITY_TEXT = {404: "not found", 410: "expired"}
+
+
+@mcp.custom_route("/files/{token}", methods=["GET"])
+async def files(request: Request):
+    await SVC.ensure()
+    token = request.path_params["token"]
+    meta = await SVC.store.get_package_by_token(token)
+    if (code := _capability_status(meta)) is not None:
+        return PlainTextResponse(_CAPABILITY_TEXT[code], status_code=code, headers=_CAPABILITY_HEADERS)
     path = Path(SETTINGS.data_dir) / meta.rel_path
     if not path.exists():
-        return PlainTextResponse("gone", status_code=410)
+        return PlainTextResponse("gone", status_code=410, headers=_CAPABILITY_HEADERS)
     return FileResponse(
         str(path), media_type="application/zip",
-        filename=f"{meta.project_id}.zip",
+        filename=f"{meta.project_id}.zip", headers=_CAPABILITY_HEADERS,
     )
 
 
@@ -2397,19 +2564,12 @@ async def preview_route(request: Request):
     await SVC.ensure()
     token = request.path_params["token"]
     meta = await SVC.store.get_preview(token)
-    if meta is None:
-        return PlainTextResponse("not found", status_code=404)
-    exp = meta.expires_at
-    if exp.tzinfo is None:
-        from datetime import timezone
-
-        exp = exp.replace(tzinfo=timezone.utc)
-    if exp < utcnow():
-        return PlainTextResponse("expired", status_code=410)
+    if (code := _capability_status(meta)) is not None:
+        return PlainTextResponse(_CAPABILITY_TEXT[code], status_code=code, headers=_CAPABILITY_HEADERS)
     path = Path(SETTINGS.data_dir) / "previews" / f"{token}.html"
     if not path.exists():
-        return PlainTextResponse("gone", status_code=410)
-    return HTMLResponse(path.read_text(encoding="utf-8"))
+        return PlainTextResponse("gone", status_code=410, headers=_CAPABILITY_HEADERS)
+    return HTMLResponse(path.read_text(encoding="utf-8"), headers=_CAPABILITY_HEADERS)
 
 
 # 1.3 — /demo TTL'siz kalıcı yayın olduğu için içerik-tabanlı ETag + orta ömürlü Cache-Control
@@ -2449,6 +2609,9 @@ async def demo_route(request: Request):
     path = Path(SETTINGS.data_dir) / "demos" / f"{slug}.html"
     if not path.exists():
         return PlainTextResponse("not found", status_code=404)
+    meta = await SVC.store.get_demo(slug)  # v1.9.1: iptal edilen sahibin demosu yayından kalkar
+    if meta is not None and await SVC.store.is_principal_revoked(meta.owner_key_id):
+        return PlainTextResponse("not found", status_code=404)
     data = path.read_bytes()
     etag = _etag_for(data)
     headers = {
@@ -2461,13 +2624,90 @@ async def demo_route(request: Request):
     return HTMLResponse(data.decode("utf-8"), headers=headers)
 
 
+_PRINCIPAL_RE = re.compile(r"^(logto:[A-Za-z0-9_\-]+|key_[A-Za-z0-9_\-]+)$")
+
+
+async def _admin_principal(request: Request, revoked: bool) -> JSONResponse:
+    """v1.9.1 — portal yöneticisi onayı kaldırınca/geri verince çağırır (ADMIN_API_TOKEN)."""
+    import hmac
+
+    if not SETTINGS.admin_api_token:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    raw = parse_bearer(dict(request.headers)) or ""
+    if not hmac.compare_digest(raw.encode(), SETTINGS.admin_api_token.encode()):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    try:
+        body = await request.json()
+        principal = body.get("principal") if isinstance(body, dict) else None
+    except Exception:  # noqa: BLE001
+        principal = None
+    if not isinstance(principal, str) or len(principal) > 200 or not _PRINCIPAL_RE.match(principal):
+        return JSONResponse({"error": "principal gerekli"}, status_code=400)
+    await SVC.ensure()
+    n = await SVC.store.set_principal_revoked(principal, revoked)
+    logger.info("admin principal %s: %s (keys_disabled=%d)", "revoke" if revoked else "restore", principal, n)
+    return JSONResponse({"ok": True, "principal": principal, "revoked": revoked, "keys_disabled": n})
+
+
+@mcp.custom_route("/admin/principals/revoke", methods=["POST"])
+async def admin_revoke_principal(request: Request) -> JSONResponse:
+    return await _admin_principal(request, True)
+
+
+@mcp.custom_route("/admin/principals/restore", methods=["POST"])
+async def admin_restore_principal(request: Request) -> JSONResponse:
+    return await _admin_principal(request, False)
+
+
+@mcp.custom_route("/.well-known/openai-apps-challenge", methods=["GET"])
+async def openai_apps_challenge(request: Request):
+    """v1.9.1 — ChatGPT uygulama dizini alan doğrulaması: OPENAI_APPS_CHALLENGE düz metin."""
+    if not SETTINGS.openai_apps_challenge:
+        return PlainTextResponse("not found", status_code=404)
+    return PlainTextResponse(SETTINGS.openai_apps_challenge)
+
+
+def _apply_directory_profile(enabled: bool) -> None:
+    """Dizin profili: model tabanlı TTS aracı tools/list'ten çıkar (build_from_spec yolu ayrıca kapalı)."""
+    SETTINGS.directory_profile = enabled
+    if enabled:
+        mcp.disable(names={"synthesize_speech"})
+    else:
+        mcp.enable(names={"synthesize_speech"})
+
+
+_FEEDBACK_MAX_BYTES = 16 * 1024
+_FEEDBACK_LIMITER = RateLimiter(capacity=20, refill_per_sec=20 / 60.0)  # token başına dakikada 20 yorum
+# v1.9.1 — kimliksiz uç: token DB'de aranmadan önce istemci başına sınır (geçersiz token taraması)
+_FEEDBACK_IP_LIMITER = RateLimiter(capacity=60, refill_per_sec=60 / 60.0)
+
+
+def _client_ip(request: Request) -> str:
+    """Ters proxy arkasında X-Forwarded-For'un SON girdisi (proxy'nin eklediği), yoksa bağlantı adresi.
+    Token başına sınır ayrıca uygulanır."""
+    fwd = request.headers.get("x-forwarded-for", "")
+    # son girdi: ters proxy'nin eklediği (istemcinin yazdığı ilk girdiler sahtelenebilir)
+    return (fwd.split(",")[-1].strip() if fwd else "") or (request.client.host if request.client else "?")
+
+
 @mcp.custom_route("/feedback", methods=["POST"])
 async def feedback_submit(request: Request) -> JSONResponse:
     """Preview annotation (Faz 2): reviewer ekrana yorum bırakır. Yetki = preview_token (capability);
     token → project_id çözülür. Claude yorumları `list_feedback` aracıyla okuyup uygular."""
     await SVC.ensure()
+    # v1.9.1 — gövde sınırı: büyük gövde belleğe okunmadan reddedilir (sonradan kırpmak sınır değildir)
+    declared = request.headers.get("content-length")
+    if declared and declared.isdigit() and int(declared) > _FEEDBACK_MAX_BYTES:
+        return JSONResponse({"error": "payload_too_large"}, status_code=413)
+    raw = bytearray()
+    async for chunk in request.stream():
+        raw.extend(chunk)
+        if len(raw) > _FEEDBACK_MAX_BYTES:
+            return JSONResponse({"error": "payload_too_large"}, status_code=413)
     try:
-        body = await request.json()
+        body = json.loads(bytes(raw) or b"{}")
+        if not isinstance(body, dict):
+            raise ValueError
     except Exception:  # noqa: BLE001
         return JSONResponse({"error": "bad_request"}, status_code=400)
     token = str(body.get("preview_token") or "").strip()
@@ -2477,9 +2717,16 @@ async def feedback_submit(request: Request) -> JSONResponse:
     screen_id = body.get("screen_id") or None
     if not token or not comment:
         return JSONResponse({"error": "preview_token ve comment gerekli"}, status_code=400)
+    if not _FEEDBACK_IP_LIMITER.allow(f"ip:{_client_ip(request)}"):  # v1.9.1: DB'den önce
+        return JSONResponse({"error": "rate_limited"}, status_code=429)
     meta = await SVC.store.get_preview(token)
-    if meta is None:
-        return JSONResponse({"error": "geçersiz preview token"}, status_code=404)
+    if (code := _capability_status(meta)) is not None:  # v1.9.1: süresi dolmuş token yazamaz
+        msg = "geçersiz preview token" if code == 404 else "preview token'ının süresi dolmuş"
+        return JSONResponse({"error": msg}, status_code=code)
+    if not meta.allow_feedback:  # v1.9.1: yalnız görüntüleme linki
+        return JSONResponse({"error": "bu önizleme linki yorum kabul etmiyor"}, status_code=403)
+    if not _FEEDBACK_LIMITER.allow(f"fb:{token}"):
+        return JSONResponse({"error": "rate_limited"}, status_code=429)
     fb = Feedback(id=new_feedback_id(), project_id=meta.project_id,
                   screen_id=str(screen_id)[:128] if screen_id else None, comment=comment[:2000])
     await SVC.store.add_feedback(fb)
@@ -2489,6 +2736,25 @@ async def feedback_submit(request: Request) -> JSONResponse:
 # --------------------------------------------------------------------------- #
 # Giriş noktası
 # --------------------------------------------------------------------------- #
+class _TokenMaskFilter(logging.Filter):
+    """v1.9.1 — erişim loglarında capability token'ları maskelenir (ilk 6 karakter + …)."""
+
+    _RE = re.compile(r"(/(?:files|preview)/)([A-Za-z0-9_\-]{6})[A-Za-z0-9_\-]*")
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.args, tuple):
+            record.args = tuple(self._RE.sub(r"\1\2…", a) if isinstance(a, str) else a for a in record.args)
+        elif isinstance(record.msg, str):
+            record.msg = self._RE.sub(r"\1\2…", record.msg)
+        return True
+
+
+logging.getLogger("uvicorn.access").addFilter(_TokenMaskFilter())
+
+if SETTINGS.directory_profile:
+    _apply_directory_profile(True)
+
+
 def main() -> None:
     transport = os.environ.get("MCP_TRANSPORT", "http")
     if transport == "stdio":

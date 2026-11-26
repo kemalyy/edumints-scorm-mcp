@@ -21,6 +21,8 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from pathlib import Path
 
+from auth.errors import ToolError
+
 from .manifest import build_manifest
 from .project import Project, new_job_id, new_package_id, utcnow
 from .schema_validate import SCHEMA_UNAVAILABLE
@@ -55,6 +57,11 @@ class Packager:
         self.ttl_days = package_ttl_days
         self.executor = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="build")
         self._tasks: dict[str, asyncio.Task] = {}
+        # v1.9.1 — kuyruk kapasitesi + principal başına eşzamanlılık; tek-node varsayımı (süreç içi)
+        self.queue_max = int(os.environ.get("BUILD_QUEUE_MAX", "32"))
+        self.per_principal = int(os.environ.get("BUILD_PER_PRINCIPAL", "3"))
+        self._task_owner: dict[str, str] = {}
+        self._submit_lock = asyncio.Lock()  # tekilleştirme kontrolü + kayıt atomik (await arası yarış yok)
         self._cleaner_task: asyncio.Task | None = None
         # SP-5 — job başına bloklamayan artifact uyarıları (ör. schema_unavailable). Bilinçli
         # olarak in-process (DB şeması değişmedi): danışsaldır, restart sonrası kaybolması kabul.
@@ -64,31 +71,38 @@ class Packager:
     # Public API (§12.3)
     # ----------------------------------------------------------------- #
     async def submit(self, project: Project) -> BuildJob:
-        """Idempotent build tetikleyici (§3.1)."""
-        existing = await self.store.active_job_for_project(project.id)
-        if existing:
-            if existing.status in ("queued", "running"):
-                return existing
-            if existing.status == "done" and project.updated_at <= existing.created_at:
-                return existing  # proje değişmedi → mevcut paket geçerli
-
-        job = BuildJob(
-            id=new_job_id(),
-            project_id=project.id,
-            owner_key_id=project.owner_key_id,
-            status="queued",
-        )
-        await self.store.put_job(job)
-        # asset bytes'ı async tarafta topla (threadpool'da DB/await yok)
-        assets = {}
-        for a in project.assets:
-            try:
-                assets[a.id] = await self.store.get_asset_bytes(project.id, a.id)
-            except FileNotFoundError:
-                pass
-        task = asyncio.create_task(self._run(job, project, assets))
-        self._tasks[job.id] = task
+        """Idempotent build tetikleyici (§3.1). v1.9.1: kontrol + kayıt kilit altında (eşzamanlı iki
+        submit tek iş üretir); kuyruk dolu ya da principal sınırı aşıldıysa açık `queue_full` hatası."""
+        async with self._submit_lock:
+            existing = await self.store.active_job_for_project(project.id)
+            if existing:
+                if existing.status in ("queued", "running"):
+                    return existing
+                if (existing.status == "done" and project.updated_at <= existing.created_at
+                        and existing.package_id and await self.store.get_package(existing.package_id)):
+                    return existing  # proje değişmedi ve paket (link) hâlâ var → mevcut paket geçerli
+            owner = project.owner_key_id
+            if len(self._tasks) >= self.queue_max:
+                raise ToolError("queue_full", f"Build kuyruğu dolu ({self.queue_max}); biraz sonra tekrar dene")
+            if sum(1 for o in self._task_owner.values() if o == owner) >= self.per_principal:
+                raise ToolError("queue_full", f"Aynı anda en fazla {self.per_principal} eşzamanlı build; "
+                                              "birinin bitmesini bekle (build_status)")
+            job = BuildJob(
+                id=new_job_id(),
+                project_id=project.id,
+                owner_key_id=owner,
+                status="queued",
+            )
+            await self.store.put_job(job)
+            # proje revizyonu bu nesneyle sabit; asset baytları kuyrukta değil iş başlarken yüklenir
+            self._task_owner[job.id] = owner
+            self._tasks[job.id] = asyncio.create_task(self._run(job, project))
         return job
+
+    async def recover_orphans(self) -> int:
+        """v1.9.1 — açılışta: önceki süreçten kalan queued/running işler 'error' olur (sonsuza dek
+        'running' görünmesin). Tek-node varsayımı: bu süreç açılırken başka çalışan build yoktur."""
+        return await self.store.fail_active_jobs("Sunucu yeniden başlatıldı; build'i tekrar başlat")
 
     async def wait(self, job_id: str, timeout: float) -> BuildJob:
         """Fast-path bekleme: en fazla `timeout` sn; sonra güncel job döner."""
@@ -127,10 +141,18 @@ class Packager:
     # ----------------------------------------------------------------- #
     # Job runner
     # ----------------------------------------------------------------- #
-    async def _run(self, job: BuildJob, project: Project, assets: dict[str, bytes]) -> None:
-        job.status = "running"
-        await self.store.update_job(job)
+    async def _run(self, job: BuildJob, project: Project) -> None:
         try:
+            # durum yazımı da try içinde: DB hatasında finally slotu bırakır (kalıcı queue_full olmaz)
+            job.status = "running"
+            await self.store.update_job(job)
+            # asset bytes'ı async tarafta topla (threadpool'da DB/await yok)
+            assets = {}
+            for a in project.assets:
+                try:
+                    assets[a.id] = await self.store.get_asset_bytes(project.id, a.id)
+                except FileNotFoundError:
+                    pass
             loop = asyncio.get_running_loop()
             meta = await loop.run_in_executor(
                 self.executor, self.build_sync, project, assets
@@ -165,6 +187,7 @@ class Packager:
             await self.store.update_job(job)
         finally:
             self._tasks.pop(job.id, None)
+            self._task_owner.pop(job.id, None)
 
     # ----------------------------------------------------------------- #
     # Düşük seviye build (threadpool'da çalışır — DB/ağ YOK)
