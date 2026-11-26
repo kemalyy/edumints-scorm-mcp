@@ -5,6 +5,71 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.9.1] — 2026-10-30
+
+Pre-release security hardening from an independent code review (finding codes A1–A2, S1–S5, P1–P4, Q1).
+Evidence for every fix — code location, test name and the command that ran it — is in
+`docs/SECURITY-FINDINGS.md`.
+
+### Security
+- **API key expiry is enforced on the MCP path too** (A2): an expired `sk_` key kept working on the OAuth
+  dual-auth path (tool calls). One `key_rejection` rule now covers both validators, and the MCP token
+  carries the key's expiry.
+- **An expired preview token can no longer write to `/feedback`** (S2): the capability URLs (`/files`,
+  `/preview`, `/feedback`) share a single validity rule (404/410). `/feedback` bodies are capped at 16 KB
+  (413 before the body is read) and limited to 20 comments per token per minute (429).
+- **SSRF: the connection is pinned to the screened IP** (S1, P1): DNS is resolved once, asynchronously; the
+  request goes to the screened IP while TLS SNI and certificate validation stay bound to the original name
+  (DNS rebinding / TOCTOU closed). Every redirect hop is re-screened and re-pinned, and `total_timeout` is
+  now a real upper bound that includes body streaming.
+- **The data-URI path follows the same content policy as the URL path** (S4): MIME allow-list, size limit
+  checked before decoding, strict base64, and a byte-signature check for `image/*` (SVG excluded) on both
+  paths. `build_from_spec` assets apply the deliberate HTML profile (`embed_html`) on both paths as well.
+- **End-to-end access revocation** (A1): `POST /admin/principals/revoke|restore` (guarded by
+  `ADMIN_API_TOKEN`; the endpoints return 404 when it is unset). Revoking disables the user's `sk_` keys and
+  rejects a still-valid OAuth token in tool calls and on the HTTP routes (`/keys` included). Tokens without a
+  `sub` claim are rejected instead of collapsing into a shared "unknown" principal.
+- Further SSRF hardening from a second review pass: a fresh connection per hop (another name on the same IP
+  cannot reuse the previous TLS session), `trust_env=False`, resolved IPs tried in order (dual stack), IPv6
+  Host header handling, 6to4/Teredo embedded-IPv4 blocking, asynchronous URL screening in the image search
+  integrations, and a file-extension ↔ MIME cross-check.
+- **`allow-same-origin` removed from the `embed_html` iframe** (S3): inside a package (LMS origin) the
+  embedded HTML could reach the parent page's DOM and the LMS SCORM API — demonstrated in a real browser
+  under same-origin HTTP. The origin is now opaque in every mode, with a single postMessage bridge. New
+  blocking CI gate: `tests/runtime/embed-sandbox-probe.mjs` (parent DOM, SCORM API and top-level navigation
+  all blocked; the bridge still works).
+- **Build queue** (P2): two concurrent submits produce one job; queue capacity (`BUILD_QUEUE_MAX`) and
+  per-principal concurrency (`BUILD_PER_PRINCIPAL`) return `queue_full`; jobs left half-finished by a restart
+  are marked `error`; asset bytes are loaded when a job starts rather than while it waits in the queue.
+- **Quota and rate limiting** (P3, P4): the quota check is atomic (principal lock plus a reservation held for
+  the duration of the tool call); the rate limiter prunes stale buckets; `/feedback` is limited per client
+  before any database lookup. The single-node assumption is documented in `docs/KNOWN-LIMITATIONS.md`.
+- **Capability URL privacy** (S5, partial): `/files` and `/preview` responses carry `Referrer-Policy:
+  no-referrer`, `Cache-Control: private, no-store` and `nosniff`, and tokens are masked in access logs.
+- Second independent review: `build_package` issues a fresh link after `revoke_links`; a revoked user's
+  preview and download links are deleted and their demos return 404 (restorable); a key added to a revoked
+  principal in a race is rejected as well; a connection timeout while trying IPs moves on to the next
+  address; a database error no longer leaks a build slot; the `/feedback` client key is taken from the last
+  `X-Forwarded-For` entry the proxy appended; `publish_demo` is destructive (it overwrites the content of an
+  existing slug).
+
+### Added
+- **Tool annotations**: all 48 tools carry `title`, `readOnlyHint`, `destructiveHint`, `idempotentHint` and
+  `openWorldHint`, classified by their real side effects. A tool missing from the table fails at startup.
+  Required by the Claude and ChatGPT tool directories.
+- **`revoke_links`**: closes every preview and download link of a project immediately. `preview` also accepts
+  `allow_feedback=false` for a view-only link with no comment path. 48 tools (was 47).
+- `DIRECTORY_PROFILE=1`: turns off model-based TTS (directory policy). `OPENAI_APPS_CHALLENGE` serves the
+  ChatGPT domain-verification response.
+
+### Changed (please read)
+- **`embed_html`**: artifacts that bypass the bridge and write to `window.API` directly no longer report in a
+  package either (the preview already behaved this way), and artifacts that use `localStorage` or cookies now
+  get an error on those calls. The portable path is the postMessage bridge.
+- `add_asset` no longer accepts `data:text/html` (the URL path never did) — use `html_to_asset`,
+  `wrap_artifact` or `build_from_spec` assets for HTML.
+- Content declared as `image/*` without a matching image byte signature is rejected.
+
 ## [1.9.0] — 2026-10-14
 
 ### Added

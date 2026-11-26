@@ -6,7 +6,7 @@ import pytest
 from auth.ssrf import _is_blocked_ip, assert_safe_url, safe_fetch_asset
 from auth.errors import ToolError
 import httpx
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 @pytest.mark.parametrize("ip", [
     "127.0.0.1",
@@ -52,38 +52,20 @@ def test_assert_safe_url_blocks(url):
     assert excinfo.value.code == "asset_error"
 
 @pytest.mark.asyncio
-async def test_ssrf_redirect_to_internal():
-    # Test that redirects to internal IPs are blocked.
-    # The code uses follow_redirects=False and re-validates each hop.
-    
-    url = "https://public-service.com/redirect"
-    internal_url = "https://127.0.0.1/admin"
-    
-    mock_resp = MagicMock()
-    mock_resp.is_redirect = True
-    mock_resp.status_code = 302
-    mock_resp.headers = {"location": internal_url}
-    
-    # Use context manager mock
-    class AsyncContextManagerMock:
-        async def __aenter__(self):
-            return mock_resp
-        async def __aexit__(self, exc_type, exc, tb):
-            pass
+async def test_ssrf_redirect_to_internal(monkeypatch):
+    # Yönlendirmeler izlenmez (follow_redirects=False); her hop yeniden çözülüp denetlenir ve
+    # denetlenen IP'ye sabitlenir (v1.9.1). İç adrese yönlendirme reddedilir.
+    import auth.ssrf as ssrf
 
-    mock_client = MagicMock(spec=httpx.AsyncClient)
-    mock_client.stream.return_value = AsyncContextManagerMock()
-    # Also need to handle __aenter__ for the client itself since it's used in 'async with'
-    mock_client.__aenter__.return_value = mock_client
+    async def resolve(host, port):
+        return {"public-service.com": ["93.184.216.34"], "127.0.0.1": ["127.0.0.1"]}[host]
 
-    with patch("httpx.AsyncClient", return_value=mock_client):
-        with patch("auth.ssrf.assert_safe_url") as mock_assert:
-            # First call succeeds (public), second (internal) should be caught by assert_safe_url
-            mock_assert.side_effect = [None, ToolError("asset_error", "blocked")]
-            
-            with pytest.raises(ToolError) as excinfo:
-                await safe_fetch_asset(url, max_bytes=1024)
-            assert "blocked" in str(excinfo.value)
+    monkeypatch.setattr(ssrf, "_resolve_ips_async", resolve)
+    transport = httpx.MockTransport(
+        lambda req: httpx.Response(302, headers={"location": "https://127.0.0.1/admin"}))
+    with pytest.raises(ToolError) as excinfo:
+        await safe_fetch_asset("https://public-service.com/redirect", max_bytes=1024, _transport=transport)
+    assert "Engelli IP" in str(excinfo.value)
 
 @pytest.mark.asyncio
 async def test_dns_rebinding_protection():

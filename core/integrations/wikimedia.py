@@ -9,7 +9,7 @@ from urllib.parse import quote
 
 import httpx
 
-from auth.ssrf import assert_safe_url, safe_fetch_asset
+from auth.ssrf import assert_safe_url_async, safe_fetch_asset
 from .base import Provenance, ProvenanceAdapter
 
 logger = logging.getLogger(__name__)
@@ -42,7 +42,7 @@ class WikimediaAdapter(ProvenanceAdapter):
             query_string = "&".join(f"{k}={quote(str(v))}" for k, v in params.items())
             search_url = f"{WIKIMEDIA_API_BASE}?{query_string}"
             
-            assert_safe_url(search_url)
+            await assert_safe_url_async(search_url)
 
             async with httpx.AsyncClient(timeout=10.0) as client:
                 resp = await client.get(search_url)
@@ -126,7 +126,7 @@ class WikimediaAdapter(ProvenanceAdapter):
             query_string = "&".join(f"{k}={quote(str(v))}" for k, v in params.items())
             search_url = f"{WIKIMEDIA_API_BASE}?{query_string}"
 
-            assert_safe_url(search_url)
+            await assert_safe_url_async(search_url)
 
             async with httpx.AsyncClient(timeout=10.0) as client:
                 resp = await client.get(search_url)

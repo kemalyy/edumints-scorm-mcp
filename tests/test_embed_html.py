@@ -66,7 +66,7 @@ def test_embed_html_renders_sandboxed_iframe():
                           "aspect": "16:9"}])
     html = render_html(p, mode="package", runtime_js=load_runtime_js())
     assert '<iframe' in html and 'data-asset="aid1"' in html
-    assert 'sandbox="allow-scripts allow-same-origin allow-forms allow-popups"' in html
+    assert 'sandbox="allow-scripts allow-forms allow-popups"' in html  # v1.9.1: same-origin yok
     assert 'data-completion="time_threshold"' in html and 'data-min-seconds="8"' in html
     # artifact HTML launcher DOM'una GÖMÜLMEZ (yalnız iframe src referansı)
     assert 'data-embed-screen' in html

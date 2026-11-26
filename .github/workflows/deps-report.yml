@@ -70,7 +70,7 @@ jobs:
           python-version: "3.11"
       - name: pip-audit (bilinen CVE taraması — gate)
         run: |
-          pip install -q pip-audit
+          pip install -q -U "setuptools>=84.1.0" pip-audit  # GHSA-xmj3-9gf7-h52w (runner setuptools 79)
           # NOT: kurulum başarısızlığını asla yutma (final review fix — eskiden
           # `|| true` vardı: kurulum kırılırsa iş neredeyse boş bir ortama karşı
           # `pip-audit --strict` çalıştırıp yine de yeşil geçiyordu — hiçbir şey

@@ -15,6 +15,7 @@ YA DA geçerli API-key (Bearer sk_...) ile geçer. FastMCP MultiAuth ile birleş
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
+from datetime import timezone
 
 from fastmcp.server.auth import AccessToken, MultiAuth, RemoteAuthProvider, TokenVerifier
 from fastmcp.server.auth.providers.jwt import JWTVerifier
@@ -30,18 +31,25 @@ class ApiKeyVerifier(TokenVerifier):
         self,
         ensure: Callable[[], Awaitable[None]],
         get_key: Callable[[str], Awaitable[object]],
+        is_revoked: Callable[[str], Awaitable[bool]] | None = None,
     ):
         super().__init__()
         self._ensure = ensure
         self._get_key = get_key
+        self._is_revoked = is_revoked
 
     async def verify_token(self, token: str) -> AccessToken | None:
         if not token or not token.startswith("sk_"):
             return None  # JWT → JWTVerifier'a bırak
         await self._ensure()
         key = await self._get_key(token)
-        if key is None or getattr(key, "disabled", False):
+        from auth.keys import key_rejection  # v1.9.1: verify_key ile aynı kural (süre dahil)
+        if key_rejection(key) is not None:
             return None
+        owner_principal = getattr(key, "owner_principal", None)
+        if owner_principal and self._is_revoked and await self._is_revoked(owner_principal):
+            return None  # v1.9.1: iptal edilen principal'ın (yarışla eklenmiş) anahtarı da reddedilir
+        exp = getattr(key, "expires_at", None)
         # principal = owner_principal (portaldan üretilmiş, "logto:<sub>") VEYA eski key'lerde key.id.
         principal = getattr(key, "owner_principal", None) or key.id
         return AccessToken(
@@ -49,6 +57,8 @@ class ApiKeyVerifier(TokenVerifier):
             client_id=key.id,
             subject=principal,
             scopes=["mcp"],
+            expires_at=int(exp.timestamp() if exp.tzinfo else exp.replace(tzinfo=timezone.utc).timestamp())
+            if exp else None,
             claims={
                 "auth": "apikey",
                 "key_id": key.id,

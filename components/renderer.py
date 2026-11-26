@@ -2471,7 +2471,10 @@ def _embed_body(s) -> str:
     return (
         f'<div class="embed-wrap" data-embed-screen data-aspect="{_attr(aspect)}">'
         f'<iframe class="embed-frame" data-asset="{_attr(s.html_asset_id)}"'
-        f' sandbox="allow-scripts allow-same-origin allow-forms allow-popups"'
+        # v1.9.1 — allow-same-origin YOK: pakette src göreli (LMS kökeni) olduğundan allow-scripts ile
+        # birlikte artifact üst DOM'a ve LMS SCORM API'sine erişebiliyordu (tarayıcıda kanıtlandı:
+        # tests/runtime/embed-sandbox-probe.mjs). Opak köken → tek kanal postMessage köprüsü (ev.source).
+        f' sandbox="allow-scripts allow-forms allow-popups"'
         f' data-completion="{_attr(getattr(s, "completion", "on_view"))}"'
         f' data-min-seconds="{int(getattr(s, "min_seconds", 0) or 0)}"'
         f' referrerpolicy="no-referrer" loading="lazy"'

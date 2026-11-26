@@ -390,6 +390,25 @@ open(out, "w", encoding="utf-8").write(render_html(p, mode="preview", runtime_js
     asset_data={"i": ("image/svg+xml", svg)}))
 `;
 
+// Moodle kabul senaryosu (docs/LMS-INTEGRATION.md) — masteryscore'lu, geçme notu olan kurs:
+// öğretmen raporuna düşen iki alan (lesson_status + score.raw) doğru ve yanlış yanıtta kilitlenir.
+const ACC_RENDER_PY = `
+import sys
+from components.renderer import render_html
+from core.project import (Project, new_project_id, ContentSlide, MCQScreen, Choice,
+                          Tracking, CompletionRule)
+out, ver = sys.argv[1], sys.argv[2]
+p = Project(id=new_project_id(), title="probe-acc", scorm_version=ver,
+    tracking=Tracking(completion_rule=CompletionRule.viewed_all_and_passed, passing_score=50),
+    screens=[
+    ContentSlide(id="c1", title="Giris", body_html="<p>merhaba</p>"),
+    MCQScreen(id="q1", title="Baskent neresi?", prompt_html="<p>Secin</p>", points=10,
+              options=[Choice(id="a", text_html="Ankara", correct=True),
+                       Choice(id="b", text_html="Istanbul")]),
+])
+open(out, "w", encoding="utf-8").write(render_html(p, mode="preview", runtime_js="/*probe*/"))
+`;
+
 const failures = [];
 function check(label, actual, expected) {
   const ok = actual === expected;
@@ -452,6 +471,14 @@ const answerWrong = async (p) => {
   await p.click("#btnNext");
   await p.waitForTimeout(1100);           // ölçülebilir latency
   await p.click('.opt[data-opt="b"]');
+  await p.click(".btn-check");
+  await p.waitForTimeout(120);
+};
+
+const answerRight = async (p) => {
+  await p.click("#btnNext");
+  await p.waitForTimeout(150);
+  await p.click('.opt[data-opt="a"]');
   await p.click(".btn-check");
   await p.waitForTimeout(120);
 };
@@ -523,6 +550,28 @@ async function main() {
 
     const done = await session(browser, f12, { act: answerWrong });
     check("tamamlanan kursta exit", done.last["cmi.core.exit"], "normal");
+
+    // --- Moodle kabul senaryosu: öğretmen raporuna düşen durum + puan (docs/LMS-INTEGRATION.md) ---
+    // Kurs: viewed_all_and_passed + passing_score 50 (manifest'te adlcp:masteryscore=50).
+    console.log("\n== Kabul senaryosu (1.2) — gecme notlu kursta durum ve puan ==");
+    const af = path.join(tmp, "acc12.html");
+    execFileSync("python3", ["-c", ACC_RENDER_PY, af, "1.2"], { cwd: process.cwd() });
+    const accOk = await session(browser, af, { act: answerRight });
+    check("dogru yanit → score.raw", accOk.last["cmi.core.score.raw"], "100");
+    check("dogru yanit → score.min", accOk.last["cmi.core.score.min"], "0");
+    check("dogru yanit → score.max", accOk.last["cmi.core.score.max"], "100");
+    check("dogru yanit → lesson_status", accOk.last["cmi.core.lesson_status"], "passed");
+    check("dogru yanit → exit", accOk.last["cmi.core.exit"], "normal");
+    // Dokumandaki ogretmen-raporu eslemesinin kalan iki satiri: Etkilesimler ve Sure.
+    check("dogru yanit → interactions.0.id", accOk.last["cmi.interactions.0.id"], "q1");
+    check("dogru yanit → interactions.0.result", accOk.last["cmi.interactions.0.result"], "correct");
+    checkMatch("dogru yanit → session_time", accOk.last["cmi.core.session_time"], /^\d{4}:\d{2}:\d{2}\.\d{2}$/);
+    const accNo = await session(browser, af, { act: answerWrong });
+    check("yanlis yanit → score.raw", accNo.last["cmi.core.score.raw"], "0");
+    check("yanlis yanit → interaction result", accNo.last["cmi.interactions.0.result"], "wrong");
+    // 1.2'de tek durum kanali var ve tamamlanma gecmeyi icerir: "bitirdi ama kaldi" DEGERI YOK.
+    // Dokumante edilen durum budur; degisirse dokumandaki esleme tablosu da guncellenmelidir.
+    check("yanlis yanit → lesson_status (failed DEGIL)", accNo.last["cmi.core.lesson_status"], "incomplete");
 
     // --- S2: cmi.objectives.* — 3 hedef / 9 soru ---
     console.log("\n== S2 (1.2) — 3 hedefli kurs: 3 AYRI objective kaydi ==");

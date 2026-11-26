@@ -14,6 +14,7 @@ ErrorCode = Literal[
     "rate_limited",
     "unknown_topic",
     "unknown_screen_type",
+    "queue_full",
 ]
 
 

@@ -176,15 +176,12 @@ as above.
   stored as its own `text/html` asset and referenced by the iframe's `src`. This is the sanctioned escape
   hatch for a full application — and it means **you** are responsible for what is inside it. There is no
   LLM and no rewriting on the server.
-- **The bridge is a convenience API, not a security boundary.** The iframe carries
-  `sandbox="allow-scripts allow-same-origin allow-forms allow-popups"`, so in a **built package** the
-  artifact can walk the `findAPI` chain and call `window.API` / `window.API_1484_11` directly. It runs with
-  the same privileges as the course — your content, your LMS. Expected, not a hole.
-- **…but that only holds in `package` mode.** In `preview` and `publish_demo` the assets are embedded as
-  `data:` URIs, and a `data:` iframe has an **opaque origin** — reading `window.parent.API` throws and
-  `findAPI` finds nothing. An artifact that writes to the SCORM API directly will do **nothing in preview**
-  and work once packaged; "it doesn't report in preview" is often this, not a bug. The postMessage bridge
-  works in **both** modes. Portable answer: always use the bridge.
+- **The bridge is the only channel (v1.9.1).** The iframe carries `sandbox="allow-scripts allow-forms
+  allow-popups"` — **no `allow-same-origin`** — so the artifact runs in an **opaque origin** in every mode
+  (preview, demo and built package): it cannot read the course page, cannot reach `window.API` /
+  `window.API_1484_11`, and `localStorage`/cookies throw. Report progress with the postMessage bridge
+  below; it works the same everywhere. (Before v1.9.1 a packaged artifact could call the LMS API
+  directly; that was closed because it let any embedded HTML act with the course's LMS session.)
 - **`passing_score` never sees the artifact's score.** The engine computes pass/fail from `state.results`
   (answers on quiz screens); the bridge's `setScore` is written to cmi but never enters `state.results`.
   So a course with `completion_rule: "passed_quiz"` (or `"viewed_all_and_passed"`) whose only score comes

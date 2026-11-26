@@ -697,6 +697,15 @@ set_tracking(project_id: str, completion_rule: CompletionRule, passing_score: in
 
 add_asset(project_id: str, source: str, filename: str) -> AddAssetOut
     # source: "data:<mime>;base64,..." | "https://..."
+    # v1.9.1: iki yol AYNI içerik politikası — MIME izin listesi (görsel/video/ses/pdf/json/vtt/
+    # font; HTML YOK), boyut decode/indirme sırasında kesilir, base64 katı, image/* (svg hariç) bayt imzası
+    # bildirilen türle uyuşmalı. build_from_spec `assets[]` aynı politikayı + bilinçli HTML profilini
+    # (embed_html) iki yolda da uygular — HTML dosyası embed'de sandbox'lı iframe'de çalışır, ama paketteki
+    # `assets/*.html` LMS kökeninde doğrudan da açılabilir (güven sınırı: yazar içeriği). Dosya uzantısı
+    # MIME ile uyuşmalı: .html/.htm/.xhtml yalnız HTML profilinde, .svg yalnız image/svg+xml ile.
+    # URL yolu: hop başına yeni bağlantı, denetlenen IP'ye sabitlenmiş (SNI/Host orijinal ad; IP'ler
+    # sırayla denenir), proxy env yok sayılır, asenkron DNS, yönlendirmeler + gövde dahil toplam süre sınırı.
+    # Engellenen aralıklar 6to4 / Teredo ile gömülü IPv4'ü de kapsar.
     # AddAssetOut = AssetRef
 
 search_images(query: str, source: str = "openverse", limit: int = 5) -> dict
@@ -705,7 +714,10 @@ search_images(query: str, source: str = "openverse", limit: int = 5) -> dict
     #          license, license_url?, creator?, source_page?}] }
     # Seçilen `url`, add_asset(project_id, source=url, filename=...) ile projeye eklenir.
 
-preview(project_id: str, include_html: bool = False) -> PreviewOut
+preview(project_id: str, include_html: bool = False, allow_feedback: bool = True) -> PreviewOut
+    # v1.9.1: allow_feedback=False → yalnız görüntüleme linki (yorum arayüzü yok, /feedback 403)
+revoke_links(project_id: str) -> {project_id, previews_revoked, packages_revoked}
+    # v1.9.1: projenin tüm /preview ve /files linklerini anında kapatır (404); demo ayrı (unpublish_demo)
 publish_demo(project_id: str, slug: str) -> {url, slug}   # KALICI /demo/{slug} linki (TTL yok, upsert)
     # PreviewOut = { hosted_url, compositions, composition_questions, size_bytes, inline_html? }
     # v1.8.1: varsayılan yanıt HAFİF (< 20 KB); inline_html yalnız include_html=true ile —
@@ -1096,7 +1108,17 @@ threadpool. Transaction'lar **kısa**. **Uzun build işi transaction içinde DE�
 | `POST {ROOT_PATH}/mcp` | Streamable HTTP MCP endpoint | API key (header) |
 | `GET  {ROOT_PATH}/files/{token}` | Build edilmiş `.zip` indirme | token (imzalı/rastgele) |
 | `GET  {ROOT_PATH}/preview/{token}` | Önizleme HTML servis | token |
+| `POST {ROOT_PATH}/feedback` | Önizleme yorumu (`{preview_token, comment, screen_id?}`) | preview token |
 | `GET  {ROOT_PATH}/health` | Healthcheck → 200 `{status:"ok"}` | yok |
+
+- **Capability URL'leri (v1.9.1):** `/files`, `/preview` ve `/feedback` tek geçerlilik kuralı
+  kullanır — token yok → 404, süresi dolmuş (temizleyici henüz silmemiş olsa da) → 410. `/files` ve
+  `/preview` yanıtları `Referrer-Policy: no-referrer`, `Cache-Control: private, no-store`,
+  `X-Content-Type-Options: nosniff` taşır; erişim loglarında token ilk 6 karakter + `…` olarak maskelenir.
+  `/feedback`: gövde ≤ 16 KB (aşan gövde okunmadan 413), token başına dakikada 20 yorum (aşılırsa 429).
+- **API anahtarları (v1.9.1):** MCP (OAuth dual-auth) ve özel HTTP rotaları aynı kuralı uygular —
+  devre dışı ya da süresi dolmuş anahtar her iki yolda reddedilir; MCP token'ı anahtarın son kullanma
+  zamanını taşır.
 
 - **Transport:** Streamable HTTP (`transport="http"`). SSE **kullanılmaz**. stdio yalnızca lokal test.
 - **Auth header:** `Authorization: Bearer <api_key>` (FastMCP `authenticate` hook).
@@ -1177,6 +1199,10 @@ threadpool. Transaction'lar **kısa**. **Uzun build işi transaction içinde DE�
 | `MAX_ASSET_MB` | `25` | Tek asset boyut sınırı |
 | `BUILD_WORKERS` | `8` | Build threadpool worker sayısı (9-core kutu) |
 | `BUILD_SYNC_TIMEOUT_SEC` | `4` | Fast-path: build sonucu bu süre içinde dönerse senkron döner (§3.1) |
+| `ADMIN_API_TOKEN` | boş | v1.9.1 — portalın `/admin/principals/revoke|restore` çağrıları için paylaşılan sır; boşsa uçlar 404 |
+| `DIRECTORY_PROFILE` | `0` | v1.9.1 — `1` → `synthesize_speech` gizli, `build_from_spec auto_tts` kapalı (uyarı döner) |
+| `OPENAI_APPS_CHALLENGE` | boş | v1.9.1 — ChatGPT alan doğrulaması: `/.well-known/openai-apps-challenge` düz metin |
+| `BUILD_QUEUE_MAX` / `BUILD_PER_PRINCIPAL` | `32` / `3` | v1.9.1 — build kuyruğu kapasitesi / principal başına eşzamanlı build; aşılırsa `queue_full` |
 | `ANTISLOP_STRICT` | `0` | `1` → sunucu genelinde strict anti-slop varsayılanı (§3.2); tool'daki açık `strict` parametresi kazanır |
 | `SCORM_DEFAULT_VERSION` | `1.2` | Varsayılan paketleme sürümü |
 | `DB_PATH` | `${DATA_DIR}/scorm.db` | SQLite dosyası |
@@ -1421,6 +1447,15 @@ threadpool. Transaction'lar **kısa**. **Uzun build işi transaction içinde DE�
   inline edilir, oraya eklemek embed'siz kursların çıktısını da değiştirirdi (ölçüldü: +87 bayt).
   `tests/test_embed_html.py:test_bridge_inlined_only_for_embed_courses` + kritik kapı
   `tests/test_golden.py`/`tests/test_outline_menu.py` bunu kilitler.
+  **GÜVEN SINIRI — v1.9.1 ile DEĞİŞTİ:** iframe `sandbox="allow-scripts allow-forms allow-popups"`
+  (**`allow-same-origin` YOK**). Paket modunda `src` göreli (LMS kökeni) olduğundan eski
+  `allow-scripts allow-same-origin` birleşimi artifact'e üst DOM'a ve gerçek LMS SCORM API'sine erişim
+  veriyordu — gerçek tarayıcıda, HTTP aynı-köken altında kanıtlandı ve kapatıldı
+  (`tests/runtime/embed-sandbox-probe.mjs`, CI'da bloklayıcı). Artık artifact HER modda opak kökende
+  çalışır: köprü (`ev.source` kimliği) tek kanaldır; doğrudan `window.API` yazan eski artifact'ler
+  paketlendiğinde de rapor vermez (önizlemedeki davranışın aynısı). Aşağıdaki tarihsel notlar v1.9.1
+  öncesini anlatır.
+
   **GÜVEN SINIRI (fix round 1 / IMPORTANT 3 — açıkça belgelenir):** `sandbox="allow-scripts
   allow-same-origin allow-forms allow-popups"` + aynı-origin `src` demek, artifact
   `window.parent`'a VE (findAPI zinciriyle) doğrudan gerçek LMS API'sine erişebilir demektir —

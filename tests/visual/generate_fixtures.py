@@ -49,7 +49,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 import server  # noqa: E402
 
-from auth.ssrf import decode_data_uri  # noqa: E402
+from auth.ssrf import DEFAULT_ALLOWED_MIMES, HTML_MIMES, decode_data_uri  # noqa: E402
 from components import renderer  # noqa: E402
 from core.project import (  # noqa: E402
     AssetRef,
@@ -205,7 +205,8 @@ def render_fixture(title: str, screen: dict, assets: list, preset: str | None = 
     asset_data: dict[str, tuple[str, bytes]] = {}
     existing: set[str] = set()
     for a in assets:
-        data, mime = decode_data_uri(a["source"], max_bytes=MAX_ASSET_BYTES)
+        data, mime = decode_data_uri(a["source"], max_bytes=MAX_ASSET_BYTES,
+                                     allowed_mimes=DEFAULT_ALLOWED_MIMES + HTML_MIMES)  # embed_html
         rel = server._safe_filename(a.get("filename") or "asset.bin", existing)
         existing.add(rel)
         aid = a.get("id") or new_asset_id()
